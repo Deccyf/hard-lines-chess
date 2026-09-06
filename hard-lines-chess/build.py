@@ -47,6 +47,16 @@ open('src/rating-fit.js', 'w').write(rating_js)
 # --test` can reach them; concatenated into one <script> those same lines are a
 # syntax error and the whole app is a blank screen. Stripping them here means a
 # file can be both without anybody remembering which it is.
+# A GENERATED FILE THAT IS ABSENT IS SAID SO, not raised as a stack trace from
+# open(). src/puzzle-bank.js is committed rather than built, because generating
+# it takes the best part of an hour, and the first thing anybody does with a
+# fresh clone that is missing it should be a sentence telling them which
+# command writes it.
+if not os.path.exists('src/puzzle-bank.js'):
+    print('build.py: src/puzzle-bank.js is missing; the clock mode will have no starting bank.')
+    print('           Write one with:  cd tools && node make-puzzles.mjs 80')
+    open('src/puzzle-bank.js', 'w').write('// Absent at build time. See tools/make-puzzles.mjs.\nconst PUZZLE_BANK = [];\n')
+
 parts = [re.sub(r'^export ', '', open(f).read(), flags=re.M) for f in [
     'src/engine/bundle.js', 'src/engine/bands.js', 'src/openings.js', 'src/notation.js',
     'src/store.js', 'src/pgn.js', 'src/motifs.js', 'src/rating-fit.js', 'src/review.js', 'src/board-view.js',

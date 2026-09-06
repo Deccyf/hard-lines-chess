@@ -47,11 +47,18 @@ const OUT = new URL(process.argv[3] ?? '../src/puzzle-bank.js', import.meta.url)
 // a rebuild rather than a new set of puzzles nobody chose.
 const seeded = (seed) => () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
 
-/** One self-play game as a PGN. A weak band against a strong one blunders. */
-function playGame(weakIndex, strongIndex, seed) {
+/**
+ * One self-play game as a PGN. A weak band against a strong one blunders.
+ *
+ * WHICH COLOUR IS WEAK ALTERNATES, and it has to. The first run put the weak
+ * band on White every game, so White made all the mistakes and every puzzle in
+ * the bank was Black to move — a set that trains one orientation and leaves
+ * the other unpractised, which is the half most people are worse at anyway.
+ */
+function playGame(weakIndex, strongIndex, seed, weakIsWhite) {
   Math.random = seeded(seed);
-  const white = BANDS[weakIndex];
-  const black = BANDS[strongIndex];
+  const white = BANDS[weakIsWhite ? weakIndex : strongIndex];
+  const black = BANDS[weakIsWhite ? strongIndex : weakIndex];
   const board = new Board();
   const engine = new Engine();
   const sans = [];
@@ -102,13 +109,13 @@ for (let g = 0; g < GAMES; g++) {
   // middle ones give away tactics that take more than one move to punish.
   const weak = 1 + (g % 8);
   const strong = 14 + (g % 7);
-  const pgn = playGame(weak, strong, 1000 + g * 7919);
+  const pgn = playGame(weak, strong, 1000 + g * 7919, g % 2 === 0);
   const parsed = parsePgn(pgn);
   if (!parsed || !parsed.plies?.length) continue;
   played++;
 
   for (const side of ['white', 'black']) {
-    const result = await reviewGame(parsed, side, { movetime: 220, depth: 10, withTactics: true });
+    const result = await reviewGame(parsed, side, { movetime: 150, depth: 9, withTactics: true });
     for (const tactic of result.tactics ?? []) {
       found++;
       if (bank.has(tactic.fen)) continue;

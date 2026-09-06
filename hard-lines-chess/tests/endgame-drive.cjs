@@ -67,6 +67,36 @@ const { launch, serve, DIST } = require('./browser.cjs');
   say('verdict after Ke6', await page.$eval('#endgameVerdict', (e) => e.textContent));
   check('Ke6 keeps the win', await page.$eval('#endgameVerdict', (e) => e.textContent).then((t) => t.startsWith('Still winning')), true);
 
+  // ── play one all the way through to the queen ─────────────────────────────
+  //
+  // The table gives the shortest win, so following it must reach a promotion
+  // inside the budget and be reported as one. This is the check that the goal
+  // is detected at all: a trainer that never says "you did it" is a trainer
+  // nobody finishes.
+  await page.evaluate(() => startEndgame(ENDGAMES.find((e) => e.id === 'king-on-the-sixth')));
+  await page.waitForTimeout(300);
+  for (let i = 0; i < 12; i++) {
+    const done = await page.evaluate(() => {
+      if (Endgames.finished) return true;
+      if (Endgames.thinking || Endgames.view.locked) return false;
+      const best = bestPawnMove(Endgames.view.board);
+      if (!best) return true;
+      const move = Endgames.view.board.legalMoves()
+        .find((m) => moveFrom(m) === best.from && moveTo(m) === best.to);
+      if (!move) return true;
+      onEndgameMove({ move });
+      return false;
+    });
+    if (done) break;
+    await page.waitForTimeout(700);
+  }
+  say('outcome', await page.$eval('#endgameOutcome', (e) => e.textContent));
+  check('the win is reached and reported', await page.evaluate(() => Endgames.finished), 'passed');
+  check('and recorded against the position',
+    await page.evaluate(() => Endgames.results['king-on-the-sixth']?.passed), true);
+  check('the list shows it done',
+    await page.$$eval('#endgameList .tag.good', (e) => e.length > 0), true);
+
   // ── vision ────────────────────────────────────────────────────────────────
   await page.evaluate(() => show('vision'));
   await page.waitForTimeout(200);

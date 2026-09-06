@@ -12795,7 +12795,11 @@ function settleEndgame() {
   }
 
   if (entry.goal === 'promote') {
-    const promoted = countPieces(board, mySide, QUEEN) > countPieces(new Board(entry.fen), mySide, QUEEN);
+    // ANY promotion, not just a queen. The picker lets you choose, and
+    // counting queens told somebody who promoted to a rook — which is the
+    // right move in some of these, to avoid stalemate — that they had run out
+    // of moves without ever getting the pawn through.
+    const promoted = promotedMaterial(board, mySide) > promotedMaterial(new Board(entry.fen), mySide);
     if (promoted) return endEndgame(true, 'Promoted. That is the technique.');
     if (drawn) return endEndgame(false, `${outcome === 'stalemate' ? 'Stalemate' : 'Drawn'} — the pawn never got through.`);
     if (outcome === 'checkmate') return endEndgame(false, 'You were checkmated.');
@@ -12821,6 +12825,12 @@ function settleEndgame() {
     return endEndgame(false, `Out of moves. ${verdict?.result === 'winning' ? 'The win was still there — it just took too long.' : 'Try the method again from the top.'}`);
   }
   return false;
+}
+
+/** Everything that is not a king and not a pawn: what a promotion adds to. */
+function promotedMaterial(board, colour) {
+  return [QUEEN, ROOK, BISHOP, KNIGHT]
+    .reduce((total, type) => total + countPieces(board, colour, type), 0);
 }
 
 function countPieces(board, colour, type) {
