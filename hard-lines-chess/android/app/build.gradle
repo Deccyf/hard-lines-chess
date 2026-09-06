@@ -135,9 +135,24 @@ tasks.named('preBuild').configure {
 }
 
 dependencies {
+    // ONE VERSION OF THE KOTLIN STANDARD LIBRARY, AND IT HAS TO BE SAID.
+    // Nothing here is written in Kotlin, but AndroidX is, so its standard
+    // library arrives transitively — and at more than one version. Kotlin 1.8
+    // folded kotlin-stdlib-jdk7 and -jdk8 into kotlin-stdlib, while AndroidX
+    // releases of different ages still ask for both names; the result is the
+    // same classes twice on the dex classpath, which fails the build in
+    // CheckDuplicateClasses with several hundred lines of duplicates.
+    //
+    // The BOM pins every kotlin-stdlib* to one version. At that version the
+    // two jdk artifacts are empty shims that depend on kotlin-stdlib, so there
+    // is exactly one copy of each class.
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.9.24')
+
     // WebViewAssetLoader — serves the bundled app over https so the browser
     // storage the game saves into is a normal origin's storage. See MainActivity.
     implementation 'androidx.webkit:webkit:1.12.1'
+    // ComponentActivity, for the back dispatcher.
     implementation 'androidx.activity:activity:1.9.3'
+    // ViewCompat/WindowCompat, for the window insets the bars are padded by.
     implementation 'androidx.core:core:1.13.1'
 }
