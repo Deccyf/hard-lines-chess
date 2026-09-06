@@ -220,6 +220,7 @@ async function boot() {
   $('notationTakeBack').addEventListener('click', takeBackNotation);
   $('notationShow').addEventListener('click', showNotationMove);
   $('notationFree').addEventListener('click', () => startNotationBoard());
+  $('notationFlip').addEventListener('click', flipNotation);
   renderNotationLessons();
   startNotationBoard();
 

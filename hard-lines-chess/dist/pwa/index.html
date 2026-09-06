@@ -1270,9 +1270,9 @@
           </select>
         </label>
       </div>
-      <p class="note" style="margin:10px 0 0">Two bands off the ladder, drawn at random, given opposite colours and an
-        opening neither of them picked. Inside the search each side chooses freely among the moves it rates equal, so
-        the same two bands do not play the same game twice. Press it again for another one.</p>
+      <p class="note" style="margin:10px 0 0" id="watchBlurb">Two bands off the ladder, drawn at random, given opposite
+        colours and an opening neither of them picked. Inside the search each side chooses freely among the moves it
+        rates equal, so the same two bands do not play the same game twice. Press it again for another one.</p>
     </div>
 
     <div id="watchStage" hidden>
@@ -1280,6 +1280,12 @@
         <div>
           <div id="watchBoard"></div>
           <p class="prompt" id="watchMove"></p>
+          <!-- WHAT A PERSON WROTE COMES BEFORE WHAT THE SEARCH SAID. The
+               curated note and the opening's own idea used to sit in the
+               right-hand column, which on a phone is under the board and below
+               the engine's verdict — so the only sentence on the screen with a
+               human insight in it was the one you had to scroll for. -->
+          <div id="watchWhy"></div>
           <p class="note" id="watchNote"></p>
           <p class="idea" id="watchOutcome"></p>
           <div class="row">
@@ -1294,7 +1300,6 @@
           <div class="panel">
             <h3 id="watchTitle"></h3>
             <p class="note" id="watchSubtitle"></p>
-            <div id="watchWhy"></div>
           </div>
           <div class="panel">
             <h3>Why this game</h3>
@@ -1338,15 +1343,22 @@
             <button class="btn" id="notationTakeBack" type="button">Take it back</button>
             <button class="btn" id="notationShow" type="button" hidden>Show me</button>
             <button class="btn" id="notationFree" type="button">Start again</button>
+            <button class="btn" id="notationFlip" type="button">Flip</button>
           </div>
           <p class="note" id="notationFeedback"></p>
+          <!-- THE ANSWER GOES WHERE YOUR EYE ALREADY IS. This panel was in the
+               right-hand column under the lesson's prose, which on a phone
+               stacks below the board — so the one thing you played the move to
+               see was two screens down from the move. -->
+          <div class="panel">
+            <p class="san-big" id="notationSan">—</p>
+            <div id="notationParts"></div>
+          </div>
         </div>
         <div>
           <div class="panel">
             <h3 id="notationLessonName">A board of your own</h3>
             <p class="note" id="notationRule"></p>
-            <p class="san-big" id="notationSan">—</p>
-            <div id="notationParts"></div>
           </div>
           <div class="panel">
             <h3>The moves you have made</h3>
@@ -14485,6 +14497,11 @@ function resetWatch(keepMoves = false) {
   Watch.view.orientation = WHITE;
   Watch.view.setFen(Watch.board.fen());
   $('watchStage').hidden = false;
+  // THE EXPLANATION GETS OUT OF THE WAY ONCE THERE IS A BOARD. On a phone the
+  // setup panel sits above the stage, and six lines of prose about how the
+  // pairing is drawn pushed the game most of a screen down — read once, in the
+  // way ever after. The button stays; the paragraph goes.
+  $('watchBlurb').hidden = true;
   renderWatch();
   explainWatchPly(0);
 }
@@ -14681,7 +14698,18 @@ function explainWatchPly(ply) {
           const reply = App.engine.search(after, { movetime: 200, maxDepth: 11 });
           scoreAfter = -reply.score;
         }
-        judged = { best, loss: Math.max(0, result.score - scoreAfter), evalAfter: plainEval(scoreAfter, mover) };
+        judged = {
+          best,
+          loss: Math.max(0, result.score - scoreAfter),
+          evalAfter: plainEval(scoreAfter, mover),
+          // HOW DEEP THE OPINION IS, because it changes what the opinion is
+          // worth. A quarter of a second on a phone does not see a piece
+          // sacrifice through, and it will happily call one of the most famous
+          // moves ever played "a little worse". Printing the depth is the
+          // honest alternative to either hiding that or hedging it: the reader
+          // can weigh six plies against a person who thought for an hour.
+          depth: result.depth,
+        };
       }
     } catch { judged = null; }
     Watch.busy = false;
@@ -14702,15 +14730,16 @@ function paintWatchNote(note) {
 
   const box = $('watchNote');
   if (!note.judged) { box.textContent = 'Looking at it…'; box.className = 'note'; return; }
-  const { best, loss, evalAfter } = note.judged;
+  const { best, loss, evalAfter, depth } = note.judged;
+  const how = depth ? `A ${depth}-ply search` : 'A deeper search';
   if (best === note.played || loss < 40) {
-    box.textContent = `A deeper search agrees with ${note.played}. ${evalAfter}.`;
+    box.textContent = `${how} agrees with ${note.played}. ${evalAfter}.`;
     box.className = 'note good-note';
   } else if (loss < 150) {
-    box.textContent = `A deeper search prefers ${best}. This is a little worse, not a mistake. ${evalAfter}.`;
+    box.textContent = `${how} prefers ${best}. A little worse by that measure, not a mistake. ${evalAfter}.`;
     box.className = 'note';
   } else {
-    box.textContent = `A deeper search wanted ${best}. ${note.played} costs about ${(loss / 100).toFixed(1)} pawns against it. ${evalAfter}.`;
+    box.textContent = `${how} wanted ${best}. By that measure ${note.played} costs about ${(loss / 100).toFixed(1)} pawns. ${evalAfter}.`;
     box.className = 'note bad-note';
   }
 }
@@ -14831,6 +14860,8 @@ function startNotationBoard(fen = null, lesson = null) {
   Notation.history = [];
   Notation.spelled = null;
   Notation.board = new Board(fen ?? undefined);
+  // Set ONCE, from the side the lesson asks to move, so a Black-to-move
+  // position is shown from Black's side and then stays put.
   Notation.view.orientation = Notation.board.turn;
   // The square to ring is the one the lesson's move starts from — and it is
   // ringed only if that move is actually legal here, so a broken lesson marks
@@ -14872,7 +14903,10 @@ function onNotationMove({ move }) {
   Notation.board = new Board(Notation.view.board.fen());
   Notation.history.push({ fen: fenBefore, san: spelled.san, parts: spelled.parts, uci: moveToUci(move) });
   Notation.spelled = spelled;
-  Notation.view.orientation = Notation.board.turn;
+  // THE BOARD DOES NOT TURN ROUND UNDER YOU. It used to follow the side to
+  // move, so playing the lesson's move spun the board — on a screen about
+  // where the squares are, which is the worst place for it. The orientation is
+  // set once when a position is loaded and changes only when you ask.
   Notation.view.setFen(Notation.board.fen(), { lastMove: move });
   renderNotation();
 }
@@ -14892,7 +14926,6 @@ function takeBackNotation() {
   Notation.spelled = Notation.history.length
     ? { san: Notation.history[Notation.history.length - 1].san, parts: Notation.history[Notation.history.length - 1].parts }
     : null;
-  Notation.view.orientation = Notation.board.turn;
   Notation.view.setFen(Notation.board.fen());
   renderNotation();
 }
@@ -14981,6 +15014,12 @@ function renderNotationLessons() {
     row.appendChild(go);
     box.appendChild(row);
   }
+}
+
+/** Turn the board round, because sometimes you want to see it the other way. */
+function flipNotation() {
+  Notation.view.orientation = Notation.view.orientation === WHITE ? BLACK : WHITE;
+  Notation.view.setFen(Notation.board.fen());
 }
 
 
@@ -15206,6 +15245,7 @@ async function boot() {
   $('notationTakeBack').addEventListener('click', takeBackNotation);
   $('notationShow').addEventListener('click', showNotationMove);
   $('notationFree').addEventListener('click', () => startNotationBoard());
+  $('notationFlip').addEventListener('click', flipNotation);
   renderNotationLessons();
   startNotationBoard();
 

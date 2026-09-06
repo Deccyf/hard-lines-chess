@@ -137,6 +137,11 @@ function resetWatch(keepMoves = false) {
   Watch.view.orientation = WHITE;
   Watch.view.setFen(Watch.board.fen());
   $('watchStage').hidden = false;
+  // THE EXPLANATION GETS OUT OF THE WAY ONCE THERE IS A BOARD. On a phone the
+  // setup panel sits above the stage, and six lines of prose about how the
+  // pairing is drawn pushed the game most of a screen down — read once, in the
+  // way ever after. The button stays; the paragraph goes.
+  $('watchBlurb').hidden = true;
   renderWatch();
   explainWatchPly(0);
 }
@@ -333,7 +338,18 @@ function explainWatchPly(ply) {
           const reply = App.engine.search(after, { movetime: 200, maxDepth: 11 });
           scoreAfter = -reply.score;
         }
-        judged = { best, loss: Math.max(0, result.score - scoreAfter), evalAfter: plainEval(scoreAfter, mover) };
+        judged = {
+          best,
+          loss: Math.max(0, result.score - scoreAfter),
+          evalAfter: plainEval(scoreAfter, mover),
+          // HOW DEEP THE OPINION IS, because it changes what the opinion is
+          // worth. A quarter of a second on a phone does not see a piece
+          // sacrifice through, and it will happily call one of the most famous
+          // moves ever played "a little worse". Printing the depth is the
+          // honest alternative to either hiding that or hedging it: the reader
+          // can weigh six plies against a person who thought for an hour.
+          depth: result.depth,
+        };
       }
     } catch { judged = null; }
     Watch.busy = false;
@@ -354,15 +370,16 @@ function paintWatchNote(note) {
 
   const box = $('watchNote');
   if (!note.judged) { box.textContent = 'Looking at it…'; box.className = 'note'; return; }
-  const { best, loss, evalAfter } = note.judged;
+  const { best, loss, evalAfter, depth } = note.judged;
+  const how = depth ? `A ${depth}-ply search` : 'A deeper search';
   if (best === note.played || loss < 40) {
-    box.textContent = `A deeper search agrees with ${note.played}. ${evalAfter}.`;
+    box.textContent = `${how} agrees with ${note.played}. ${evalAfter}.`;
     box.className = 'note good-note';
   } else if (loss < 150) {
-    box.textContent = `A deeper search prefers ${best}. This is a little worse, not a mistake. ${evalAfter}.`;
+    box.textContent = `${how} prefers ${best}. A little worse by that measure, not a mistake. ${evalAfter}.`;
     box.className = 'note';
   } else {
-    box.textContent = `A deeper search wanted ${best}. ${note.played} costs about ${(loss / 100).toFixed(1)} pawns against it. ${evalAfter}.`;
+    box.textContent = `${how} wanted ${best}. By that measure ${note.played} costs about ${(loss / 100).toFixed(1)} pawns. ${evalAfter}.`;
     box.className = 'note bad-note';
   }
 }

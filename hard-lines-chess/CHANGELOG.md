@@ -1,5 +1,100 @@
 # Changelog
 
+## 1.3.0 — 2026-09-06
+
+Two screens for watching and reading, a navigation that fits a phone, and four
+faults that measurement found rather than reading.
+
+### Watch
+- **Two bots, a move at a time, with the reason for each one.** Two bands off
+  the ladder, drawn at random, given opposite colours and an opening neither
+  picked; inside the search each side chooses freely among the moves it rates
+  equal. Four dice, so the same two bands do not play the same game twice — the
+  drive test plays three and checks all three differ.
+- **Seven famous games, every move replayed before it ships.** The move lists
+  came from outside this repository, which makes them the least trustworthy
+  data in it: one wrong character in eighty-seven plies is a game that is not
+  the game it says it is. tests/famous.test.mjs replays all 398 plies through
+  the app's own move generator, and where the record says checkmate the final
+  position has to BE checkmate. Where a player resigned, nothing here can check
+  that — a resignation is a fact about a room — and both the file and the
+  screen say so instead of implying the board proves it.
+- The commentary has three sources and all of them are measured: the opening
+  book's own note for the move just played, a curated note on a famous game at
+  the moves that have one, and after every move a search deeper than the band
+  that played it, printed as the difference in pawns. What it will not say is
+  what the player was thinking.
+- The pairing is capped at the 1700 band on purpose. The top bands get up to
+  2.4 seconds a move, and a 2.4-second search on the page's own thread is 2.4
+  seconds of frozen board — on a screen whose whole purpose is watching, that
+  reads as a crash.
+
+### Notation
+- **A screen that explains algebraic, derived rather than written out.** You
+  move a piece; the app writes the move down with the same toSan() the rest of
+  it uses, and spellMove() takes that string apart and says why each character
+  is there — from the position. The reason "Nbd2" has a b in it is that the app
+  looked and found another knight that could also reach d2, and it names the
+  square that knight is standing on.
+- Fourteen lessons, each a position and a move in coordinates. The notation
+  beside them is not typed into the app: it is written at render time, so a
+  lesson whose claim stopped being true fails the build rather than teaching
+  the wrong rule.
+- A free board underneath: every move you play on it is named and broken apart,
+  whether or not it was the one a lesson asked for. Refusing to name a legal
+  move would be the screen failing at the one thing it is for.
+
+### The navigation
+- **Six tabs, not fourteen.** What is off the end of a scrolling strip is
+  invisible, so a feature nobody scrolls to is a feature nobody has. The
+  screens are grouped by what you came to do — Today, Play, Learn, Train,
+  Watch, You — with a second row inside the groups holding more than one.
+  Measured at 390px: 293px of buttons in a 358px strip.
+- tests/nav-test.cjs walks every button there is and checks the set of screens
+  it arrives at is all of them, so a screen added to SECTIONS and left out of
+  every group fails the build instead of shipping unreachable.
+
+### Four faults, and what found each one
+- **Castling that gave check was written without the +.** toSan() returned
+  early for castling, before the check mark was appended, so "O-O" where
+  "O-O+" was correct — in the move list, in the review, in an exported game.
+  Found by spellMove(), which is a second implementation of the same rules;
+  tests/notation.test.mjs spells 1.4 million moves both ways and holds them to
+  each other.
+- **The evaluation had a colour bias.** Turn a position upside down, swap every
+  piece's colour, and the score must negate exactly. It did not: one centipawn,
+  on 337 of 7166 positions, always favouring White, because Math.round sends a
+  half towards positive infinity. A comment already claimed the rounding was
+  done to prevent exactly this. It said so; it did not do so, and nothing
+  measured it. tests/eval-symmetry.test.mjs now does, at a tolerance of zero.
+- **A timed round left running finished without you.** Leaving the Clock or
+  Vision screen mid-round did not stop the interval: three minutes later the
+  run ended on a screen nobody was looking at, wrote its summary and filed the
+  result.
+- **The service worker was registered where none exists.** The code leaned on a
+  .catch() with a comment calling the failure "fine and silent". It was fine.
+  It was not silent: a registration that 404s is logged by the browser before
+  any promise can catch it, so every load of the single-file copy over http
+  printed console errors nothing in the page could suppress. Found by
+  tests/every-screen.cjs, which opens all fourteen screens twice — once empty,
+  once with a week of use in the store — and fails on any error or any request
+  the page made and did not get.
+
+### Measuring the engine, which had to come before changing it
+- **tools/match.mjs** plays two builds off against each other, colours
+  alternating, each opening twice, and reports an Elo difference with a 95%
+  interval — saying "NOT SEPARATED" when the interval spans zero rather than
+  reporting a small win as a win.
+- **tools/verify-candidate.mjs** asks what a match cannot: perft on the five
+  standard positions, no illegal move across several hundred searches, and all
+  42 forced mates in the bank still found and still reported as mates.
+- **tools/depth-probe.mjs** says WHERE a change paid, in twenty seconds rather
+  than an hour.
+- A candidate carrying null-move pruning, principal variation search and check
+  evasions in quiescence is in tools/engine-candidates/. It is correct by the
+  verifier. It is **not shipped**: see ENGINE-NOTES.md for what it measured and
+  why that is a reason to fix it rather than to install it.
+
 ## 1.2.0 — 2026-09-06
 
 Four new screens, and the coach now works where there is no model to ask.

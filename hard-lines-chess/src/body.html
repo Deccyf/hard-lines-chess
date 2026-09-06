@@ -507,9 +507,9 @@
           </select>
         </label>
       </div>
-      <p class="note" style="margin:10px 0 0">Two bands off the ladder, drawn at random, given opposite colours and an
-        opening neither of them picked. Inside the search each side chooses freely among the moves it rates equal, so
-        the same two bands do not play the same game twice. Press it again for another one.</p>
+      <p class="note" style="margin:10px 0 0" id="watchBlurb">Two bands off the ladder, drawn at random, given opposite
+        colours and an opening neither of them picked. Inside the search each side chooses freely among the moves it
+        rates equal, so the same two bands do not play the same game twice. Press it again for another one.</p>
     </div>
 
     <div id="watchStage" hidden>
@@ -517,6 +517,12 @@
         <div>
           <div id="watchBoard"></div>
           <p class="prompt" id="watchMove"></p>
+          <!-- WHAT A PERSON WROTE COMES BEFORE WHAT THE SEARCH SAID. The
+               curated note and the opening's own idea used to sit in the
+               right-hand column, which on a phone is under the board and below
+               the engine's verdict — so the only sentence on the screen with a
+               human insight in it was the one you had to scroll for. -->
+          <div id="watchWhy"></div>
           <p class="note" id="watchNote"></p>
           <p class="idea" id="watchOutcome"></p>
           <div class="row">
@@ -531,7 +537,6 @@
           <div class="panel">
             <h3 id="watchTitle"></h3>
             <p class="note" id="watchSubtitle"></p>
-            <div id="watchWhy"></div>
           </div>
           <div class="panel">
             <h3>Why this game</h3>
@@ -575,15 +580,22 @@
             <button class="btn" id="notationTakeBack" type="button">Take it back</button>
             <button class="btn" id="notationShow" type="button" hidden>Show me</button>
             <button class="btn" id="notationFree" type="button">Start again</button>
+            <button class="btn" id="notationFlip" type="button">Flip</button>
           </div>
           <p class="note" id="notationFeedback"></p>
+          <!-- THE ANSWER GOES WHERE YOUR EYE ALREADY IS. This panel was in the
+               right-hand column under the lesson's prose, which on a phone
+               stacks below the board — so the one thing you played the move to
+               see was two screens down from the move. -->
+          <div class="panel">
+            <p class="san-big" id="notationSan">—</p>
+            <div id="notationParts"></div>
+          </div>
         </div>
         <div>
           <div class="panel">
             <h3 id="notationLessonName">A board of your own</h3>
             <p class="note" id="notationRule"></p>
-            <p class="san-big" id="notationSan">—</p>
-            <div id="notationParts"></div>
           </div>
           <div class="panel">
             <h3>The moves you have made</h3>

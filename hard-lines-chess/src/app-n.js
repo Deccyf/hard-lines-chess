@@ -31,6 +31,8 @@ function startNotationBoard(fen = null, lesson = null) {
   Notation.history = [];
   Notation.spelled = null;
   Notation.board = new Board(fen ?? undefined);
+  // Set ONCE, from the side the lesson asks to move, so a Black-to-move
+  // position is shown from Black's side and then stays put.
   Notation.view.orientation = Notation.board.turn;
   // The square to ring is the one the lesson's move starts from — and it is
   // ringed only if that move is actually legal here, so a broken lesson marks
@@ -72,7 +74,10 @@ function onNotationMove({ move }) {
   Notation.board = new Board(Notation.view.board.fen());
   Notation.history.push({ fen: fenBefore, san: spelled.san, parts: spelled.parts, uci: moveToUci(move) });
   Notation.spelled = spelled;
-  Notation.view.orientation = Notation.board.turn;
+  // THE BOARD DOES NOT TURN ROUND UNDER YOU. It used to follow the side to
+  // move, so playing the lesson's move spun the board — on a screen about
+  // where the squares are, which is the worst place for it. The orientation is
+  // set once when a position is loaded and changes only when you ask.
   Notation.view.setFen(Notation.board.fen(), { lastMove: move });
   renderNotation();
 }
@@ -92,7 +97,6 @@ function takeBackNotation() {
   Notation.spelled = Notation.history.length
     ? { san: Notation.history[Notation.history.length - 1].san, parts: Notation.history[Notation.history.length - 1].parts }
     : null;
-  Notation.view.orientation = Notation.board.turn;
   Notation.view.setFen(Notation.board.fen());
   renderNotation();
 }
@@ -181,4 +185,10 @@ function renderNotationLessons() {
     row.appendChild(go);
     box.appendChild(row);
   }
+}
+
+/** Turn the board round, because sometimes you want to see it the other way. */
+function flipNotation() {
+  Notation.view.orientation = Notation.view.orientation === WHITE ? BLACK : WHITE;
+  Notation.view.setFen(Notation.board.fen());
 }
