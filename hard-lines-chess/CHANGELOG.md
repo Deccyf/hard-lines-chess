@@ -32,6 +32,15 @@ a success.
   `.apk` is not the worker's business at all. Pinned both ways by
   `tests/sw-shell-test.cjs`, which fails against the old worker.
 
+### The next update would not have installed
+- `versionCode` came from the workflow's run number, which is per-workflow and
+  restarts when a workflow file is renamed. Merging `pages.yml` and
+  `android.yml` into `publish.yml` reset it, so the build after the rename
+  shipped versionCode 2 to phones already holding 5 — and Android refuses a
+  lower code as a downgrade, with no useful message. It now comes from the
+  commit's own timestamp, which cannot restart and is the same for every build
+  of a given commit.
+
 ### Housekeeping
 - `pages.yml` and `android.yml` are one `publish.yml`, because the site now
   carries the APK and the two could not be built independently.

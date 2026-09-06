@@ -105,9 +105,18 @@ is named for the version, which comes from `package.json` so that only one file
 in the repo says what version this is.
 
 `ANDROID_VERSION_CODE` is the integer Android compares when deciding whether an
-APK may install over the one already on the phone. It must go up every time or
-the install is refused, unhelpfully. CI passes the run number; a local build
-gets `1`.
+APK may install over the one already on the phone. It must go UP every time or
+the install is refused as a downgrade, with no useful message.
+
+CI derives it from the commit's own timestamp (seconds ÷ 10). It was the
+workflow's run number, which is per-workflow and therefore restarts whenever a
+workflow file is renamed — which happened, and shipped versionCode 2 to phones
+already holding 5. A timestamp cannot restart, is the same number every time a
+given commit is built, and sits four orders of magnitude below Android's
+2147483647.
+
+A local build gets `1`, which is fine because it is only ever installed over
+another local build after an uninstall.
 
 ## What it does beyond showing the page
 

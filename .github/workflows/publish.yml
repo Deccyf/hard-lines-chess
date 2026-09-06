@@ -33,6 +33,7 @@ jobs:
       sha256: ${{ steps.apk.outputs.sha256 }}
       size: ${{ steps.apk.outputs.size }}
       pages: ${{ steps.apk.outputs.pages }}
+      code: ${{ steps.vc.outputs.code }}
     steps:
       - uses: actions/checkout@v4
 
@@ -67,12 +68,31 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
 
+      # ── the number Android compares, and why it is not the run number ────
+      #
+      # versionCode must be HIGHER than the one already on the phone or the
+      # install is refused — as a downgrade, with no useful message. It was
+      # github.run_number, which is per-workflow: renaming android.yml to
+      # publish.yml restarted it at 1, so the build after the rename shipped
+      # versionCode 2 to phones already holding 5. Anyone who had installed one
+      # of those could not install another until the counter caught up.
+      #
+      # The commit's own timestamp cannot restart. It rises with history, is
+      # the same number every time a given commit is built, and at ten-second
+      # resolution sits around 1.8e8 — comfortably under Android's 2147483647
+      # and past any run number this repo will ever reach.
+      - name: Work out the version code
+        id: vc
+        run: |
+          CODE=$(( $(git log -1 --format=%ct) / 10 ))
+          test "$CODE" -lt 2100000000 || { echo "versionCode $CODE is over the limit"; exit 1; }
+          echo "versionCode $CODE (from the commit timestamp)"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+
       - name: Assemble the release APK
         working-directory: hard-lines-chess/android
         env:
-          # Must increase for every build, or Android refuses to install this
-          # one over the copy already on the phone. The run number only goes up.
-          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_VERSION_CODE: ${{ steps.vc.outputs.code }}
         run: ./gradlew --no-daemon --stacktrace assembleRelease
 
       - name: Check the APK, and lay out the site around it
@@ -215,7 +235,7 @@ jobs:
 
             | | |
             |---|---|
-            | version | `${{ needs.build.outputs.version }}` (build ${{ github.run_number }}) |
+            | version | `${{ needs.build.outputs.version }}` (version code ${{ needs.build.outputs.code }}) |
             | size | ${{ needs.build.outputs.size }} |
             | sha256 | `${{ needs.build.outputs.sha256 }}` |
             | built from | [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }}) |
