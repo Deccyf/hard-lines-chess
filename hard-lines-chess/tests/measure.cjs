@@ -1,11 +1,11 @@
-const { launch, app, serve, DIST } = require('./browser.cjs');
+const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
 (async () => {
   const browser = await launch();
   for (const [w, h, name] of [[390,844,'iPhone'],[430,932,'large phone'],[768,1024,'tablet'],[1100,900,'desktop']]) {
     const page = await browser.newPage({ viewport: { width: w, height: h } });
     await page.goto(app('hard-lines-chess.html'));
     await page.waitForTimeout(500);
-    await page.locator('#tab-play').click();
+    await gotoSection(page, 'play');
     await page.waitForTimeout(300);
     const m = await page.evaluate(() => {
       const board = document.querySelector('#playBoard .board');

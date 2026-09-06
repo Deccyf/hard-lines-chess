@@ -5,6 +5,7 @@
       <h1>Hard Lines Chess</h1>
     </div>
     <div class="tabs-wrap" id="tabsWrap"><nav class="tabs" id="tabs" aria-label="Sections"></nav></div>
+    <div class="tabs-wrap subtabs-wrap" id="subtabsWrap" hidden><nav class="tabs subtabs" id="subtabs" aria-label="Screens in this section"></nav></div>
   </header>
 
   <!-- TODAY -->
@@ -560,6 +561,80 @@
       <p class="note">What you will not get is what the player was thinking. This app cannot know that, and a
         confident guess dressed as commentary would be the one thing here that is not measured.</p>
     </div>
+  </section>
+  <!-- NOTATION -->
+  <section id="section-notation" hidden>
+    <p class="lede">How a move is written down — worked out from the board in front of you, character by character.</p>
+
+    <div id="notationStage">
+      <div class="layout">
+        <div>
+          <div id="notationBoard"></div>
+          <p class="prompt" id="notationPrompt"></p>
+          <div class="row">
+            <button class="btn" id="notationTakeBack" type="button">Take it back</button>
+            <button class="btn" id="notationShow" type="button" hidden>Show me</button>
+            <button class="btn" id="notationFree" type="button">Start again</button>
+          </div>
+          <p class="note" id="notationFeedback"></p>
+        </div>
+        <div>
+          <div class="panel">
+            <h3 id="notationLessonName">A board of your own</h3>
+            <p class="note" id="notationRule"></p>
+            <p class="san-big" id="notationSan">—</p>
+            <div id="notationParts"></div>
+          </div>
+          <div class="panel">
+            <h3>The moves you have made</h3>
+            <div class="movelist" id="notationMoves"></div>
+            <p class="note">Tap one to read it back.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>The whole alphabet</h3>
+      <div class="san-key">
+        <div><b>K</b><span>king</span></div>
+        <div><b>Q</b><span>queen</span></div>
+        <div><b>R</b><span>rook</span></div>
+        <div><b>B</b><span>bishop</span></div>
+        <div><b>N</b><span>knight — K was taken</span></div>
+        <div><b>·</b><span>no letter at all means a pawn</span></div>
+        <div><b>x</b><span>takes</span></div>
+        <div><b>+</b><span>check</span></div>
+        <div><b>#</b><span>checkmate</span></div>
+        <div><b>O-O</b><span>castles short</span></div>
+        <div><b>O-O-O</b><span>castles long</span></div>
+        <div><b>=Q</b><span>a pawn promoted, to a queen</span></div>
+      </div>
+      <p class="note">The board's own addresses come first: files are lettered <b>a</b> to <b>h</b> from White's
+        left, ranks are numbered <b>1</b> to <b>8</b> from White's side. Every square has exactly one name and it
+        does not change when you turn the board round — e4 is e4 whichever end you are sitting at. The Vision screen
+        is where you drill those until you stop counting up from a1.</p>
+    </div>
+
+    <div class="panel">
+      <h3>Reading a whole game</h3>
+      <p class="note">Moves come in pairs, numbered once: <b>1. e4 e5</b> is White's first move and Black's reply.
+        A Black move quoted on its own gets three dots — <b>1… e5</b> — so you can tell it from a White one.
+        A game ends with its result: <b>1-0</b> White won, <b>0-1</b> Black won, <b>½-½</b> a draw.</p>
+      <p class="note">You will also meet judgements attached to moves: <b>!</b> good, <b>!!</b> brilliant,
+        <b>?</b> a mistake, <b>??</b> a blunder, <b>!?</b> interesting, <b>?!</b> dubious. Those are opinions, not
+        notation — two annotators can disagree about the same move and both be writing correctly. This app uses its
+        own marks on the Review screen and says what each one measured rather than what it thought.</p>
+    </div>
+
+    <div class="panel">
+      <h3>One rule at a time</h3>
+      <p class="note">Each of these sets the board up and asks for one move. The notation beside it is not typed into
+        this app — it is written by the same code that writes the moves in your own games, from the position, at the
+        moment you open the list. A lesson whose notation stopped being true would fail the build rather than teach
+        you the wrong rule.</p>
+    </div>
+    <div id="notationLessons"></div>
   </section>
   <!-- VISION -->
   <section id="section-vision" hidden>

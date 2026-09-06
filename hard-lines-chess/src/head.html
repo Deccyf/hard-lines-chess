@@ -341,6 +341,21 @@
     cursor: pointer;
   }
   .tab.on { background: var(--accent); color: var(--on-accent); }
+  /* THE SECOND ROW IS QUIETER THAN THE FIRST, deliberately: it is where you are
+     inside a place you have already chosen, and drawn at the same weight the
+     two rows compete to be read as the navigation. */
+  .subtabs { margin-top: 6px; }
+  .subtab { border-color: transparent; border-bottom-color: var(--line); background: transparent; padding: 5px 9px; letter-spacing: .06em; }
+  .subtab.on { background: transparent; color: var(--accent); border-color: transparent; border-bottom-color: var(--accent); }
+  /* SIX TABS HAVE TO FIT A PHONE, which is the whole reason there are six. At
+     the default padding they came to 395px of content in a 358px strip on a
+     390px screen, so the row still scrolled and the change bought nothing.
+     Measured by tests/nav-test.cjs at 390px wide, which is where it failed. */
+  @media (max-width: 460px) {
+    .tabs { gap: 4px; }
+    .tab { padding: 6px 6px; letter-spacing: .02em; font-size: 10.5px; }
+    .subtab { padding: 5px 5px; }
+  }
 
   .lede { color: var(--ink-soft); max-width: 62ch; margin: 0 0 16px; }
   section { animation: none; }
@@ -668,6 +683,31 @@
      means it has gone, and both are statements the app can prove. */
   .good-note { color: var(--good); }
   .bad-note { color: var(--accent); }
+
+  /* ── notation ──────────────────────────────────────────────────────────── */
+  .san-big {
+    font-family: var(--mono); font-size: 34px; font-weight: 700; letter-spacing: .04em;
+    margin: 14px 0 10px; color: var(--ink);
+  }
+  .san-big.waiting { color: var(--ink-faint); }
+  /* One row per character of the move, so the explanation lines up with the
+     thing it explains rather than sitting under a paragraph about all of it. */
+  .san-part { display: flex; gap: 12px; align-items: baseline; border-top: 2px solid var(--line); padding: 10px 0; }
+  .san-part:first-of-type { border-top: 0; }
+  .san-part-text {
+    font-family: var(--mono); font-size: 20px; font-weight: 700;
+    min-width: 3.2em; flex: 0 0 auto; color: var(--accent);
+  }
+  .san-part-body { flex: 1 1 auto; min-width: 0; }
+  .san-part-label {
+    display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--ink-soft); margin-bottom: 3px;
+  }
+  .san-part-body .note { margin: 0; }
+  .san-key { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px 16px; margin-bottom: 12px; }
+  .san-key div { display: flex; gap: 10px; align-items: baseline; }
+  .san-key b { font-family: var(--mono); min-width: 3.4em; color: var(--accent); }
+  .san-key span { color: var(--ink-soft); font-size: 13px; }
 
   /* ── board vision ──────────────────────────────────────────────────────── */
   #visionBoard .sq { cursor: pointer; }

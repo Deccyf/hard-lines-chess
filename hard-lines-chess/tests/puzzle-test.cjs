@@ -1,4 +1,4 @@
-const { launch, app, serve, DIST } = require('./browser.cjs');
+const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
 
 const GAME = '1. e4 e5 2. Qh5 Nc6 3. Qxe5+ Be7 4. Qxg7 Bf6 5. Qg3 d6 6. Nf3 Bg4 7. Be2 Qd7 8. O-O O-O-O 9. h3 Bxf3 10. Bxf3';
 
@@ -10,7 +10,7 @@ const GAME = '1. e4 e5 2. Qh5 Nc6 3. Qxe5+ Be7 4. Qxg7 Bf6 5. Qg3 d6 6. Nf3 Bg4 
   page.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('ERR_CONNECTION')) errors.push('console: ' + m.text()); });
 
   await page.goto(app('hard-lines-chess.html'));
-  await page.waitForSelector('#tab-puzzles');
+  await page.waitForSelector('#tab-today');
   await page.evaluate((pgn) => {
     localStorage.setItem('hardlines:history', JSON.stringify({
       bands: { 400: { w: 0, d: 0, l: 1 } },
@@ -18,13 +18,13 @@ const GAME = '1. e4 e5 2. Qh5 Nc6 3. Qxe5+ Be7 4. Qxg7 Bf6 5. Qg3 d6 6. Nf3 Bg4 
     }));
   }, GAME);
   await page.reload();
-  await page.waitForSelector('#tab-puzzles');
+  await page.waitForSelector('#tab-today');
 
   const say = (k, v) => console.log(String(k).padEnd(30), v);
-  await page.click('#tab-today');
+  await gotoSection(page, 'today');
   say('today rows', (await page.locator('.task').allInnerTexts()).map((t) => t.split('\n')[1]).join(' | '));
 
-  await page.click('#tab-puzzles');
+  await gotoSection(page, 'puzzles');
   say('empty note visible', await page.locator('#puzzleEmpty').isVisible());
   say('scan button', await page.locator('#puzzleScan').innerText());
   await page.click('#puzzleScan');
@@ -77,7 +77,7 @@ const GAME = '1. e4 e5 2. Qh5 Nc6 3. Qxe5+ Be7 4. Qxg7 Bf6 5. Qg3 d6 6. Nf3 Bg4 
   }
 
   // Download button present and pressable
-  await page.click('#tab-today');
+  await gotoSection(page, 'today');
   say('download panel visible', await page.locator('#downloadWrap').isVisible());
 
   say('install how-to present', (await page.locator('#section-today').innerText()).includes('Add to Home Screen'));
@@ -85,7 +85,7 @@ const GAME = '1. e4 e5 2. Qh5 Nc6 3. Qxe5+ Be7 4. Qxg7 Bf6 5. Qg3 d6 6. Nf3 Bg4 
   say('download note', await page.locator('#downloadNote').innerText());
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.click('#tab-puzzles'); await page.waitForTimeout(300);
+  await gotoSection(page, 'puzzles'); await page.waitForTimeout(300);
   await page.screenshot({ path: 'puzzles-phone.png', fullPage: true });
   console.log(errors.length ? 'ERRORS:\n' + errors.slice(0, 6).join('\n') : 'no page errors');
   await browser.close();

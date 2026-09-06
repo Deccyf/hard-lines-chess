@@ -30,3 +30,23 @@ function serve(dir, port) {
   return { url: `http://127.0.0.1:${port}`, ready, stop: () => proc.kill() };
 }
 module.exports.serve = serve;
+
+/**
+ * Click through to a screen, at both levels of the strip.
+ *
+ * The nav is two rows: six groups, and — for a group holding more than one
+ * screen — a second row of that group's screens. A screen in a group of one is
+ * a top-level button and there is no second row. So this opens the group and
+ * then the screen, which is what a person does, and it keeps every driver
+ * honest about the nav actually working rather than reaching past it into
+ * show().
+ */
+async function gotoSection(page, id) {
+  await page.evaluate((section) => {
+    const group = GROUPS.find((g) => g.sections.includes(section));
+    if (!group || group.sections.length === 1) return;
+    document.getElementById('gtab-' + group.id).click();
+  }, id);
+  await page.click('#tab-' + id);
+}
+module.exports.gotoSection = gotoSection;

@@ -341,6 +341,21 @@
     cursor: pointer;
   }
   .tab.on { background: var(--accent); color: var(--on-accent); }
+  /* THE SECOND ROW IS QUIETER THAN THE FIRST, deliberately: it is where you are
+     inside a place you have already chosen, and drawn at the same weight the
+     two rows compete to be read as the navigation. */
+  .subtabs { margin-top: 6px; }
+  .subtab { border-color: transparent; border-bottom-color: var(--line); background: transparent; padding: 5px 9px; letter-spacing: .06em; }
+  .subtab.on { background: transparent; color: var(--accent); border-color: transparent; border-bottom-color: var(--accent); }
+  /* SIX TABS HAVE TO FIT A PHONE, which is the whole reason there are six. At
+     the default padding they came to 395px of content in a 358px strip on a
+     390px screen, so the row still scrolled and the change bought nothing.
+     Measured by tests/nav-test.cjs at 390px wide, which is where it failed. */
+  @media (max-width: 460px) {
+    .tabs { gap: 4px; }
+    .tab { padding: 6px 6px; letter-spacing: .02em; font-size: 10.5px; }
+    .subtab { padding: 5px 5px; }
+  }
 
   .lede { color: var(--ink-soft); max-width: 62ch; margin: 0 0 16px; }
   section { animation: none; }
@@ -669,6 +684,31 @@
   .good-note { color: var(--good); }
   .bad-note { color: var(--accent); }
 
+  /* ── notation ──────────────────────────────────────────────────────────── */
+  .san-big {
+    font-family: var(--mono); font-size: 34px; font-weight: 700; letter-spacing: .04em;
+    margin: 14px 0 10px; color: var(--ink);
+  }
+  .san-big.waiting { color: var(--ink-faint); }
+  /* One row per character of the move, so the explanation lines up with the
+     thing it explains rather than sitting under a paragraph about all of it. */
+  .san-part { display: flex; gap: 12px; align-items: baseline; border-top: 2px solid var(--line); padding: 10px 0; }
+  .san-part:first-of-type { border-top: 0; }
+  .san-part-text {
+    font-family: var(--mono); font-size: 20px; font-weight: 700;
+    min-width: 3.2em; flex: 0 0 auto; color: var(--accent);
+  }
+  .san-part-body { flex: 1 1 auto; min-width: 0; }
+  .san-part-label {
+    display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--ink-soft); margin-bottom: 3px;
+  }
+  .san-part-body .note { margin: 0; }
+  .san-key { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px 16px; margin-bottom: 12px; }
+  .san-key div { display: flex; gap: 10px; align-items: baseline; }
+  .san-key b { font-family: var(--mono); min-width: 3.4em; color: var(--accent); }
+  .san-key span { color: var(--ink-soft); font-size: 13px; }
+
   /* ── board vision ──────────────────────────────────────────────────────── */
   #visionBoard .sq { cursor: pointer; }
   .sq.vision-ask::after {
@@ -720,6 +760,7 @@
       <h1>Hard Lines Chess</h1>
     </div>
     <div class="tabs-wrap" id="tabsWrap"><nav class="tabs" id="tabs" aria-label="Sections"></nav></div>
+    <div class="tabs-wrap subtabs-wrap" id="subtabsWrap" hidden><nav class="tabs subtabs" id="subtabs" aria-label="Screens in this section"></nav></div>
   </header>
 
   <!-- TODAY -->
@@ -1275,6 +1316,80 @@
       <p class="note">What you will not get is what the player was thinking. This app cannot know that, and a
         confident guess dressed as commentary would be the one thing here that is not measured.</p>
     </div>
+  </section>
+  <!-- NOTATION -->
+  <section id="section-notation" hidden>
+    <p class="lede">How a move is written down — worked out from the board in front of you, character by character.</p>
+
+    <div id="notationStage">
+      <div class="layout">
+        <div>
+          <div id="notationBoard"></div>
+          <p class="prompt" id="notationPrompt"></p>
+          <div class="row">
+            <button class="btn" id="notationTakeBack" type="button">Take it back</button>
+            <button class="btn" id="notationShow" type="button" hidden>Show me</button>
+            <button class="btn" id="notationFree" type="button">Start again</button>
+          </div>
+          <p class="note" id="notationFeedback"></p>
+        </div>
+        <div>
+          <div class="panel">
+            <h3 id="notationLessonName">A board of your own</h3>
+            <p class="note" id="notationRule"></p>
+            <p class="san-big" id="notationSan">—</p>
+            <div id="notationParts"></div>
+          </div>
+          <div class="panel">
+            <h3>The moves you have made</h3>
+            <div class="movelist" id="notationMoves"></div>
+            <p class="note">Tap one to read it back.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>The whole alphabet</h3>
+      <div class="san-key">
+        <div><b>K</b><span>king</span></div>
+        <div><b>Q</b><span>queen</span></div>
+        <div><b>R</b><span>rook</span></div>
+        <div><b>B</b><span>bishop</span></div>
+        <div><b>N</b><span>knight — K was taken</span></div>
+        <div><b>·</b><span>no letter at all means a pawn</span></div>
+        <div><b>x</b><span>takes</span></div>
+        <div><b>+</b><span>check</span></div>
+        <div><b>#</b><span>checkmate</span></div>
+        <div><b>O-O</b><span>castles short</span></div>
+        <div><b>O-O-O</b><span>castles long</span></div>
+        <div><b>=Q</b><span>a pawn promoted, to a queen</span></div>
+      </div>
+      <p class="note">The board's own addresses come first: files are lettered <b>a</b> to <b>h</b> from White's
+        left, ranks are numbered <b>1</b> to <b>8</b> from White's side. Every square has exactly one name and it
+        does not change when you turn the board round — e4 is e4 whichever end you are sitting at. The Vision screen
+        is where you drill those until you stop counting up from a1.</p>
+    </div>
+
+    <div class="panel">
+      <h3>Reading a whole game</h3>
+      <p class="note">Moves come in pairs, numbered once: <b>1. e4 e5</b> is White's first move and Black's reply.
+        A Black move quoted on its own gets three dots — <b>1… e5</b> — so you can tell it from a White one.
+        A game ends with its result: <b>1-0</b> White won, <b>0-1</b> Black won, <b>½-½</b> a draw.</p>
+      <p class="note">You will also meet judgements attached to moves: <b>!</b> good, <b>!!</b> brilliant,
+        <b>?</b> a mistake, <b>??</b> a blunder, <b>!?</b> interesting, <b>?!</b> dubious. Those are opinions, not
+        notation — two annotators can disagree about the same move and both be writing correctly. This app uses its
+        own marks on the Review screen and says what each one measured rather than what it thought.</p>
+    </div>
+
+    <div class="panel">
+      <h3>One rule at a time</h3>
+      <p class="note">Each of these sets the board up and asks for one move. The notation beside it is not typed into
+        this app — it is written by the same code that writes the moves in your own games, from the position, at the
+        moment you open the list. A lesson whose notation stopped being true would fail the build rather than teach
+        you the wrong rule.</p>
+    </div>
+    <div id="notationLessons"></div>
   </section>
   <!-- VISION -->
   <section id="section-vision" hidden>
@@ -2228,9 +2343,16 @@ function evaluate(board) {
   const p = Math.min(phase, TOTAL_PHASE);
   const score = ((mg * p) + (eg * (TOTAL_PHASE - p))) / TOTAL_PHASE;
 
-  // Rounded once, from White's side, so the mirrored position scores the
-  // exact negative: round(x) and -round(-x) differ on a half.
-  const rounded = Math.round(score);
+  // Rounded once, from White's side, so the mirrored position scores the exact
+  // negative — and rounded AWAY FROM ZERO rather than with Math.round, which
+  // was the whole of the bug this comment used to describe without fixing.
+  // Math.round sends a half towards +infinity: round(10.5) is 11 and
+  // round(-10.5) is -10, so a position and its mirror scored 11 and 10. It
+  // happened on 337 of 7166 positions walked — one centipawn every twenty
+  // moves, always in White's favour, which is a colour bias in an engine whose
+  // ladder is verified by self-play with the colours alternated. Held to zero
+  // now by tests/eval-symmetry.test.mjs.
+  const rounded = Math.sign(score) * Math.round(Math.abs(score));
   return board.turn === WHITE ? rounded : -rounded;
 }
 
@@ -5038,13 +5160,20 @@ function toSan(board, move) {
   const piece = board.squares[from];
   const type = typeOf(piece);
 
-  if (flags & FLAG_CASTLE) return to > from ? 'O-O' : 'O-O-O';
 
   const letters = { [KNIGHT]: 'N', [BISHOP]: 'B', [ROOK]: 'R', [QUEEN]: 'Q', [KING]: 'K' };
   const capture = (flags & FLAG_CAPTURE) !== 0;
   let san = '';
 
-  if (type === PAWN) {
+  // CASTLING STILL FALLS THROUGH TO THE CHECK MARK BELOW. It used to return
+  // here, which meant a castling move that gave check was written "O-O" rather
+  // than "O-O+" — everywhere: the move list, the review, an exported game. It
+  // was found by tests/notation.test.mjs, which spells a million moves two
+  // different ways and holds the two to each other; nothing else in the app
+  // had a second opinion to disagree with.
+  if (flags & FLAG_CASTLE) {
+    san = to > from ? 'O-O' : 'O-O-O';
+  } else if (type === PAWN) {
     if (capture) san += 'abcdefgh'[fileOf(from)] + 'x';
     san += squareName(to);
     if (promo) san += '=' + { [QUEEN]: 'Q', [ROOK]: 'R', [BISHOP]: 'B', [KNIGHT]: 'N' }[promo];
@@ -5100,6 +5229,102 @@ function lineToSan(board, moves) {
     copy.make(move);
   }
   return out.join(' ');
+}
+
+/**
+ * A move, spelled out piece by piece, with the reason for each piece of it.
+ *
+ * WHY THIS EXISTS SEPARATELY FROM toSan(). The notation screen has to explain
+ * why a move is written the way it is, and the honest way to do that is to
+ * derive it from the position rather than to write prose beside it. So this
+ * walks the same decisions toSan() walks and records them; the parts joined
+ * back together are the SAN, and tests/notation.test.mjs holds them to exactly
+ * what toSan() produces for a few thousand positions. If the two ever disagree
+ * the explanation is wrong, and the test says so rather than the screen
+ * quietly teaching somebody the wrong rule.
+ */
+function spellMove(board, move) {
+  const from = moveFrom(move), to = moveTo(move);
+  const flags = moveFlags(move), promo = movePromo(move);
+  const piece = board.squares[from];
+  const type = typeOf(piece);
+  const capture = (flags & FLAG_CAPTURE) !== 0;
+  const parts = [];
+  const add = (text, label, why) => { if (text) parts.push({ text, label, why }); };
+
+  if (flags & FLAG_CASTLE) {
+    const short = to > from;
+    add(short ? 'O-O' : 'O-O-O', 'castling',
+      short
+        ? 'Castling on the king’s side. Two letter O’s, because the king has two squares of rook behind it — nothing about the move is written down, not even which pieces moved.'
+        : 'Castling on the queen’s side. Three letter O’s for the longer side. The king still moves two squares; it is the rook that travels further.');
+  } else if (type === PAWN) {
+    if (capture) {
+      add('abcdefgh'[fileOf(from)], 'the file it came from',
+        'A pawn has no letter, so a pawn capture is named by the file the pawn started on. It is the only thing there is to name it by.');
+      add('x', 'takes',
+        'The x means something was taken. It does not say what — the board already knows, and so will you when you play the move through.');
+    }
+    add(squareName(to), 'where it lands',
+      flags & FLAG_EP
+        ? 'The square the pawn LANDS on — which in an en passant capture is not the square the captured pawn was standing on. Notation records where the mover went, never where the victim was.'
+        : capture
+          ? 'The square the pawn lands on, which is also the square the captured piece was on.'
+          : 'A move with no capital letter in front of it is a pawn move, and the square is where it went. Nothing says which pawn: only one pawn can legally reach a given square without capturing.');
+    if (promo) {
+      add('=' + { [QUEEN]: 'Q', [ROOK]: 'R', [BISHOP]: 'B', [KNIGHT]: 'N' }[promo], 'what it became',
+        'A pawn reaching the last rank has to become something. The equals sign says what you chose — and you may choose a rook, a bishop or a knight instead of a queen.');
+    }
+  } else {
+    const letters = { [KNIGHT]: 'N', [BISHOP]: 'B', [ROOK]: 'R', [QUEEN]: 'Q', [KING]: 'K' };
+    const names = { [KNIGHT]: 'knight', [BISHOP]: 'bishop', [ROOK]: 'rook', [QUEEN]: 'queen', [KING]: 'king' };
+    const introduce = {
+      [KNIGHT]: 'N is the knight. K was already taken by the king, so the knight got the next letter that was free.',
+      [KING]: 'K is the king. There is only ever one of them, so a king move never needs anything else in front of the square.',
+      [QUEEN]: 'Q is the queen. The letter does not say whose queen — it is always the side to move, and the board tells you which side that is.',
+      [ROOK]: 'R is the rook. Which of the two rooks moved is written down only when both of them could have gone to the same square.',
+      [BISHOP]: 'B is the bishop. Which bishop is written down only when it would otherwise be ambiguous — and a pair of bishops are on opposite colours, so it almost never is.',
+    };
+    add(letters[type], 'which piece', introduce[type]);
+
+    const rivals = board.legalMoves().filter((m) => m !== move
+      && moveTo(m) === to
+      && typeOf(board.squares[moveFrom(m)]) === type);
+    if (rivals.length) {
+      const where = rivals.map((m) => squareName(moveFrom(m))).join(' and ');
+      const plural = rivals.length > 1;
+      const sameFile = rivals.some((m) => fileOf(moveFrom(m)) === fileOf(from));
+      const sameRank = rivals.some((m) => rankOf(moveFrom(m)) === rankOf(from));
+      const need = `The ${names[type]} on ${where} could legally go there too, so "${letters[type]}${squareName(to)}" would not say which one moved.`;
+      if (!sameFile) {
+        add('abcdefgh'[fileOf(from)], 'which one',
+          `${need} They are on different files, so the file it came from is enough.`);
+      } else if (!sameRank) {
+        add(String(rankOf(from) + 1), 'which one',
+          `${need} ${plural ? 'They share' : 'It shares'} a file with this one, so the file would not separate them and the rank is written instead.`);
+      } else {
+        add(squareName(from), 'which one',
+          `${need} File and rank each fail on their own here, so the whole square it came from is written out.`);
+      }
+    }
+    if (capture) add('x', 'takes',
+      'The x means something was taken. It does not say what — the board already knows, and so will you when you play the move through.');
+    add(squareName(to), 'where it lands', 'The square the piece moved to. Notation records the destination, not the route.');
+  }
+
+  // Check and mate are properties of the position AFTER the move, so they can
+  // only be read by playing it.
+  if (board.make(move)) {
+    const outcome = board.outcome();
+    if (outcome === 'checkmate') {
+      add('#', 'checkmate', 'The king is attacked and there is no legal move. The game is over — # is only ever written at the end.');
+    } else if (board.inCheck()) {
+      add('+', 'check', 'The move attacks the enemy king. The + is not part of the move; it is a fact about the position it left behind.');
+    }
+    board.unmake();
+  }
+
+  return { san: parts.map((p) => p.text).join(''), parts };
 }
 
 
@@ -8076,6 +8301,139 @@ const FAMOUS_GAMES = [
 ];
 
 
+// ── the notation lessons ───────────────────────────────────────────────────
+//
+// One rule each, one move each, and the move is played on a real board.
+//
+// NOTHING HERE STATES ITS OWN ANSWER. Each entry is a position and a move in
+// coordinates; the notation beside it is written by the app's own toSan() at
+// the moment it is shown, and the reason under each character is written by
+// spellMove() from the same position. `san` below is what those two produced
+// when the lesson was added, and tests/notation.test.mjs holds them to it — so
+// a lesson whose claim stops being true fails the build rather than teaching
+// somebody a rule the engine disagrees with.
+//
+// The last three are the part everyone gets wrong, and they are ordered by how
+// often you meet them. Two knights that can both reach a square is common. Two
+// rooks on the same file is less so. Three queens is a curiosity, and the
+// lesson says as much rather than pretending it is worth memorising.
+
+const NOTATION_LESSONS = [
+  {
+    id: 'pawn',
+    name: 'A pawn move is just the square',
+    fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    uci: 'e2e4',
+    san: 'e4',
+    rule: 'A move with no capital letter in front of it is a pawn move. You never write which pawn, because only one pawn can reach a given square without capturing — so naming the square names the pawn.',
+  },
+  {
+    id: 'piece',
+    name: 'A piece move is its letter, then the square',
+    fen: 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2',
+    uci: 'g1f3',
+    san: 'Nf3',
+    rule: 'K for king, Q for queen, R for rook, B for bishop — and N for knight, because K was already taken. The letter says which kind of piece; the square says where it went. Nothing records where it came from unless it has to.',
+  },
+  {
+    id: 'capture',
+    name: 'Taking something is x',
+    fen: 'r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4',
+    uci: 'f3e5',
+    san: 'Nxe5',
+    rule: 'The x sits between the piece and the square. It does not say what was taken — the board already knows that, and so will you when you play the move through.',
+  },
+  {
+    id: 'pawn-capture',
+    name: 'A pawn taking names the file it came from',
+    fen: 'rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2',
+    uci: 'e4d5',
+    san: 'exd5',
+    rule: 'This is the one exception to "a pawn move is just the square". A pawn has no letter of its own, so when it captures, the file it started on goes in front — there is nothing else to name it by.',
+  },
+  {
+    id: 'check',
+    name: 'Check is +',
+    fen: '4k3/8/8/8/8/8/8/R3K3 w - - 0 1',
+    uci: 'a1a8',
+    san: 'Ra8+',
+    rule: 'The + is not really part of the move. It is a note about the position the move leaves behind, which is why you can only write it after playing the move and looking.',
+  },
+  {
+    id: 'mate',
+    name: 'Checkmate is #',
+    fen: '6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1',
+    uci: 'a1a8',
+    san: 'Ra8#',
+    rule: 'Same idea as +, and the end of the game. Some books write ++ or "mate" instead; they all mean this. You will never see a move written after a #.',
+  },
+  {
+    id: 'castle-short',
+    name: 'Castling short is O-O',
+    fen: 'r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/2PP1N2/PP3PPP/RNBQK2R w KQkq - 0 6',
+    uci: 'e1g1',
+    san: 'O-O',
+    rule: 'Two capital letter O’s, joined by a hyphen — not zeroes, though you will see zeroes written and nobody minds. It is the only move in chess whose notation names no square at all.',
+  },
+  {
+    id: 'castle-long',
+    name: 'Castling long is O-O-O',
+    fen: 'r3kbnr/pppqpppp/2n5/3p1b2/3P1B2/2N5/PPPQPPPP/R3KBNR w KQkq - 6 6',
+    uci: 'e1c1',
+    san: 'O-O-O',
+    rule: 'Three O’s for the longer side. The king still moves the same two squares either way; it is the rook that travels further, and the extra O is how you remember which.',
+  },
+  {
+    id: 'promote',
+    name: 'Promotion is = and what it became',
+    fen: '8/4P3/8/8/8/8/8/4K2k w - - 0 1',
+    uci: 'e7e8q',
+    san: 'e8=Q',
+    rule: 'A pawn that reaches the last rank must become something, and the equals sign says what. Some sources write e8Q or e8(Q) instead. All the same move.',
+  },
+  {
+    id: 'underpromote',
+    name: 'And it does not have to be a queen',
+    fen: '8/4P3/8/8/8/8/8/4K2k w - - 0 1',
+    uci: 'e7e8n',
+    san: 'e8=N',
+    rule: 'The same pawn, the same square, a different piece. Taking a knight instead of a queen is called underpromotion, and it is written exactly the same way — which is why the letter after the = is worth reading rather than assuming.',
+  },
+  {
+    id: 'en-passant',
+    name: 'En passant is written like any other pawn capture',
+    fen: '4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1',
+    uci: 'e5d6',
+    san: 'exd6',
+    rule: 'The square written down is the one the capturing pawn LANDS on — d6 — and not the square the captured pawn was standing on. Notation always records where the mover went. Some sources add "e.p." afterwards; it is optional and means nothing extra.',
+  },
+  {
+    id: 'which-file',
+    name: 'When two pieces could go there: the file',
+    fen: '4k3/8/8/8/8/5N2/8/1N2K3 w - - 0 1',
+    uci: 'b1d2',
+    san: 'Nbd2',
+    rule: 'Both knights can reach d2, so "Nd2" would not say which one moved. The file it came from is squeezed in after the letter. This is the common case, and it is the part of notation people misread most often.',
+  },
+  {
+    id: 'which-rank',
+    name: 'When the file does not separate them: the rank',
+    fen: '4k3/8/8/R7/8/8/8/R3K3 w - - 0 1',
+    uci: 'a1a3',
+    san: 'R1a3',
+    rule: 'Both rooks are on the a-file, so writing the file would not help. The rank goes in instead. The rule is simply: use the file if it tells them apart, otherwise the rank.',
+  },
+  {
+    id: 'which-square',
+    name: 'And when neither does: the whole square',
+    fen: '8/4Q3/8/8/4Q2Q/8/8/k3K3 w - - 0 1',
+    uci: 'e4h7',
+    san: 'Qe4h7',
+    rule: 'Three queens can reach h7. One shares a file with the mover and one shares a rank, so neither on its own says which — and the full square it came from is written out. You may go a long time without meeting this; it is here so that when you do, it is not a mystery.',
+  },
+];
+
+
 // ── the starting bank ──────────────────────────────────────────────────────
 //
 // GENERATED by tools/make-puzzles.mjs. Do not edit by hand.
@@ -9144,24 +9502,64 @@ const SECTIONS = [
   ['storm', 'Clock'],
   ['endgames', 'Endgames'],
   ['watch', 'Watch'],
+  ['notation', 'Notation'],
   ['drills', 'Drills'],
   ['vision', 'Vision'],
   ['progress', 'Progress'],
   ['settings', 'Settings'],
 ];
 
+// ── the strip, in two levels ───────────────────────────────────────────────
+//
+// FOURTEEN TABS IN ONE ROW IS NOT A MENU, IT IS A LIST. The strip scrolled, and
+// a scrolling strip has two faults that get worse with every screen added: what
+// is off the end is invisible, so a feature nobody scrolls to is a feature
+// nobody has; and the row gives no shape to what is on it, so "Clock" and
+// "Vision" and "Board" read as fourteen equal siblings when they are nothing of
+// the kind.
+//
+// So the strip is now six, which fits a phone without scrolling, and each one
+// that holds more than a single screen opens a second row underneath it. The
+// grouping is by WHAT YOU CAME TO DO — play a game, learn a thing, drill
+// against a clock, watch somebody else — rather than by which part of the app
+// implements it.
+//
+// EVERY SECTION STILL HAS ITS OWN TAB BUTTON, `tab-<id>`, and a group holding
+// one section renders that section's button AS the top-level tab. So there is
+// exactly one place any given screen is reached from, and nothing has to know
+// whether it happens to live in a group of one.
+const GROUPS = [
+  { id: 'today', label: 'Today', sections: ['today'] },
+  { id: 'play', label: 'Play', sections: ['play', 'board', 'review'] },
+  { id: 'learn', label: 'Learn', sections: ['notation', 'openings', 'endgames', 'drills', 'vision'] },
+  { id: 'train', label: 'Train', sections: ['puzzles', 'storm'] },
+  { id: 'watch', label: 'Watch', sections: ['watch'] },
+  { id: 'you', label: 'You', sections: ['progress', 'settings'] },
+];
+
+const sectionLabel = (id) => SECTIONS.find(([s]) => s === id)?.[1] ?? id;
+const groupOf = (section) => GROUPS.find((g) => g.sections.includes(section)) ?? GROUPS[0];
+/** Where you were last inside each group, so coming back does not reset you. */
+const LastInGroup = {};
+
 function show(section) {
   App.section = section;
   // A SECTION CHANGED FROM ANYWHERE SCROLLS ITS TAB INTO VIEW. Openings sends
   // you to Play, Progress sends you to Play, Today sends you everywhere — and
-  // with a dozen tabs the one now highlighted was regularly off the side of a
-  // phone, so the strip looked like it had lost its selection.
+  // the tab now highlighted was regularly off the side of a phone, so the strip
+  // looked like it had lost its selection. Six top-level tabs fit without
+  // scrolling; the second row still can, so this stays.
+  const group = groupOf(section);
+  LastInGroup[group.id] = section;
+  buildSubTabs(group, section);
   const tab = document.getElementById('tab-' + section);
   if (tab?.scrollIntoView) tab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  for (const [id] of SECTIONS) {
-    $('section-' + id).hidden = id !== section;
-    $('tab-' + id).classList.toggle('on', id === section);
-    $('tab-' + id).setAttribute('aria-current', id === section ? 'page' : 'false');
+  for (const [id] of SECTIONS) $('section-' + id).hidden = id !== section;
+  for (const g of GROUPS) {
+    const button = document.getElementById(g.sections.length === 1 ? 'tab-' + g.sections[0] : 'gtab-' + g.id);
+    if (!button) continue;
+    button.classList.toggle('on', g === group);
+    button.setAttribute('aria-current', g === group && g.sections.length === 1 ? 'page' : 'false');
   }
   if (section === 'today') renderToday();
   if (section === 'openings') renderOpenings();
@@ -9170,11 +9568,20 @@ function show(section) {
   if (section === 'progress') renderProgress();
   if (section === 'board') renderPractice();
   if (section === 'settings') renderSettings();
+  // ── NOTHING KEEPS RUNNING ON A SCREEN YOU HAVE LEFT ─────────────────────
+  //
   // A GAME LEFT PLAYING IS A SEARCH LEFT RUNNING. The Watch screen advances
   // itself on a timer, and each tick is an engine search on the page's own
   // thread — so walking away from it while it plays would make every other
   // screen stutter for a game nobody is looking at.
   if (section !== 'watch') stopWatch();
+  // AND A TIMED ROUND LEFT RUNNING FINISHES WITHOUT YOU. The Clock and Vision
+  // rounds are on interval timers, and leaving mid-round did not stop them:
+  // three minutes later the run ended on a screen nobody was looking at, wrote
+  // its summary, and filed the result. A round you walked out of is over, and
+  // it ends when you leave rather than quietly carrying on.
+  if (section !== 'storm') stopStorm();
+  if (section !== 'vision') stopVision();
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
@@ -14359,6 +14766,192 @@ function renderWatchList() {
 }
 
 
+// ── notation ───────────────────────────────────────────────────────────────
+//
+// Every other screen in this app talks in algebraic — the openings say d4 and
+// c5, the review says the mistake was on f7, the coach answers in it and so
+// does every book and every website you will ever open. This is the screen
+// that explains it, and the only way to explain it honestly is to derive it.
+//
+// SO NOTHING ON THIS SCREEN IS WRITTEN OUT BY HAND. You move a piece; the app
+// writes the move down with the same toSan() the rest of it uses, and then
+// spellMove() takes that string apart and says why each character is there —
+// from the position, not from a table. The reason "Nbd2" has a b in it is that
+// the app looked and found another knight that could also go to d2, and it
+// names the square that knight is standing on.
+//
+// That matters for one case in particular. Disambiguation is the part of
+// notation everybody gets wrong, precisely because it cannot be worked out
+// from the move: it depends on what else is on the board. A screen that
+// explained it from a rulebook would be repeating the mistake. This one
+// answers by looking.
+
+const Notation = {
+  view: null,
+  board: null,
+  history: [],       // [{ fen, san, parts }] — every move made on this board
+  lesson: null,      // the lesson being attempted, if any
+  spelled: null,     // the last move, spelled out
+};
+
+function startNotationBoard(fen = null, lesson = null) {
+  Notation.lesson = lesson;
+  Notation.history = [];
+  Notation.spelled = null;
+  Notation.board = new Board(fen ?? undefined);
+  Notation.view.orientation = Notation.board.turn;
+  // The square to ring is the one the lesson's move starts from — and it is
+  // ringed only if that move is actually legal here, so a broken lesson marks
+  // nothing rather than pointing at a square you cannot move from.
+  const wanted = lesson && Notation.board.legalMoves().some((m) => moveToUci(m) === lesson.uci);
+  Notation.view.setFen(Notation.board.fen(), { marks: wanted ? [nameToSquare(lesson.uci.slice(0, 2))] : [] });
+  renderNotation();
+}
+
+/** The move a lesson asks for, said in words rather than in the notation. */
+function notationAsk(lesson) {
+  const board = new Board(lesson.fen);
+  const move = board.legalMoves().find((m) => moveToUci(m) === lesson.uci);
+  if (!move) return 'Play the move.';
+  const from = moveFrom(move), to = moveTo(move);
+  if (moveFlags(move) & FLAG_CASTLE) {
+    return to > from
+      ? 'Castle on the king’s side: move the king two squares towards the h-file.'
+      : 'Castle on the queen’s side: move the king two squares towards the a-file.';
+  }
+  const names = { [PAWN]: 'pawn', [KNIGHT]: 'knight', [BISHOP]: 'bishop', [ROOK]: 'rook', [QUEEN]: 'queen', [KING]: 'king' };
+  const piece = names[typeOf(board.squares[from])];
+  const promo = movePromo(move);
+  const became = { [QUEEN]: 'a queen', [ROOK]: 'a rook', [BISHOP]: 'a bishop', [KNIGHT]: 'a knight' }[promo];
+  const target = board.squares[to] ? ', taking what is there' : '';
+  return `Move the ${piece} on ${squareName(from)} to ${squareName(to)}${target}.`
+    + (became ? ` Make it ${became}.` : '');
+}
+
+/**
+ * A move was played on the free board. Every move is named, whether or not it
+ * is the one a lesson asked for — refusing to name a legal move would be this
+ * screen failing at the one thing it is for.
+ */
+function onNotationMove({ move }) {
+  const fenBefore = Notation.board.fen();
+  const spelled = spellMove(new Board(fenBefore), move);
+  Notation.view.apply(move);
+  Notation.board = new Board(Notation.view.board.fen());
+  Notation.history.push({ fen: fenBefore, san: spelled.san, parts: spelled.parts, uci: moveToUci(move) });
+  Notation.spelled = spelled;
+  Notation.view.orientation = Notation.board.turn;
+  Notation.view.setFen(Notation.board.fen(), { lastMove: move });
+  renderNotation();
+}
+
+function showNotationMove() {
+  const lesson = Notation.lesson;
+  if (!lesson) return;
+  const move = Notation.board.legalMoves().find((m) => moveToUci(m) === lesson.uci);
+  if (!move) return;
+  onNotationMove({ move });
+}
+
+function takeBackNotation() {
+  if (!Notation.history.length) return;
+  const last = Notation.history.pop();
+  Notation.board = new Board(last.fen);
+  Notation.spelled = Notation.history.length
+    ? { san: Notation.history[Notation.history.length - 1].san, parts: Notation.history[Notation.history.length - 1].parts }
+    : null;
+  Notation.view.orientation = Notation.board.turn;
+  Notation.view.setFen(Notation.board.fen());
+  renderNotation();
+}
+
+function renderNotation() {
+  const lesson = Notation.lesson;
+  $('notationLessonName').textContent = lesson ? lesson.name : 'A board of your own';
+  $('notationRule').textContent = lesson
+    ? lesson.rule
+    : 'Move anything, either colour, as many times as you like. Every move you make is written down and then taken apart.';
+  $('notationShow').hidden = !lesson || Notation.history.length > 0;
+  $('notationPrompt').textContent = lesson && !Notation.history.length
+    ? notationAsk(lesson)
+    : `${Notation.board.turn === WHITE ? 'White' : 'Black'} to move.`;
+
+  const done = Notation.spelled;
+  $('notationSan').textContent = done ? done.san : '—';
+  $('notationSan').classList.toggle('waiting', !done);
+
+  const parts = $('notationParts');
+  parts.innerHTML = '';
+  if (done) {
+    for (const part of done.parts) {
+      const row = el('div', 'san-part');
+      row.appendChild(el('span', 'san-part-text', part.text));
+      const body = el('div', 'san-part-body');
+      body.appendChild(el('span', 'san-part-label', part.label));
+      body.appendChild(el('p', 'note', part.why));
+      row.appendChild(body);
+      parts.appendChild(row);
+    }
+  }
+
+  // WHETHER IT WAS THE MOVE THE LESSON ASKED FOR — said after naming it, never
+  // instead of naming it.
+  const feedback = $('notationFeedback');
+  if (!lesson || !Notation.history.length) {
+    feedback.textContent = '';
+    feedback.className = 'note';
+  } else {
+    const first = Notation.history[0];
+    const right = first.uci === lesson.uci;
+    feedback.textContent = right
+      ? `That is the move, and ${lesson.san} is how it is written.`
+      : `That is a legal move and ${first.san} is how it is written — but it is not the one this lesson is about. Take it back and the position comes again.`;
+    feedback.className = right ? 'note good-note' : 'note';
+  }
+
+  $('notationTakeBack').disabled = Notation.history.length === 0;
+
+  const moves = $('notationMoves');
+  moves.innerHTML = '';
+  Notation.history.forEach((entry, i) => {
+    if (i % 2 === 0) moves.appendChild(el('span', 'mn', `${i / 2 + 1}.`));
+    const chip = el('button', 'mv', entry.san);
+    chip.type = 'button';
+    if (i === Notation.history.length - 1) chip.classList.add('on');
+    chip.addEventListener('click', () => {
+      Notation.spelled = { san: entry.san, parts: entry.parts };
+      renderNotation();
+    });
+    moves.appendChild(chip);
+  });
+}
+
+function renderNotationLessons() {
+  const box = $('notationLessons');
+  box.innerHTML = '';
+  for (const lesson of NOTATION_LESSONS) {
+    const row = el('div', 'endgame-row');
+    const head = el('div', 'endgame-head');
+    head.appendChild(el('strong', null, lesson.name));
+    // The notation itself is the tag, and it is not the string in the file:
+    // it is written out of the position at the moment this list is built.
+    const board = new Board(lesson.fen);
+    const move = board.legalMoves().find((m) => moveToUci(m) === lesson.uci);
+    head.appendChild(el('span', 'tag', move ? toSan(new Board(lesson.fen), move) : '?'));
+    row.appendChild(head);
+    row.appendChild(el('p', 'note', lesson.rule));
+    const go = el('button', 'btn', 'Try it on the board');
+    go.type = 'button';
+    go.addEventListener('click', () => {
+      startNotationBoard(lesson.fen, lesson);
+      $('notationStage').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    row.appendChild(go);
+    box.appendChild(row);
+  }
+}
+
+
 // ── wiring ─────────────────────────────────────────────────────────────────
 /**
  * Does the strip run off the edge, and is there anything still off it?
@@ -14376,16 +14969,45 @@ function markTabOverflow() {
 function buildTabs() {
   const nav = $('tabs');
   nav.innerHTML = '';
-  for (const [id, label] of SECTIONS) {
-    const btn = el('button', 'tab', label);
-    btn.id = 'tab-' + id;
+  for (const group of GROUPS) {
+    // A GROUP OF ONE IS ITS SECTION. No second row appears for it, and the
+    // button it draws is that section's own tab — so `tab-today` and
+    // `tab-watch` are top-level buttons while `tab-openings` lives in the
+    // second row, and neither the caller nor a test has to know which.
+    const single = group.sections.length === 1 ? group.sections[0] : null;
+    const btn = el('button', 'tab', group.label);
+    btn.id = single ? 'tab-' + single : 'gtab-' + group.id;
     btn.type = 'button';
-    btn.addEventListener('click', () => show(id));
+    btn.addEventListener('click', () => show(LastInGroup[group.id] ?? group.sections[0]));
     nav.appendChild(btn);
   }
   nav.addEventListener('scroll', markTabOverflow, { passive: true });
   window.addEventListener('resize', markTabOverflow);
   markTabOverflow();
+}
+
+/**
+ * The second row: the screens inside the group you are in. Rebuilt on every
+ * change rather than hidden and shown, because a row of buttons for a group
+ * you are not in is a row of buttons that can be clicked by a test and never
+ * seen by a person.
+ */
+function buildSubTabs(group, section) {
+  const nav = $('subtabs');
+  const wrap = $('subtabsWrap');
+  if (!nav || !wrap) return;
+  wrap.hidden = group.sections.length < 2;
+  nav.innerHTML = '';
+  if (wrap.hidden) return;
+  for (const id of group.sections) {
+    const btn = el('button', 'tab subtab', sectionLabel(id));
+    btn.id = 'tab-' + id;
+    btn.type = 'button';
+    btn.classList.toggle('on', id === section);
+    btn.setAttribute('aria-current', id === section ? 'page' : 'false');
+    btn.addEventListener('click', () => show(id));
+    nav.appendChild(btn);
+  }
 }
 
 async function boot() {
@@ -14433,6 +15055,7 @@ async function boot() {
   Endgames.view = makeBoardView($('endgameBoard'), { onMove: onEndgameMove });
   Storm.view = makeBoardView($('stormBoard'), { onMove: onStormMove });
   Watch.view = makeBoardView($('watchBoard'), { interactive: false });
+  Notation.view = makeBoardView($('notationBoard'), { onMove: onNotationMove });
   Practice.view = makeBoardView($('practiceBoard'), { onMove: onPracticeMove });
   Practice.bar = makeEvalBar($('practiceEval'));
   applyPrefs();
@@ -14546,6 +15169,13 @@ async function boot() {
   $('endgameNext').addEventListener('click', closeEndgame);
   $('endgameTakeBack').addEventListener('click', takeBackEndgame);
   renderEndgames();
+
+  // Notation
+  $('notationTakeBack').addEventListener('click', takeBackNotation);
+  $('notationShow').addEventListener('click', showNotationMove);
+  $('notationFree').addEventListener('click', () => startNotationBoard());
+  renderNotationLessons();
+  startNotationBoard();
 
   // Watch
   $('watchBots').addEventListener('click', () => { startWatchBots(); playWatch(); });

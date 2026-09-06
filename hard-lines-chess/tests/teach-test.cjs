@@ -1,4 +1,4 @@
-const { launch, app, serve, DIST } = require('./browser.cjs');
+const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
 // Black to move, and the bishop on h5 looks free to take the queen: ...Bxd1??
 // loses to Bxf7+ and Nd5#. The classic Légal trap, verified by the finder's
 // own tests; here it is run through the real screen.
@@ -9,9 +9,9 @@ const QUIET = 'r1bqkb1r/pp3ppp/2n1pn2/2ppP3/3P4/2P2N2/PP3PPP/RNBQKB1R w KQkq - 0
   const page = await browser.newPage({ viewport: { width: 1100, height: 1200 } });
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(app());
-  await page.waitForSelector('#tab-play');
+  await page.waitForSelector('#tab-today');
   const say = (k, v) => console.log(String(k).padEnd(30), v);
-  await page.click('#tab-play');
+  await gotoSection(page, 'play');
 
   say('box hidden when off', await page.locator('#teachBox').isHidden());
   await page.check('#teachToggle');

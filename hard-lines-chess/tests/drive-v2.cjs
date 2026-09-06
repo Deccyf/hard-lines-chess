@@ -1,4 +1,4 @@
-const { launch, app, serve, DIST } = require('./browser.cjs');
+const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
 (async () => {
   const browser = await launch();
   const page = await browser.newPage({ viewport: { width: 1100, height: 1000 } });
@@ -11,7 +11,7 @@ const { launch, app, serve, DIST } = require('./browser.cjs');
   say('tabs', await page.locator('.tab').allInnerTexts().then((t) => t.join('|')));
 
   // ---- Board (practice)
-  await page.click('#tab-board');
+  await gotoSection(page, 'board');
   say('practice squares', await page.locator('#practiceBoard .sq').count());
   say('practice turn', await page.locator('#practiceTurn').innerText());
   // move e2e4 by tapping
@@ -72,7 +72,7 @@ const { launch, app, serve, DIST } = require('./browser.cjs');
   say('white game moves', await page.locator('#playMoves').innerText());
 
   // ---- Openings
-  await page.click('#tab-openings');
+  await gotoSection(page, 'openings');
   say('opening cards', await page.locator('.opening').count());
   await page.locator('.opening .btn:has-text("Learn it")').first().click();
   say('chips', await page.locator('#openingChips .chip').count());
@@ -106,7 +106,7 @@ const { launch, app, serve, DIST } = require('./browser.cjs');
   await page.click('#openingClose');
 
   // ---- Review with names containing html + truncated
-  await page.click('#tab-review');
+  await gotoSection(page, 'review');
   await page.fill('#pgnInput', '[White "<b>Bob</b>"]\n[Black "Alice"]\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# Zz9');
   await page.fill('#reviewName', 'nobody');
   await page.selectOption('#reviewDepth', '7');
@@ -127,7 +127,7 @@ const { launch, app, serve, DIST } = require('./browser.cjs');
   say('explore section', await page.locator('#section-board').isVisible());
 
   // ---- Settings
-  await page.click('#tab-settings');
+  await gotoSection(page, 'settings');
   say('swatches', await page.locator('#settingBoards .swatch').count());
   await page.locator('#settingBoards .swatch').nth(1).click();
   say('root board', await page.evaluate(() => document.documentElement.dataset.board));
@@ -141,16 +141,16 @@ const { launch, app, serve, DIST } = require('./browser.cjs');
   say('after reset', await page.evaluate(() => document.documentElement.dataset.board + '/' + document.documentElement.dataset.pieces));
 
   // Today
-  await page.click('#tab-today');
+  await gotoSection(page, 'today');
   say('download wrap hidden', await page.locator('#downloadWrap').isHidden());
   say('download note', await page.locator('#downloadNote').innerText());
   say('snapshot length', await page.evaluate(() => SOURCE_SNAPSHOT.length));
   say('snapshot has boot', await page.evaluate(() => SOURCE_SNAPSHOT.includes('function boot()') && !SOURCE_SNAPSHOT.includes('class="sq ')));
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.click('#tab-board'); await page.waitForTimeout(300);
+  await gotoSection(page, 'board'); await page.waitForTimeout(300);
   await page.screenshot({ path: 'v2-board-phone.png', fullPage: true });
-  await page.click('#tab-openings'); await page.locator('.opening .btn:has-text("Learn it")').first().click();
+  await gotoSection(page, 'openings'); await page.locator('.opening .btn:has-text("Learn it")').first().click();
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'v2-opening-phone.png', fullPage: true });
   console.log(errors.length ? 'ERRORS:\n' + errors.slice(0, 8).join('\n') : 'no page errors');

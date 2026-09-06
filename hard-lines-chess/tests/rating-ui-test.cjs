@@ -1,11 +1,11 @@
-const { launch, app, serve, DIST } = require('./browser.cjs');
+const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
 const REAL = JSON.parse(require('fs').readFileSync('selfplay.json', 'utf8')).pgn;
 (async () => {
   const browser = await launch();
   const page = await browser.newPage({ viewport: { width: 1100, height: 1200 } });
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(app());
-  await page.waitForSelector('#tab-review'); await page.click('#tab-review');
+  await page.waitForSelector('#tab-today'); await gotoSection(page, 'review');
   await page.fill('#pgnInput', '[White "Me"] [Black "Them"]\n' + REAL); await page.fill('#reviewName', 'Me');
   await page.selectOption('#reviewDepth', '7'); await page.click('#reviewRun');
   await page.waitForFunction(() => document.getElementById('reviewStatus').textContent.startsWith('Done'), null, { timeout: 300000 });
@@ -16,7 +16,7 @@ const REAL = JSON.parse(require('fs').readFileSync('selfplay.json', 'utf8')).pgn
   say('caveat present', (await panel.innerText()).includes('not a rating') && (await panel.innerText()).includes('targets'));
   say('stored on record', await page.evaluate(() => JSON.stringify(App.reviews.games.at(-1).estimate)));
   say('meanLoss stored', await page.evaluate(() => App.reviews.games.at(-1).meanLoss?.toFixed(1)));
-  await page.click('#tab-progress'); await page.waitForTimeout(200);
+  await gotoSection(page, 'progress'); await page.waitForTimeout(200);
   const prog = page.locator('#progressOut .panel').filter({ hasText: 'How strong your games look' });
   say('progress panel', await prog.count());
   say('progress readout', (await prog.locator('.readout').innerText()).replace(/\s+/g, ' '));

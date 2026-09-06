@@ -1,4 +1,4 @@
-const { launch, app, serve, DIST } = require('./browser.cjs');
+const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
 (async () => {
   const browser = await launch();
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
@@ -9,13 +9,13 @@ const { launch, app, serve, DIST } = require('./browser.cjs');
   console.log('download row    ', await page.locator('#downloadRow').isHidden() ? 'hidden (correct)' : 'VISIBLE');
   console.log('note            ', await page.locator('#downloadNote').innerText());
   console.log('panel visible   ', await page.locator('#downloadWrap').isVisible());
-  await page.click('#tab-play'); await page.waitForTimeout(200);
+  await gotoSection(page, 'play'); await page.waitForTimeout(200);
   await page.click('#playBoard .sq[aria-label="e2"]'); await page.click('#playBoard .sq[aria-label="e4"]');
   await page.waitForTimeout(1800);
   console.log('plays a game    ', (await page.locator('#playMoves').innerText()).replace(/\s+/g, ' '));
-  await page.click('#tab-openings');
+  await gotoSection(page, 'openings');
   console.log('openings        ', await page.locator('.opening').count());
-  await page.click('#tab-puzzles');
+  await gotoSection(page, 'puzzles');
   console.log('puzzles tab     ', (await page.locator('#puzzleEmpty').innerText()).slice(0, 60));
   const charset = await page.evaluate(() => document.characterSet + ' | ' + (document.querySelector('.note')?.textContent.includes('â') ? 'MOJIBAKE' : 'clean text'));
   console.log('encoding        ', charset);

@@ -1,7 +1,7 @@
 // The endgame trainer, driven. Checks the two things that matter and that no
 // unit test can see: that the screen wires up at all, and that the running
 // verdict changes on the move the win actually goes.
-const { launch, serve, DIST } = require('./browser.cjs');
+const { launch, serve, DIST, gotoSection } = require('./browser.cjs');
 
 (async () => {
   const srv = serve(DIST, 8241);
@@ -22,10 +22,13 @@ const { launch, serve, DIST } = require('./browser.cjs');
   await page.goto('http://127.0.0.1:8241/hard-lines-chess-app.html');
   await page.waitForSelector('#tab-today', { timeout: 20000 });
 
-  // The tab exists and opens.
-  const tabs = await page.$$eval('#tabs .tab', (els) => els.map((e) => e.textContent));
-  check('Endgames tab present', tabs.includes('Endgames'), true);
-  check('Vision tab present', tabs.includes('Vision'), true);
+  // Both screens are reachable through the nav — which since the strip went to
+  // two levels means opening the group and then the screen, not scrolling a row
+  // of fourteen.
+  await gotoSection(page, 'endgames');
+  check('the Endgames tab opens it', await page.$eval('#section-endgames', (e) => !e.hidden), true);
+  await gotoSection(page, 'vision');
+  check('the Vision tab opens it', await page.$eval('#section-vision', (e) => !e.hidden), true);
 
   await page.evaluate(() => show('endgames'));
   await page.waitForTimeout(200);

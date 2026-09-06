@@ -1,4 +1,4 @@
-const { launch, app, serve, DIST } = require('./browser.cjs');
+const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
 (async () => {
   const browser = await launch();
   const url = app();
@@ -11,7 +11,7 @@ const { launch, app, serve, DIST } = require('./browser.cjs');
     const page = await browser.newPage({ viewport: { width: 1100, height: 1000 } });
     const errors = []; page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(url); await page.waitForSelector('#tab-today');
-    await page.click('#tab-board');
+    await gotoSection(page, 'board');
     const open = async () => { await page.fill('#practiceFenIn', '4k3/1P6/8/8/8/8/8/4K3 w - - 0 1'); await page.click('#practiceLoad'); await tap(page, '#practiceBoard', 'b7'); await tap(page, '#practiceBoard', 'b8'); };
     await open();
     expect('A: overlay opens', !(await page.locator('#promo').isHidden()));
@@ -45,7 +45,7 @@ const { launch, app, serve, DIST } = require('./browser.cjs');
   {
     const page = await browser.newPage({ viewport: { width: 1100, height: 1000 } });
     await page.goto(url); await page.waitForSelector('#tab-today');
-    await page.click('#tab-board'); await page.click('#practiceFlip'); await page.click('#practiceSuggest');
+    await gotoSection(page, 'board'); await page.click('#practiceFlip'); await page.click('#practiceSuggest');
     await page.waitForFunction(() => document.querySelectorAll('#practiceLines .line-row').length > 0, null, { timeout: 15000 });
     const r = await page.evaluate(() => {
       const best = Practice.lastLines.lines[0].move; const to = (best >> 8) & 0xff;
@@ -73,7 +73,7 @@ const { launch, app, serve, DIST } = require('./browser.cjs');
       localStorage.setItem('hardlines:drills', JSON.stringify({ items: [item] }));
     }, shape);
     await page.goto(url); await page.waitForSelector('#tab-today');
-    await page.click('#tab-drills');
+    await gotoSection(page, 'drills');
     say(`C[${shape}]: count`, await page.locator('#drillCount').innerText());
     await page.click('#drillStart');
     await tap(page, '#drillBoard', 'g1'); await tap(page, '#drillBoard', 'f3'); await page.waitForTimeout(400);

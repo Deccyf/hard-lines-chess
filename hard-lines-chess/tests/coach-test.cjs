@@ -1,4 +1,4 @@
-const { launch, app, serve, DIST } = require('./browser.cjs');
+const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
 
 // A fake Claude that records exactly what it was sent, so the grounding rules
 // can be asserted on the real prompt rather than on the intention.
@@ -25,10 +25,10 @@ const STUB = () => {
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.addInitScript(STUB);
   await page.goto(app());
-  await page.waitForSelector('#tab-board');
+  await page.waitForSelector('#tab-today');
   const say = (k, v) => console.log(String(k).padEnd(26), v);
 
-  await page.click('#tab-board');
+  await gotoSection(page, 'board');
   await page.waitForTimeout(400);
   say('panel shown', await page.locator('#coachPanel').isVisible());
   say('absent panel hidden', await page.locator('#coachAbsent').isHidden());

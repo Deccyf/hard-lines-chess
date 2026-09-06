@@ -1,11 +1,11 @@
-const { launch, app, serve, DIST } = require('./browser.cjs');
+const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
 const REAL = require('fs').readFileSync('selfplay.json', 'utf8');
 (async () => {
   const pgn = '[White "Me"] [Black "Them"]\n' + JSON.parse(REAL).pgn;
   const browser = await launch();
   const page = await browser.newPage({ viewport: { width: 1100, height: 1200 } });
   await page.goto(app());
-  await page.waitForSelector('#tab-review'); await page.click('#tab-review');
+  await page.waitForSelector('#tab-today'); await gotoSection(page, 'review');
   await page.fill('#pgnInput', pgn); await page.fill('#reviewName', 'Me');
   await page.selectOption('#reviewDepth', '7'); await page.click('#reviewRun');
   await page.waitForFunction(() => document.getElementById('reviewStatus').textContent.startsWith('Done'), null, { timeout: 300000 });

@@ -1,4 +1,4 @@
-const { launch, app, serve, DIST } = require('./browser.cjs');
+const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
 (async () => {
   const srv8210 = serve(require('path').join(DIST, 'pwa'), 8210); await srv8210.ready;
   const srv8211 = serve(DIST, 8211); await srv8211.ready;
@@ -46,7 +46,7 @@ const { launch, app, serve, DIST } = require('./browser.cjs');
   say('offline: app loads', ok ? 'yes' : 'NO');
   if (ok) {
     say('offline: openings', await page2.locator('.opening').count().then((n) => n, () => 0) || await page2.evaluate(() => OPENINGS.length));
-    await page2.click('#tab-board');
+    await gotoSection(page2, 'board');
     await page2.click('#practiceSuggest');
     await page2.waitForFunction(() => document.querySelectorAll('#practiceLines .line-row').length > 0, null, { timeout: 20000 });
     say('offline: engine runs', (await page2.locator('#practiceLines .line-row').first().innerText()).replace(/\s+/g, ' '));

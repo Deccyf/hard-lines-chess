@@ -15,16 +15,45 @@ function markTabOverflow() {
 function buildTabs() {
   const nav = $('tabs');
   nav.innerHTML = '';
-  for (const [id, label] of SECTIONS) {
-    const btn = el('button', 'tab', label);
-    btn.id = 'tab-' + id;
+  for (const group of GROUPS) {
+    // A GROUP OF ONE IS ITS SECTION. No second row appears for it, and the
+    // button it draws is that section's own tab — so `tab-today` and
+    // `tab-watch` are top-level buttons while `tab-openings` lives in the
+    // second row, and neither the caller nor a test has to know which.
+    const single = group.sections.length === 1 ? group.sections[0] : null;
+    const btn = el('button', 'tab', group.label);
+    btn.id = single ? 'tab-' + single : 'gtab-' + group.id;
     btn.type = 'button';
-    btn.addEventListener('click', () => show(id));
+    btn.addEventListener('click', () => show(LastInGroup[group.id] ?? group.sections[0]));
     nav.appendChild(btn);
   }
   nav.addEventListener('scroll', markTabOverflow, { passive: true });
   window.addEventListener('resize', markTabOverflow);
   markTabOverflow();
+}
+
+/**
+ * The second row: the screens inside the group you are in. Rebuilt on every
+ * change rather than hidden and shown, because a row of buttons for a group
+ * you are not in is a row of buttons that can be clicked by a test and never
+ * seen by a person.
+ */
+function buildSubTabs(group, section) {
+  const nav = $('subtabs');
+  const wrap = $('subtabsWrap');
+  if (!nav || !wrap) return;
+  wrap.hidden = group.sections.length < 2;
+  nav.innerHTML = '';
+  if (wrap.hidden) return;
+  for (const id of group.sections) {
+    const btn = el('button', 'tab subtab', sectionLabel(id));
+    btn.id = 'tab-' + id;
+    btn.type = 'button';
+    btn.classList.toggle('on', id === section);
+    btn.setAttribute('aria-current', id === section ? 'page' : 'false');
+    btn.addEventListener('click', () => show(id));
+    nav.appendChild(btn);
+  }
 }
 
 async function boot() {
@@ -72,6 +101,7 @@ async function boot() {
   Endgames.view = makeBoardView($('endgameBoard'), { onMove: onEndgameMove });
   Storm.view = makeBoardView($('stormBoard'), { onMove: onStormMove });
   Watch.view = makeBoardView($('watchBoard'), { interactive: false });
+  Notation.view = makeBoardView($('notationBoard'), { onMove: onNotationMove });
   Practice.view = makeBoardView($('practiceBoard'), { onMove: onPracticeMove });
   Practice.bar = makeEvalBar($('practiceEval'));
   applyPrefs();
@@ -185,6 +215,13 @@ async function boot() {
   $('endgameNext').addEventListener('click', closeEndgame);
   $('endgameTakeBack').addEventListener('click', takeBackEndgame);
   renderEndgames();
+
+  // Notation
+  $('notationTakeBack').addEventListener('click', takeBackNotation);
+  $('notationShow').addEventListener('click', showNotationMove);
+  $('notationFree').addEventListener('click', () => startNotationBoard());
+  renderNotationLessons();
+  startNotationBoard();
 
   // Watch
   $('watchBots').addEventListener('click', () => { startWatchBots(); playWatch(); });

@@ -4,7 +4,7 @@
 // What matters here is the arithmetic and the honesty: a right move scores and
 // moves on, a wrong one costs ten seconds and names the move, and the screen
 // says which of the two sources each position came from.
-const { launch, serve, DIST } = require('./browser.cjs');
+const { launch, serve, DIST, gotoSection } = require('./browser.cjs');
 
 // Back-rank mate, verified on the board: Ra8 is the only mate in one.
 const MATE = { fen: '6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1', uci: 'a1a8', san: 'Ra8#' };
@@ -27,7 +27,8 @@ const MATE = { fen: '6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1', uci: 'a1a8', san: 'R
 
   await page.goto('http://127.0.0.1:8271/hard-lines-chess-app.html');
   await page.waitForSelector('#tab-today', { timeout: 20000 });
-  check('Clock tab present', await page.$$eval('#tabs .tab', (e) => e.map((x) => x.textContent).includes('Clock')), true);
+  await gotoSection(page, 'storm');
+  check('the Clock tab opens it', await page.$eval('#section-storm', (e) => !e.hidden), true);
 
   // Two copies of the same mate, filed as the player's own tactics.
   await page.evaluate((m) => {

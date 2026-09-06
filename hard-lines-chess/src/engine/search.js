@@ -184,9 +184,16 @@ export function evaluate(board) {
   const p = Math.min(phase, TOTAL_PHASE);
   const score = ((mg * p) + (eg * (TOTAL_PHASE - p))) / TOTAL_PHASE;
 
-  // Rounded once, from White's side, so the mirrored position scores the
-  // exact negative: round(x) and -round(-x) differ on a half.
-  const rounded = Math.round(score);
+  // Rounded once, from White's side, so the mirrored position scores the exact
+  // negative — and rounded AWAY FROM ZERO rather than with Math.round, which
+  // was the whole of the bug this comment used to describe without fixing.
+  // Math.round sends a half towards +infinity: round(10.5) is 11 and
+  // round(-10.5) is -10, so a position and its mirror scored 11 and 10. It
+  // happened on 337 of 7166 positions walked — one centipawn every twenty
+  // moves, always in White's favour, which is a colour bias in an engine whose
+  // ladder is verified by self-play with the colours alternated. Held to zero
+  // now by tests/eval-symmetry.test.mjs.
+  const rounded = Math.sign(score) * Math.round(Math.abs(score));
   return board.turn === WHITE ? rounded : -rounded;
 }
 

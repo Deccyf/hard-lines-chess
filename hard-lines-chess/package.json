@@ -6,7 +6,7 @@
   "description": "A single-file browser chess trainer with its own engine, opponent ladder, coach and review.",
   "scripts": {
     "build": "python3 build.py",
-    "test": "cd tests && node perft.mjs && node motifs.test.mjs && node traps.test.mjs && node cap-test.mjs && node test-lines.mjs && node rv-assert.mjs && node pawn-tb.test.mjs && node endgames.test.mjs",
+    "test": "cd tests && node perft.mjs && node motifs.test.mjs && node traps.test.mjs && node cap-test.mjs && node test-lines.mjs && node rv-assert.mjs && node pawn-tb.test.mjs && node endgames.test.mjs && node famous.test.mjs && node notation.test.mjs && node ids.test.mjs && node eval-symmetry.test.mjs && node puzzle-bank.test.mjs",
     "test:browser": "node tests/run-browser.cjs",
     "verify:openings": "node tests/verify-openings.mjs",
     "calibrate": "node tools/calibrate-rating.mjs 2",

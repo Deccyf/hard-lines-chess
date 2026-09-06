@@ -16,7 +16,7 @@
 //      screen that a reader could reasonably doubt, and it is the reason the
 //      pairing, the colours, the opening and the search window are all drawn.
 //      So it is checked by playing several and comparing them.
-const { launch, serve, DIST } = require('./browser.cjs');
+const { launch, serve, DIST, gotoSection } = require('./browser.cjs');
 
 (async () => {
   const srv = serve(DIST, 8274);
@@ -40,7 +40,7 @@ const { launch, serve, DIST } = require('./browser.cjs');
   check('the Watch tab is there',
     await page.$$eval('#tabs .tab', (e) => e.map((x) => x.textContent).includes('Watch')), true);
 
-  await page.click('#tab-watch');
+  await gotoSection(page, 'watch');
   await page.waitForTimeout(200);
   check('the section shows', await page.$eval('#section-watch', (e) => !e.hidden), true);
   check('the famous games are listed',
@@ -159,7 +159,7 @@ const { launch, serve, DIST } = require('./browser.cjs');
   // ── leaving the screen stops the game ────────────────────────────────────
   await page.evaluate(() => { Watch.speed = 400; playWatch(); });
   check('it is playing', await page.evaluate(() => Watch.playing), true);
-  await page.click('#tab-today');
+  await gotoSection(page, 'today');
   await page.waitForTimeout(150);
   check('leaving the screen stops it', await page.evaluate(() => Watch.playing), false);
 

@@ -1,4 +1,4 @@
-const { launch, app, serve, DIST } = require('./browser.cjs');
+const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
 const GAME_AS_WHITE = '1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. O-O Nf6 5. d3 d6 6. Bg5 h6';
 const GAME_AS_WHITE2 = '1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 a6 6. Be2 e5';
 (async () => {
@@ -7,11 +7,11 @@ const GAME_AS_WHITE2 = '1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 a6 6. B
   const errors = []; page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('ERR_')) errors.push('console: ' + m.text()); });
   await page.goto(app());
-  await page.waitForSelector('#tab-play');
+  await page.waitForSelector('#tab-today');
   const say = (k, v) => console.log(String(k).padEnd(28), v);
   say('boots without throwing', 'yes');
 
-  await page.click('#tab-play');
+  await gotoSection(page, 'play');
   say('book note (no games)', await page.locator('#bookNote').innerText());
   say('book toggle disabled', await page.locator('#bookToggle').isDisabled());
 
@@ -23,7 +23,7 @@ const GAME_AS_WHITE2 = '1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 a6 6. B
     ] }));
   }, [GAME_AS_WHITE, GAME_AS_WHITE2]);
   await page.reload();
-  await page.waitForSelector('#tab-play'); await page.click('#tab-play');
+  await page.waitForSelector('#tab-today'); await gotoSection(page, 'play');
   say('book note (2 games)', await page.locator('#bookNote').innerText());
   const book = await page.evaluate(() => { buildBook(); return { positions: Object.keys(Book.built).length, first: Book.built[''] , afterE4: Book.built['e2e4'] }; });
   say('book root (before 1.e4)', JSON.stringify(book.first));

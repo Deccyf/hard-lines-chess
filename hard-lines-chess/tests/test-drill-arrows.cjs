@@ -1,4 +1,4 @@
-const { launch, app, serve, DIST } = require('./browser.cjs');
+const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
 (async () => {
   const browser = await launch();
   const page = await browser.newPage({ viewport: { width: 430, height: 1400 } });
@@ -15,7 +15,7 @@ const { launch, app, serve, DIST } = require('./browser.cjs');
     await Store.set('drills', App.drills);
   });
 
-  await page.locator('#tab-drills').click();
+  await gotoSection(page, 'drills');
   await page.waitForTimeout(200);
   await page.locator('#drillStart').click();
   await page.waitForTimeout(300);

@@ -1,4 +1,4 @@
-const { launch, app, serve, DIST } = require('./browser.cjs');
+const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
 (async () => {
   const browser = await launch();
   const page = await browser.newPage({ viewport: { width: 430, height: 932 } });
@@ -6,7 +6,7 @@ const { launch, app, serve, DIST } = require('./browser.cjs');
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(app('hard-lines-chess.html'));
   await page.waitForTimeout(600);
-  await page.locator('#tab-play').click();
+  await gotoSection(page, 'play');
   await page.selectOption('#bandSelect', '0');   // fastest band: proves the floor, not the search
   await page.waitForTimeout(200);
 

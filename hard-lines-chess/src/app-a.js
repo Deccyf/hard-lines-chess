@@ -110,24 +110,64 @@ const SECTIONS = [
   ['storm', 'Clock'],
   ['endgames', 'Endgames'],
   ['watch', 'Watch'],
+  ['notation', 'Notation'],
   ['drills', 'Drills'],
   ['vision', 'Vision'],
   ['progress', 'Progress'],
   ['settings', 'Settings'],
 ];
 
+// ── the strip, in two levels ───────────────────────────────────────────────
+//
+// FOURTEEN TABS IN ONE ROW IS NOT A MENU, IT IS A LIST. The strip scrolled, and
+// a scrolling strip has two faults that get worse with every screen added: what
+// is off the end is invisible, so a feature nobody scrolls to is a feature
+// nobody has; and the row gives no shape to what is on it, so "Clock" and
+// "Vision" and "Board" read as fourteen equal siblings when they are nothing of
+// the kind.
+//
+// So the strip is now six, which fits a phone without scrolling, and each one
+// that holds more than a single screen opens a second row underneath it. The
+// grouping is by WHAT YOU CAME TO DO — play a game, learn a thing, drill
+// against a clock, watch somebody else — rather than by which part of the app
+// implements it.
+//
+// EVERY SECTION STILL HAS ITS OWN TAB BUTTON, `tab-<id>`, and a group holding
+// one section renders that section's button AS the top-level tab. So there is
+// exactly one place any given screen is reached from, and nothing has to know
+// whether it happens to live in a group of one.
+const GROUPS = [
+  { id: 'today', label: 'Today', sections: ['today'] },
+  { id: 'play', label: 'Play', sections: ['play', 'board', 'review'] },
+  { id: 'learn', label: 'Learn', sections: ['notation', 'openings', 'endgames', 'drills', 'vision'] },
+  { id: 'train', label: 'Train', sections: ['puzzles', 'storm'] },
+  { id: 'watch', label: 'Watch', sections: ['watch'] },
+  { id: 'you', label: 'You', sections: ['progress', 'settings'] },
+];
+
+const sectionLabel = (id) => SECTIONS.find(([s]) => s === id)?.[1] ?? id;
+const groupOf = (section) => GROUPS.find((g) => g.sections.includes(section)) ?? GROUPS[0];
+/** Where you were last inside each group, so coming back does not reset you. */
+const LastInGroup = {};
+
 function show(section) {
   App.section = section;
   // A SECTION CHANGED FROM ANYWHERE SCROLLS ITS TAB INTO VIEW. Openings sends
   // you to Play, Progress sends you to Play, Today sends you everywhere — and
-  // with a dozen tabs the one now highlighted was regularly off the side of a
-  // phone, so the strip looked like it had lost its selection.
+  // the tab now highlighted was regularly off the side of a phone, so the strip
+  // looked like it had lost its selection. Six top-level tabs fit without
+  // scrolling; the second row still can, so this stays.
+  const group = groupOf(section);
+  LastInGroup[group.id] = section;
+  buildSubTabs(group, section);
   const tab = document.getElementById('tab-' + section);
   if (tab?.scrollIntoView) tab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  for (const [id] of SECTIONS) {
-    $('section-' + id).hidden = id !== section;
-    $('tab-' + id).classList.toggle('on', id === section);
-    $('tab-' + id).setAttribute('aria-current', id === section ? 'page' : 'false');
+  for (const [id] of SECTIONS) $('section-' + id).hidden = id !== section;
+  for (const g of GROUPS) {
+    const button = document.getElementById(g.sections.length === 1 ? 'tab-' + g.sections[0] : 'gtab-' + g.id);
+    if (!button) continue;
+    button.classList.toggle('on', g === group);
+    button.setAttribute('aria-current', g === group && g.sections.length === 1 ? 'page' : 'false');
   }
   if (section === 'today') renderToday();
   if (section === 'openings') renderOpenings();
@@ -136,11 +176,20 @@ function show(section) {
   if (section === 'progress') renderProgress();
   if (section === 'board') renderPractice();
   if (section === 'settings') renderSettings();
+  // ── NOTHING KEEPS RUNNING ON A SCREEN YOU HAVE LEFT ─────────────────────
+  //
   // A GAME LEFT PLAYING IS A SEARCH LEFT RUNNING. The Watch screen advances
   // itself on a timer, and each tick is an engine search on the page's own
   // thread — so walking away from it while it plays would make every other
   // screen stutter for a game nobody is looking at.
   if (section !== 'watch') stopWatch();
+  // AND A TIMED ROUND LEFT RUNNING FINISHES WITHOUT YOU. The Clock and Vision
+  // rounds are on interval timers, and leaving mid-round did not stop them:
+  // three minutes later the run ended on a screen nobody was looking at, wrote
+  // its summary, and filed the result. A round you walked out of is over, and
+  // it ends when you leave rather than quietly carrying on.
+  if (section !== 'storm') stopStorm();
+  if (section !== 'vision') stopVision();
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
 

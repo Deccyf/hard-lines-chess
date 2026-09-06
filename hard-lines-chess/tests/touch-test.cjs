@@ -5,7 +5,11 @@ const { launch, app, serve, DIST } = require('./browser.cjs');
   const page = await ctx.newPage();
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(app('hard-lines-chess.html'));
-  await page.waitForSelector('#tab-board'); await page.tap('#tab-board'); await page.waitForTimeout(200);
+  await page.waitForSelector('#tab-today');
+  // Two taps now, not one: the Board screen lives inside the Play group, so a
+  // phone reaches it the way this does.
+  await page.tap('#gtab-play'); await page.waitForTimeout(150);
+  await page.tap('#tab-board'); await page.waitForTimeout(200);
   const b = await page.locator('#practiceBoard .sq[aria-label="b3"]').boundingBox();
   const cdp = await ctx.newCDPSession(page);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: b.x + 20, y: b.y + 20 }] });

@@ -1,4 +1,4 @@
-const { launch, app, serve, DIST } = require('./browser.cjs');
+const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
 
 // One game he WON with a tactic he actually found (Black hangs the queen to a
 // fork he plays), and one that ends in a mate the opponent walked into.
@@ -10,7 +10,7 @@ const MATE  = '1. e4 e5 2. Bc4 Bc5 3. Qh5 Nf6 4. Qxf7#';
   const page = await browser.newPage({ viewport: { width: 1100, height: 1000 } });
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(app('hard-lines-chess.html'));
-  await page.waitForSelector('#tab-puzzles');
+  await page.waitForSelector('#tab-today');
   await page.evaluate(([a, b]) => {
     localStorage.setItem('hardlines:history', JSON.stringify({ bands: {}, games: [
       { at: 1756900000001, band: 800, colour: 'black', result: 'w', plies: 14, pgn: a },
@@ -18,8 +18,8 @@ const MATE  = '1. e4 e5 2. Bc4 Bc5 3. Qh5 Nf6 4. Qxf7#';
     ] }));
   }, [FOUND, MATE]);
   await page.reload();
-  await page.waitForSelector('#tab-puzzles');
-  await page.click('#tab-puzzles');
+  await page.waitForSelector('#tab-today');
+  await gotoSection(page, 'puzzles');
   await page.click('#puzzleScan');
   await page.waitForFunction(() => !Puzzles.scanning, null, { timeout: 240000 });
   const say = (k, v) => console.log(String(k).padEnd(24), v);

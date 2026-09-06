@@ -1,4 +1,4 @@
-const { launch, app, serve, DIST } = require('./browser.cjs');
+const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
 // A game reviewed as the side that DELIVERED mate, from both colours. The
 // mating move is never a mistake, the final position sits at the sentinel,
 // the curve ends at the winner's 100%, and every readout says checkmate.
@@ -16,7 +16,7 @@ const ok = (name, cond, detail = '') => { console.log((cond ? 'ok   ' : 'FAIL ')
   const page = await browser.newPage({ viewport: { width: 1100, height: 1200 } });
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(app());
-  await page.waitForSelector('#tab-review'); await page.click('#tab-review');
+  await page.waitForSelector('#tab-today'); await gotoSection(page, 'review');
   for (const [name, pgn, winnerWhite, heWon] of [['white wins', WHITE_WINS, true, true], ['black wins', BLACK_WINS, false, true], ['black wins (short)', BLACK_WINS_SHORT, false, true], ['white loses', WHITE_LOSES, false, false]]) {
     console.log('--- ' + name);
     await page.fill('#pgnInput', pgn); await page.fill('#reviewName', 'Me');

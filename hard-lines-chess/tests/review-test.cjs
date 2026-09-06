@@ -1,4 +1,4 @@
-const { launch, app, serve, DIST } = require('./browser.cjs');
+const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
 // A game with SEVERAL missed mates in a row, which is exactly the shape that
 // used to take every slot in the mistake list.
 const REAL = "[White \"Me\"] [Black \"Them\"]\n1. Nf3 Nc6 2. d4 d5 3. Nc3 Nf6 4. Be3 e6 5. Nd2 Ng4 6. Bh6 Nxh6 7. Rb1 Nxd4 8. e4 dxe4 9. Ndxe4 c6 10. f4 Nhf5 11. Nc5 Bxc5 12. Bd3 Qh4+ 13. g3 Nxg3 14. hxg3 Qxh1+ 15. Bf1 Qh2 16. Qc1 Nf3+ 17. Kd1 Qf2 18. Ne4 Qxf1#";
@@ -8,9 +8,9 @@ const REAL = "[White \"Me\"] [Black \"Them\"]\n1. Nf3 Nc6 2. d4 d5 3. Nc3 Nf6 4.
   const page = await browser.newPage({ viewport: { width: 1100, height: 1200 } });
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(app());
-  await page.waitForSelector('#tab-review');
+  await page.waitForSelector('#tab-today');
   const say = (k, v) => console.log(String(k).padEnd(26), v);
-  await page.click('#tab-review');
+  await gotoSection(page, 'review');
   await page.fill('#pgnInput', REAL);
   await page.fill('#reviewName', 'Me');
   await page.selectOption('#reviewDepth', '7');

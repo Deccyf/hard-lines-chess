@@ -1,10 +1,10 @@
-const { launch, app, serve, DIST } = require('./browser.cjs');
+const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
 (async () => {
   const browser = await launch();
   const page = await browser.newPage({ viewport: { width: 1100, height: 1000 } });
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(app('hard-lines-chess.html'));
-  await page.waitForSelector('#tab-openings'); await page.click('#tab-openings');
+  await page.waitForSelector('#tab-today'); await gotoSection(page, 'openings');
   await page.locator('.opening .btn:has-text("Test me")').first().click();
   await page.waitForTimeout(100);
   await page.locator('#openingBranches .branch').nth(1).click(); // Two Knights branch in drill mode
