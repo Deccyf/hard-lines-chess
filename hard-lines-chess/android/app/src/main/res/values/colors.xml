@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The page colour, light: the "page" custom property on :root in
+         src/head.html. Keep the two in step. -->
+    <color name="page">#f2efe6</color>
+    <!-- The mark's ink ground; see tools/make-icons.cjs, which draws the same
+         two-by-two checker for the web icons. -->
+    <color name="ink">#14110d</color>
+    <color name="bone">#fbfaf7</color>
+    <color name="vermilion">#e8412a</color>
+</resources>

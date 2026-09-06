@@ -8080,6 +8080,19 @@ const App = {
 // which also strips the manifest link and any blob: URLs from the clone.
 const SOURCE_SNAPSHOT = sourceSnapshot();
 
+// ── WHERE THIS COPY IS RUNNING ────────────────────────────────────────────
+//
+// The Android app is this same page, in a WebView, served out of the APK's own
+// assets. Nothing about the chess differs there — but two of the offers on the
+// "Take it with you" panel are answers to questions that copy has already
+// answered: it is installed, and it is on the device. location.protocol cannot
+// tell, because the wrapper serves the page over https from a real origin
+// precisely so the browser storage the progress lives in behaves normally.
+//
+// So the wrapper says so, in the one place a page can always read: its user
+// agent. Stamped in MainActivity.java; nothing else in the app looks at it.
+const IN_ANDROID_APP = / HardLinesAndroid\//.test(navigator.userAgent);
+
 const esc = (text) => String(text ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -10518,6 +10531,16 @@ function manifestFor() {
 const Install = { prompt: null };
 
 function setupInstall() {
+  // THE ANDROID APP IS THE INSTALLED APP. Everything below it would run and
+  // achieve nothing there: there is no browser to attach an installed app to,
+  // the prompt never fires, and registering a worker to cache a page that is
+  // already a file inside the APK would only put a stale copy in front of it.
+  if (IN_ANDROID_APP) {
+    $('installRow').hidden = true;
+    $('installNote').textContent = 'Running as the Android app.';
+    return;
+  }
+
   if (!document.querySelector('link[rel="manifest"]')) {
     const blob = new Blob([JSON.stringify(manifestFor())], { type: 'application/manifest+json' });
     const link = document.createElement('link');
@@ -11677,7 +11700,7 @@ async function boot() {
   // download. The button did nothing, and the only honest thing it could have
   // said was that the file it offers is the file you are looking at.
   const saved = ['file:', 'content:', 'blob:', 'android-app:'].includes(location.protocol);
-  $('downloadRow').hidden = saved;
+  $('downloadRow').hidden = saved || IN_ANDROID_APP;
   if (saved) {
     // The panel stops explaining how to do the thing that has already been
     // done. Leaving "save a copy and it opens from your Files app" on screen
@@ -11689,6 +11712,14 @@ async function boot() {
     // obvious next question and the answer is a browser rule rather than
     // anything this page could do differently.
     $('installNote').textContent = 'A browser will not install an app from a file opened this way, whatever the file contains. Installing needs a web address.';
+  } else if (IN_ANDROID_APP) {
+    // The same shape of correction as the branch above, for the same reason:
+    // the panel is describing a journey this copy has already made. Saving the
+    // app out of the app would produce a worse copy of itself — one that keeps
+    // its progress somewhere else — and there is nowhere here to open it.
+    $('downloadTitle').textContent = 'Your copy';
+    $('downloadBlurb').hidden = true;
+    $('downloadNote').textContent = 'This is the Android app. The whole trainer is inside it — engine, openings, review and all — and it never asks the network for anything: it holds no permission to. Your progress is kept on this device.';
   }
   (async () => {
     try { App.downloads = await window.claude?.use?.('downloads') ?? null; } catch { App.downloads = null; }

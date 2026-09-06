@@ -27,10 +27,16 @@ src/            the app, as concatenated by build.py (order matters; see build.p
 src/engine/     0x88 board, alpha-beta search with TT/LMR/quiescence, the bands
 src/openings.js 25 openings, 79 branches — verified by tests/verify-openings.mjs
 pwa/            manifest, service-worker template, icons
+android/        the WebView wrapper that makes the APK (see android/README.md)
 tools/          rating calibration, icon generator, self-play PGN generator
 tests/          node unit tests (*.mjs) and Playwright browser drivers (*.cjs)
 dist/           build output (committed so the repo is usable without building)
 ```
+
+Two workflows in `.github/workflows/` publish it: `pages.yml` serves the
+installable kit at a web address, `android.yml` builds the APK. Both build from
+source rather than from the committed `dist/`, because a build that ships
+whatever happens to be committed can ship an older game than the source.
 
 ## Build
 
@@ -61,11 +67,35 @@ npm run verify:openings
 Browser drivers need Chromium. `npm install` fetches one via Playwright; or set
 `CHROME_PATH` to an existing binary.
 
-## Installing it as an app
+## Getting it onto a phone
 
-Serve `dist/pwa/` from any https address (or localhost) and open it. Chrome
-offers "Install app"; iOS uses Share → Add to Home Screen. A page opened from a
-Files app cannot be installed — that is a browser rule, and the page says so.
+Two routes. Both give an app with its own icon that opens without a browser
+around it and needs no connection; they differ only in where it comes from.
+
+**From the web.** The kit is served at
+<https://deccyf.github.io/hard-lines-chess/>. Open it on the phone: Chrome
+offers "Install app", iOS uses Share → Add to Home Screen. This route updates
+itself — the service worker is network-first, so the next opening with a signal
+is the newest build.
+
+**As a file.** An Android APK is attached to a release at an address that does
+not change:
+
+```
+https://github.com/Deccyf/hard-lines-chess/releases/download/android-latest/hard-lines-chess.apk
+```
+
+Tap it once downloaded and allow your browser to install apps when Android
+asks. This one holds no internet permission at all, so it is the same app on a
+plane as at home. See [`android/README.md`](android/README.md) for how it is
+built, and for what the committed signing key is and is not for.
+
+There is no iOS equivalent of the second route: Apple has no sideloading, so an
+iPhone takes the first one. Either way, a page opened from a Files app cannot
+be installed — that is a browser rule, and the page says so.
+
+Serving `dist/pwa/` from any other https address (or localhost) works the same
+way.
 
 ## What was measured, and what was not
 

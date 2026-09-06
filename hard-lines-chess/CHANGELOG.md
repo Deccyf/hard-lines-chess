@@ -1,5 +1,51 @@
 # Changelog
 
+## 1.1.0 — 2026-09-06
+
+The app becomes an app you can install on a phone, by two routes. The chess is
+unchanged; the engine, the ladder, the openings and the review are the same
+code, built the same way.
+
+### Two ways to get it on a phone
+- The installable kit is published to a web address on every push, so a phone
+  can install it. It was buildable before and served nowhere, and a browser
+  will not install an app from a file — which meant the whole `pwa/` directory
+  did nothing that a saved copy did not.
+- An Android APK: the same single-file app inside a WebView, attached to a
+  release at an address that does not change. It carries **no internet
+  permission at all**, so the claim that everything runs on your own device is
+  enforced by the system rather than promised in a README. The two fonts the
+  page linked from Google are bundled and answered locally, and every other
+  request is refused rather than fetched.
+- Both build from source rather than from the committed `dist/`. Publishing
+  what happens to be committed is how a stale page ships with a fresh service
+  worker, which is the one thing that worker's version stamp exists to prevent.
+
+### Wrong on screen
+- Inside the Android app the "Take it with you" panel offered to install an app
+  that was already installed, and to save a copy of the app you were holding.
+  Neither could be detected from the address, because the wrapper serves the
+  page over https on purpose — a `file:` page has an opaque origin and the
+  browser storage every saved game lives in is unreliable there. The wrapper
+  marks its user agent instead and the panel says the true thing, pinned by
+  `tests/android-app-test.cjs` on both sides of the marker.
+
+### Android specifics
+- Rotating the phone, or the system turning dark at sunset, no longer restarts
+  the activity — a restart reloads the page, and the game on the board goes
+  with it.
+- A WebView answers `prefers-color-scheme` with "light" whatever the phone is
+  set to unless the app opts in, so the app opened in daylight on a dark phone.
+- From Android 15 an app draws behind the status bar whether it asks to or not,
+  and the page has no safe-area padding, so its top row sat under the clock.
+  The bars are padded around instead.
+- Back goes back in the page, then asks a second time before leaving; a game in
+  progress lives in the page rather than on disk.
+- The engine's timers stop when the app is not in front.
+- Every build is signed with the same committed key, so an update installs over
+  the old app and the saved games survive. The key is public and protects
+  nothing; `android/README.md` says exactly what that does and does not mean.
+
 ## 1.0.0 — 2026-09-05
 
 First release. A review by four independent passes found 38 reproducible bugs

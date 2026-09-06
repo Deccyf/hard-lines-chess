@@ -181,7 +181,7 @@ async function boot() {
   // download. The button did nothing, and the only honest thing it could have
   // said was that the file it offers is the file you are looking at.
   const saved = ['file:', 'content:', 'blob:', 'android-app:'].includes(location.protocol);
-  $('downloadRow').hidden = saved;
+  $('downloadRow').hidden = saved || IN_ANDROID_APP;
   if (saved) {
     // The panel stops explaining how to do the thing that has already been
     // done. Leaving "save a copy and it opens from your Files app" on screen
@@ -193,6 +193,14 @@ async function boot() {
     // obvious next question and the answer is a browser rule rather than
     // anything this page could do differently.
     $('installNote').textContent = 'A browser will not install an app from a file opened this way, whatever the file contains. Installing needs a web address.';
+  } else if (IN_ANDROID_APP) {
+    // The same shape of correction as the branch above, for the same reason:
+    // the panel is describing a journey this copy has already made. Saving the
+    // app out of the app would produce a worse copy of itself — one that keeps
+    // its progress somewhere else — and there is nowhere here to open it.
+    $('downloadTitle').textContent = 'Your copy';
+    $('downloadBlurb').hidden = true;
+    $('downloadNote').textContent = 'This is the Android app. The whole trainer is inside it — engine, openings, review and all — and it never asks the network for anything: it holds no permission to. Your progress is kept on this device.';
   }
   (async () => {
     try { App.downloads = await window.claude?.use?.('downloads') ?? null; } catch { App.downloads = null; }

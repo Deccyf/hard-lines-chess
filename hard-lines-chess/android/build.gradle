@@ -1,0 +1,6 @@
+// The wrapper around the web app. There is nothing chess-related in here —
+// the game, the engine and the openings are all in ../dist/pwa/index.html,
+// which this build copies in as an asset. See app/build.gradle.
+plugins {
+    id 'com.android.application' version '8.7.3' apply false
+}

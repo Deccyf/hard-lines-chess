@@ -29,6 +29,19 @@ const App = {
 // which also strips the manifest link and any blob: URLs from the clone.
 const SOURCE_SNAPSHOT = sourceSnapshot();
 
+// ── WHERE THIS COPY IS RUNNING ────────────────────────────────────────────
+//
+// The Android app is this same page, in a WebView, served out of the APK's own
+// assets. Nothing about the chess differs there — but two of the offers on the
+// "Take it with you" panel are answers to questions that copy has already
+// answered: it is installed, and it is on the device. location.protocol cannot
+// tell, because the wrapper serves the page over https from a real origin
+// precisely so the browser storage the progress lives in behaves normally.
+//
+// So the wrapper says so, in the one place a page can always read: its user
+// agent. Stamped in MainActivity.java; nothing else in the app looks at it.
+const IN_ANDROID_APP = / HardLinesAndroid\//.test(navigator.userAgent);
+
 const esc = (text) => String(text ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 

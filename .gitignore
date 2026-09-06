@@ -1,0 +1,21 @@
+# The only dependency is Playwright, and only for the browser drivers. The
+# drivers take their Chromium from CHROME_PATH when there is one, so the exact
+# resolved tree is not something the repo needs to pin.
+node_modules/
+package-lock.json
+
+# Written by build.py on every build — the engine bundle from src/engine/*.js,
+# the rating fit from tools/rating-calibration.json. Committing them would be
+# committing the same code twice, in two states, which is the failure the
+# comment at the top of build.py is about.
+hard-lines-chess/src/engine/bundle.js
+hard-lines-chess/src/rating-fit.js
+
+# What the browser drivers leave behind: screenshots, re-saved copies, and the
+# scratch directory some of them write into.
+hard-lines-chess/tests/*.png
+hard-lines-chess/tests/output/
+hard-lines-chess/tests/resaved.html
+
+# dist/ is NOT ignored, on purpose: it is committed so the repo is usable
+# without building, and so a phone can be handed a file from a clone.

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and earlier. Everything is included: the WebView's own
+     directories under app_webview/ hold the localStorage the trainer saves
+     games, drills, openings progress and settings into, and a backup that
+     left those out would restore an app with no history in it. -->
+<full-backup-content />

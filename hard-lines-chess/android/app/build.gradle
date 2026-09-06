@@ -1,0 +1,143 @@
+plugins {
+    id 'com.android.application'
+}
+
+// ── the version comes from the repo, not from here ────────────────────────
+//
+// package.json and the CHANGELOG already say what version the trainer is, and
+// a number kept in a second place is a number that disagrees with the first.
+//
+// versionCode is the one Android actually compares when deciding whether an
+// APK may install over the one already on the phone, and it must go UP every
+// time or the install is refused with no useful message. CI passes the run
+// number; a build from a laptop gets 1, which is fine because it is only ever
+// installed over another laptop build of the same 1 after an uninstall.
+def repoVersion = new groovy.json.JsonSlurper()
+        .parse(rootProject.file('../package.json')).version
+def appVersionName = System.getenv('ANDROID_VERSION_NAME') ?: repoVersion
+def appVersionCode = (System.getenv('ANDROID_VERSION_CODE') ?: '1') as Integer
+
+// ── the app is a file, not a source tree ───────────────────────────────────
+//
+// build.py writes the whole trainer — engine, openings, styles — into one
+// HTML file. That file is the app; everything in src/main/java is a window to
+// put it in. It is COPIED IN at build time rather than committed here, because
+// a second copy in the tree is a copy that goes stale, and a stale copy is an
+// APK that ships an older game than the repo's own dist/.
+//
+// THE STANDALONE BUILD, NOT THE PWA ONE. build.py writes two whole documents
+// that differ in a single line: dist/pwa/index.html links a manifest, because
+// a browser needs one to offer an install. There is nothing to install here
+// and no manifest.webmanifest beside the file, so shipping that variant would
+// put a link to a missing file in the head of every copy of the app — a 404 on
+// every launch, for a feature the wrapper turns off anyway.
+def webApp = rootProject.file('../dist/hard-lines-chess-app.html')
+def webAppDir = layout.buildDirectory.dir('generated/webAppAssets')
+
+def syncWebApp = tasks.register('syncWebApp', Copy) {
+    description = 'Copies the built single-file app into the APK assets.'
+    doFirst {
+        if (!webApp.exists()) {
+            throw new GradleException(
+                "${webApp} is missing. Build the app first:\n" +
+                "    cd ${rootProject.file('..')} && python3 build.py")
+        }
+    }
+    from(webApp)
+    rename { 'index.html' }
+    into(webAppDir)
+}
+
+android {
+    namespace 'chess.hardlines'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'chess.hardlines'
+        // Android 8.0. Adaptive launcher icons and a WebView that can be
+        // updated independently of the system both start here, and it is
+        // where the per-app dark-theme signal the page reads becomes reliable.
+        minSdk 26
+        targetSdk 35
+        versionCode appVersionCode
+        versionName appVersionName
+    }
+
+    sourceSets {
+        main {
+            assets.srcDirs += webAppDir
+        }
+    }
+
+    // ── signing ────────────────────────────────────────────────────────────
+    //
+    // THE KEY IN THIS REPO IS PUBLIC AND IS MEANT TO BE. It exists for one
+    // reason: Android will only install an update over an existing app when
+    // both were signed by the same key, and an app installed over is an app
+    // whose saved games, drills and settings survive. A key generated fresh
+    // on each CI run would mean every new version had to be installed as a
+    // different app — uninstall first, and the uninstall takes your progress
+    // with it.
+    //
+    // It is not a secret and must not be treated as one: it protects nothing,
+    // and anyone can sign anything with it. That is an acceptable trade for an
+    // app you sideload onto your own phone from a release you built. It is NOT
+    // acceptable for Google Play, so point the four variables below at a real
+    // key if this ever goes there.
+    signingConfigs {
+        release {
+            storeFile file(System.getenv('ANDROID_KEYSTORE_FILE') ?: 'hard-lines.keystore')
+            storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD') ?: 'hardlines'
+            keyAlias System.getenv('ANDROID_KEY_ALIAS') ?: 'hard-lines'
+            keyPassword System.getenv('ANDROID_KEY_PASSWORD') ?: 'hardlines'
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            // Nothing to shrink. The Java here is one activity; the APK is
+            // almost entirely the app's own HTML, which a code shrinker does
+            // not touch. Leaving it off removes a whole class of "it worked
+            // in debug" failures for no measurable size.
+            minifyEnabled false
+        }
+        debug {
+            // So a debug build can be installed alongside a release one
+            // without either replacing the other.
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+        }
+    }
+
+    buildFeatures {
+        // MainActivity stamps BuildConfig.VERSION_NAME into the User-Agent, and
+        // AGP 8 stopped generating BuildConfig unless asked.
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // The APK is named for the version so a phone's Downloads folder does not
+    // fill with six files called app-release.apk.
+    applicationVariants.configureEach { variant ->
+        variant.outputs.configureEach { output ->
+            output.outputFileName = "hard-lines-chess-${variant.versionName}.apk"
+        }
+    }
+}
+
+tasks.named('preBuild').configure {
+    dependsOn(syncWebApp)
+}
+
+dependencies {
+    // WebViewAssetLoader — serves the bundled app over https so the browser
+    // storage the game saves into is a normal origin's storage. See MainActivity.
+    implementation 'androidx.webkit:webkit:1.12.1'
+    implementation 'androidx.activity:activity:1.9.3'
+    implementation 'androidx.core:core:1.13.1'
+}

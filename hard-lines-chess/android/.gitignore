@@ -1,0 +1,7 @@
+.gradle/
+build/
+app/build/
+local.properties
+# The app itself is copied in from ../dist/pwa/index.html at build time
+# (see the syncAppHtml task in app/build.gradle), never committed twice.
+app/src/generated/

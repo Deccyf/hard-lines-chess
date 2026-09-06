@@ -605,6 +605,16 @@ function manifestFor() {
 const Install = { prompt: null };
 
 function setupInstall() {
+  // THE ANDROID APP IS THE INSTALLED APP. Everything below it would run and
+  // achieve nothing there: there is no browser to attach an installed app to,
+  // the prompt never fires, and registering a worker to cache a page that is
+  // already a file inside the APK would only put a stale copy in front of it.
+  if (IN_ANDROID_APP) {
+    $('installRow').hidden = true;
+    $('installNote').textContent = 'Running as the Android app.';
+    return;
+  }
+
   if (!document.querySelector('link[rel="manifest"]')) {
     const blob = new Blob([JSON.stringify(manifestFor())], { type: 'application/manifest+json' });
     const link = document.createElement('link');

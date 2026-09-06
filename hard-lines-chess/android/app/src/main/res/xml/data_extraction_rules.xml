@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12 and later. Same intent as backup_rules.xml: the saved games
+     and drills travel with you to a new phone, and to a cloud backup. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="root" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="root" path="." />
+    </device-transfer>
+</data-extraction-rules>

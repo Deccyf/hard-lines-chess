@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- THERE IS NO <uses-permission android:name="android.permission.INTERNET" />
+         AND THERE IS NOT MEANT TO BE.
+
+         The app is the trainer's own index.html, served to the WebView out of
+         this APK. It has no accounts, no sync and no telemetry, and the one
+         remote thing the page asks for — a Google Fonts stylesheet — is
+         answered from bundled files by MainActivity. Without the permission
+         the claim that everything runs on your own device is enforced by the
+         system rather than promised by a README: the app cannot open a socket
+         even if a later change tried to. -->
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:hardwareAccelerated="true"
+        android:theme="@style/Theme.HardLines">
+
+        <!-- Rotating the phone, or the system flipping to dark at sunset, must
+             not restart the activity: a restart reloads the page and the game
+             on the board goes with it. MainActivity handles the two things
+             that genuinely change in onConfigurationChanged. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|uiMode|density|fontScale|locale|layoutDirection">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
