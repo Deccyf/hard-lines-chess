@@ -25,6 +25,7 @@ async function boot() {
   App.teaching = await Store.get('teaching', { games: [] });
   Endgames.results = await Store.get('endgames', {});
   Vision.best = await Store.get('vision', {});
+  Storm.best = await Store.get('storm', null);
   App.teaching.games ??= [];
   App.prefs = { ...DEFAULT_PREFS, ...(await Store.get('prefs', {})) };
 
@@ -53,6 +54,7 @@ async function boot() {
   Drill.view = makeBoardView($('drillBoard'), { interactive: false });
   Puzzles.view = makeBoardView($('puzzleBoard'), { interactive: false });
   Endgames.view = makeBoardView($('endgameBoard'), { onMove: onEndgameMove });
+  Storm.view = makeBoardView($('stormBoard'), { onMove: onStormMove });
   Practice.view = makeBoardView($('practiceBoard'), { onMove: onPracticeMove });
   Practice.bar = makeEvalBar($('practiceEval'));
   applyPrefs();
@@ -166,6 +168,11 @@ async function boot() {
   $('endgameNext').addEventListener('click', closeEndgame);
   $('endgameTakeBack').addEventListener('click', takeBackEndgame);
   renderEndgames();
+
+  // Clock
+  $('stormStart').addEventListener('click', startStorm);
+  $('stormStop').addEventListener('click', stopStorm);
+  renderStorm();
 
   // Vision
   $('visionStart').addEventListener('click', startVision);

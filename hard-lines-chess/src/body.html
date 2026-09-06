@@ -400,6 +400,49 @@
     <div class="panel" id="puzzleList"></div>
   </section>
 
+  <!-- STORM -->
+  <section id="section-storm" hidden>
+    <p class="lede">Three minutes. One position after another. The only way to go faster is to see faster.</p>
+
+    <div class="panel">
+      <p class="note" style="margin:0 0 10px">Everything else here is untimed on purpose — a drill you rush is a drill you
+        did not do. Recognition is the exception: you already know what a fork looks like, and what you do not have is
+        finding it in four seconds. A wrong move costs ten seconds rather than ending the run, because the thing that
+        improves is how many positions you get through.</p>
+      <p class="note" id="stormSource"></p>
+      <div class="row">
+        <button class="btn primary" id="stormStart" type="button">Start</button>
+        <button class="btn danger" id="stormStop" type="button" hidden>Stop</button>
+      </div>
+      <p class="note" id="stormSummary"></p>
+    </div>
+
+    <div id="stormBoardWrap" hidden>
+      <div class="layout">
+        <div>
+          <div id="stormBoard"></div>
+        </div>
+        <div>
+          <div class="panel">
+            <div class="readout">
+              <div><span class="k">Solved</span><span class="v" id="stormScore">0</span></div>
+              <div><span class="k">Time</span><span class="v" id="stormClock">3:00</span></div>
+            </div>
+            <p class="note" id="stormStreak"></p>
+            <p class="prompt" id="stormPrompt"></p>
+            <p class="note" id="stormWhere"></p>
+            <p class="note" id="stormFeedback"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Your best</h3>
+      <p class="note" id="stormBest"></p>
+    </div>
+  </section>
+
   <!-- ENDGAMES -->
   <section id="section-endgames" hidden>
     <p class="lede">Positions with a technique attached, played out against a defence that will not help you.</p>

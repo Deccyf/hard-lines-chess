@@ -254,20 +254,6 @@ function renderPracticeLines(result, board) {
     : `${bestSan} is its choice. Scores are in pawns from White's side${depthNote}.`;
 }
 
-/** A principal variation written as SAN, from the position it starts in. */
-function lineToSan(board, moves) {
-  const copy = new Board(board.fen());
-  const out = [];
-  for (const move of moves.slice(0, 6)) {
-    if (!copy.legalMoves().includes(move)) break;
-    const n = copy.turn === WHITE ? `${copy.fullmove}. ` : (out.length === 0 ? `${copy.fullmove}... ` : '');
-    const san = toSan(copy, move);
-    out.push(n + san);
-    copy.make(move);
-  }
-  return out.join(' ');
-}
-
 /**
  * INSIGHT: what the opponent is threatening. The side to move passes — the
  * FEN is rewritten with the other side on turn — and the engine says what it

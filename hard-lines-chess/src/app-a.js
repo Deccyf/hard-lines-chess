@@ -107,6 +107,7 @@ const SECTIONS = [
   ['openings', 'Openings'],
   ['review', 'Review'],
   ['puzzles', 'Puzzles'],
+  ['storm', 'Clock'],
   ['endgames', 'Endgames'],
   ['drills', 'Drills'],
   ['vision', 'Vision'],

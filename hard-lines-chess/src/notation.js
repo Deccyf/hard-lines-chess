@@ -50,3 +50,24 @@ function toSan(board, move) {
   return san;
 }
 
+/**
+ * A principal variation written as SAN, from the position it starts in.
+ *
+ * IT LIVES HERE, not with the screen that first needed it. This is the same
+ * kind of thing toSan() is — notation written from a position — and it was in
+ * app-d.js, which cannot be loaded without a DOM. tools/make-puzzles.mjs walks
+ * games in node and needs exactly this, and reaching it meant either dragging
+ * in a file full of getElementById or keeping a second copy that could drift.
+ */
+function lineToSan(board, moves) {
+  const copy = new Board(board.fen());
+  const out = [];
+  for (const move of moves.slice(0, 6)) {
+    if (!copy.legalMoves().includes(move)) break;
+    const n = copy.turn === WHITE ? `${copy.fullmove}. ` : (out.length === 0 ? `${copy.fullmove}... ` : '');
+    const san = toSan(copy, move);
+    out.push(n + san);
+    copy.make(move);
+  }
+  return out.join(' ');
+}
