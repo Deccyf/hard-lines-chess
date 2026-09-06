@@ -95,6 +95,12 @@ jobs:
             echo "version=$(python3 -c "import json;print(json.load(open('../package.json'))['version'])")"
             echo "sha256=$(sha256sum ../../out/hard-lines-chess.apk | cut -d' ' -f1)"
             echo "size=$(du -h ../../out/hard-lines-chess.apk | cut -f1)"
+            # A Pages host is all lower case. github.repository_owner keeps the
+            # capital the account was registered with, and while the hostname
+            # resolves either way, a printed link with a capital in the middle
+            # of it reads as a mistake in the one place people are deciding
+            # whether to trust a download.
+            echo "pages=https://$(echo "${GITHUB_REPOSITORY%%/*}" | tr '[:upper:]' '[:lower:]').github.io/${GITHUB_REPOSITORY#*/}/"
           } >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
@@ -146,5 +152,5 @@ jobs:
             protect.
 
             Prefer not to sideload? The same app installs from the web at
-            https://${{ github.repository_owner }}.github.io/hard-lines-chess/
-            — Chrome offers "Install app" and it lands on the home screen too.
+            ${{ steps.apk.outputs.pages }} — Chrome offers "Install app" and it
+            lands on the home screen too.
