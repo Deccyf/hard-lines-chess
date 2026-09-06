@@ -149,7 +149,17 @@ in several hundred searches, all 42 forced mates still found.
 
 **It is not shipped**, and the reason is the whole point of having the tools.
 
-`depth-probe.mjs` at a second a move, against the current build:
+Over 120 games at 100ms a move it scored **52W 29D 39L = 55.4%**, which is an
+Elo difference of **+38, with a 95% interval of −16 to +94**. That interval
+spans zero. The point estimate leans in the candidate's favour and the
+measurement does not establish it: 120 games cannot separate two engines less
+than about ninety points apart, and this pair are closer than that. Read
+honestly, the result is "probably a small gain, unproven" — which is not a
+reason to ship a change to the thing every other measurement in this repository
+is taken against.
+
+The more useful half of the answer came from the depth probe, at a second a
+move, against the current build:
 
 | position | baseline | candidate | |
 |---|---|---|---|
@@ -160,8 +170,8 @@ in several hundred searches, all 42 forced mates still found.
 | **king and pawn** | **29 ply** | **25 ply** | **four plies shallower** |
 
 So the search improvements work in the middle of the board and cost depth at
-the end of it, and a match over 120 games is the sum of those two — which is
-what it came out as. Isolating them (candidates `no-pvs` and `pvs-only` in the
+the end of it, and a 55.4% match score is the sum of those two — a small net
+gain that the endgame regression is eating most of. Isolating them (candidates `no-pvs` and `pvs-only` in the
 same directory) shows both changes lose depth in the pawn ending independently,
 so it is not one culprit:
 
@@ -292,7 +302,7 @@ would be measurable against the stored review history.
 | # | Change | Effort | What it buys | Measured? |
 |---|--------|--------|--------------|-----------|
 | 1 | §3b repertoire deviation | small | the best training feature missing | n/a — a feature, not a strength change |
-| 2 | §1a–c null move, PVS, qsearch evasions | built | see below | `tools/match.mjs` |
+| 2 | §1a–c fix the endgame regression, then re-match | small | unlocks a change already measured at +38 (unproven) | `tools/match.mjs` |
 | 3 | §1e probe the K+P table in the search | small | exact play in the endings the app says the search gets wrong | mate/endgame suites |
 | 4 | §3c mistake clustering over time | small | "you keep losing pieces to forks" | n/a |
 | 5 | §1d typed-array transposition table | medium | speed, no behaviour change | match |
