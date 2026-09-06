@@ -71,6 +71,7 @@ async function boot() {
   Puzzles.view = makeBoardView($('puzzleBoard'), { interactive: false });
   Endgames.view = makeBoardView($('endgameBoard'), { onMove: onEndgameMove });
   Storm.view = makeBoardView($('stormBoard'), { onMove: onStormMove });
+  Watch.view = makeBoardView($('watchBoard'), { interactive: false });
   Practice.view = makeBoardView($('practiceBoard'), { onMove: onPracticeMove });
   Practice.bar = makeEvalBar($('practiceEval'));
   applyPrefs();
@@ -184,6 +185,15 @@ async function boot() {
   $('endgameNext').addEventListener('click', closeEndgame);
   $('endgameTakeBack').addEventListener('click', takeBackEndgame);
   renderEndgames();
+
+  // Watch
+  $('watchBots').addEventListener('click', () => { startWatchBots(); playWatch(); });
+  $('watchSpeed').addEventListener('change', (e) => { Watch.speed = Number(e.target.value); });
+  $('watchPlay').addEventListener('click', playWatch);
+  $('watchPause').addEventListener('click', stopWatch);
+  $('watchBack').addEventListener('click', () => stepWatch(false));
+  $('watchNext').addEventListener('click', () => { stopWatch(); stepWatch(true); });
+  renderWatchList();
 
   // Clock
   $('stormStart').addEventListener('click', startStorm);

@@ -1206,6 +1206,76 @@
     </div>
   </section>
 
+  <!-- WATCH -->
+  <section id="section-watch" hidden>
+    <p class="lede">Somebody else's game, a move at a time, with the engine saying what it makes of each one.</p>
+
+    <div class="panel">
+      <div class="row">
+        <button class="btn primary" id="watchBots" type="button">Watch two bots play</button>
+        <label class="field"><span>Speed</span>
+          <select id="watchSpeed">
+            <option value="2600">Slow</option>
+            <option value="1600" selected>Normal</option>
+            <option value="700">Fast</option>
+          </select>
+        </label>
+      </div>
+      <p class="note" style="margin:10px 0 0">Two bands off the ladder, drawn at random, given opposite colours and an
+        opening neither of them picked. Inside the search each side chooses freely among the moves it rates equal, so
+        the same two bands do not play the same game twice. Press it again for another one.</p>
+    </div>
+
+    <div id="watchStage" hidden>
+      <div class="layout">
+        <div>
+          <div id="watchBoard"></div>
+          <p class="prompt" id="watchMove"></p>
+          <p class="note" id="watchNote"></p>
+          <p class="idea" id="watchOutcome"></p>
+          <div class="row">
+            <button class="btn" id="watchBack" type="button">Back</button>
+            <button class="btn primary" id="watchPlay" type="button">Play</button>
+            <button class="btn danger" id="watchPause" type="button" hidden>Pause</button>
+            <button class="btn" id="watchNext" type="button">Next</button>
+          </div>
+          <p class="note" id="watchProgress"></p>
+        </div>
+        <div>
+          <div class="panel">
+            <h3 id="watchTitle"></h3>
+            <p class="note" id="watchSubtitle"></p>
+            <div id="watchWhy"></div>
+          </div>
+          <div class="panel">
+            <h3>Why this game</h3>
+            <p class="note" id="watchWhyItMatters" hidden></p>
+            <div class="movelist" id="watchMoves"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Games worth watching</h3>
+      <p class="note">Every move below is replayed through this app's own move generator before it ships, so a game
+        here is the game it says it is. Where the record says checkmate, the final position has to be checkmate or the
+        build fails. Where a player resigned, nothing here can check that — a resignation is a fact about a room, not
+        about a position — and the screen says so rather than pretending the board proves it.</p>
+    </div>
+    <div id="watchGames"></div>
+
+    <div class="panel">
+      <h3>What the commentary is, and what it is not</h3>
+      <p class="note">Three sources, in this order. While the moves are still in one of the app's openings, you get
+        that opening's own note for the move just played — the same prose the Openings screen uses, already checked
+        against a board. On a famous game, at the moves that have one, you get a sentence somebody wrote about that
+        exact move. And after every move, a search deeper than the one that played it: if it wanted something else,
+        the gap between the two is printed in pawns.</p>
+      <p class="note">What you will not get is what the player was thinking. This app cannot know that, and a
+        confident guess dressed as commentary would be the one thing here that is not measured.</p>
+    </div>
+  </section>
   <!-- VISION -->
   <section id="section-vision" hidden>
     <p class="lede" id="visionLede">Where the squares are, without counting up from a1.</p>
@@ -7853,6 +7923,159 @@ const ENDGAMES = [
 ];
 
 
+// ── games worth watching ───────────────────────────────────────────────────
+//
+// Seven games from the record, to be played through a move at a time with the
+// engine saying what it thinks of each one.
+//
+// WHAT IS VERIFIED HERE AND WHAT IS NOT, because the two are different kinds
+// of claim and the app should not blur them.
+//
+//   THE MOVES ARE. Every game is replayed from the starting position through
+//   this app's own move generator by tests/famous.test.mjs, and a single wrong
+//   character in eighty-seven plies is an illegal move long before the end. A
+//   game that does not replay does not ship.
+//
+//   A MATE IS. Where the record ends in mate, the final position is checked to
+//   BE mate on the board. Four of these do.
+//
+//   A RESIGNATION IS NOT, and cannot be. "Black resigned" is a fact about a
+//   room in Tilburg in 1991, not about the position, and nothing here can
+//   check it — the board at the end of those three games is simply lost, not
+//   finished. They are marked `resigned` rather than `checkmate` and the
+//   screen says which it is showing.
+//
+//   THE NAMES AND DATES ARE NOT EITHER. Who played, where and when are matters
+//   of record that this app has no way to test. They are reported as what they
+//   are: the heading on a game score, not a measurement.
+//
+// Each `moment` names a ply and the move at it. The test checks the move it
+// quotes really is the move at that ply, so a note cannot drift off the move
+// it is about.
+
+const FAMOUS_GAMES = [
+  {
+    id: 'opera',
+    title: 'The Opera Game',
+    white: 'Paul Morphy',
+    black: 'Duke of Brunswick and Count Isouard',
+    event: 'Paris',
+    year: 1858,
+    result: '1-0',
+    ending: 'checkmate',
+    why: 'Morphy played this in a box at the opera, against two amateurs sharing the black pieces, and it has been the first game shown to beginners ever since. Every move develops something or takes something away; nothing is spent on anything else. He is a rook and a queen down at the end and mates anyway.',
+    moves: '1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Nf6 7. Qb3 Qe7 8. Nc3 c6 9. Bg5 b5 10. Nxb5 cxb5 11. Bxb5+ Nbd7 12. O-O-O Rd8 13. Rxd7 Rxd7 14. Rd1 Qe6 15. Bxd7+ Nxd7 16. Qb8+ Nxb8 17. Rd8#',
+    moments: [
+      { ply: 19, san: 'Nxb5', note: 'A knight for a pawn, to open the file the rook has not reached yet. Count the material and it is bad; count who can move and it is not.' },
+      { ply: 31, san: 'Qb8+', note: 'The queen goes to a square where it can be taken, and must be taken, because taking it puts the knight on the one square that stops the rook.' },
+      { ply: 33, san: 'Rd8#', note: 'Mate with the last two pieces he has left.' },
+    ],
+  },
+  {
+    id: 'immortal',
+    title: 'The Immortal Game',
+    white: 'Adolf Anderssen',
+    black: 'Lionel Kieseritzky',
+    event: 'London, a casual game',
+    year: 1851,
+    result: '1-0',
+    ending: 'checkmate',
+    why: 'Not a tournament game — played between rounds — and the most famous game there is. Anderssen gives away a bishop, both rooks and the queen, and mates with the three minor pieces that are left.',
+    moves: '1. e4 e5 2. f4 exf4 3. Bc4 Qh4+ 4. Kf1 b5 5. Bxb5 Nf6 6. Nf3 Qh6 7. d3 Nh5 8. Nh4 Qg5 9. Nf5 c6 10. g4 Nf6 11. Rg1 cxb5 12. h4 Qg6 13. h5 Qg5 14. Qf3 Ng8 15. Bxf4 Qf6 16. Nc3 Bc5 17. Nd5 Qxb2 18. Bd6 Bxg1 19. e5 Qxa1+ 20. Ke2 Na6 21. Nxg7+ Kd8 22. Qf6+ Nxf6 23. Be7#',
+    moments: [
+      { ply: 35, san: 'Bd6', note: 'Both rooks are hanging and he offers a bishop as well. The point is not the material; it is that Black’s queen and rook are on the wrong side of the board and cannot come back.' },
+      { ply: 43, san: 'Qf6+', note: 'The queen goes too, and has to be taken.' },
+      { ply: 45, san: 'Be7#', note: 'Mate by a bishop, a knight and a bishop, with a queen and two rooks given away to arrange it.' },
+    ],
+  },
+  {
+    id: 'evergreen',
+    title: 'The Evergreen Game',
+    white: 'Adolf Anderssen',
+    black: 'Jean Dufresne',
+    event: 'Berlin, a casual game',
+    year: 1852,
+    result: '1-0',
+    ending: 'checkmate',
+    why: 'Steinitz called it the evergreen in Anderssen’s laurel wreath. Black has a winning attack of his own and is one move too slow; the finish is a queen sacrifice that forces the king onto the square where the bishops are waiting.',
+    moves: '1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. b4 Bxb4 5. c3 Ba5 6. d4 exd4 7. O-O d3 8. Qb3 Qf6 9. e5 Qg6 10. Re1 Nge7 11. Ba3 b5 12. Qxb5 Rb8 13. Qa4 Bb6 14. Nbd2 Bb7 15. Ne4 Qf5 16. Bxd3 Qh5 17. Nf6+ gxf6 18. exf6 Rg8 19. Rad1 Qxf3 20. Rxe7+ Nxe7 21. Qxd7+ Kxd7 22. Bf5+ Ke8 23. Bd7+ Kf8 24. Bxe7#',
+    moments: [
+      { ply: 37, san: 'Rad1', note: 'The quiet move in the middle of the storm. Black is threatening mate; White brings the last piece to the file the king will end up on.' },
+      { ply: 41, san: 'Qxd7+', note: 'The queen, for nothing, to pull the king onto d7 where the two bishops take turns.' },
+      { ply: 47, san: 'Bxe7#', note: 'Mate, with the two bishops that were waiting for the king the queen sacrifice dragged out. Black is a queen and a rook up when it lands.' },
+    ],
+  },
+  {
+    id: 'century',
+    title: 'The Game of the Century',
+    white: 'Donald Byrne',
+    black: 'Bobby Fischer',
+    event: 'Rosenwald Memorial, New York',
+    year: 1956,
+    result: '0-1',
+    ending: 'checkmate',
+    why: 'Fischer was thirteen. He gives up his queen on move seventeen for a windmill of checks that never stops, and the pieces he gets for her chase the white king from one end of the board to the other.',
+    moves: '1. Nf3 Nf6 2. c4 g6 3. Nc3 Bg7 4. d4 O-O 5. Bf4 d5 6. Qb3 dxc4 7. Qxc4 c6 8. e4 Nbd7 9. Rd1 Nb6 10. Qc5 Bg4 11. Bg5 Na4 12. Qa3 Nxc3 13. bxc3 Nxe4 14. Bxe7 Qb6 15. Bc4 Nxc3 16. Bc5 Rfe8+ 17. Kf1 Be6 18. Bxb6 Bxc4+ 19. Kg1 Ne2+ 20. Kf1 Nxd4+ 21. Kg1 Ne2+ 22. Kf1 Nc3+ 23. Kg1 axb6 24. Qb4 Ra4 25. Qxb6 Nxd1 26. h3 Rxa2 27. Kh2 Nxf2 28. Re1 Rxe1 29. Qd8+ Bf8 30. Nxe1 Bd5 31. Nf3 Ne4 32. Qb8 b5 33. h4 h5 34. Ne5 Kg7 35. Kg1 Bc5+ 36. Kf1 Ng3+ 37. Ke1 Bb4+ 38. Kd1 Bb3+ 39. Kc1 Ne2+ 40. Kb1 Nc3+ 41. Kc1 Rc2#',
+    moments: [
+      { ply: 22, san: 'Na4', note: 'A knight to the edge, which every book tells you not to do, offered to a pawn that cannot take it without losing the queen.' },
+      { ply: 34, san: 'Be6', note: 'The move the game is remembered for. The queen is attacked and he ignores it: taking her lets the bishops and rooks in, and they never let go.' },
+      { ply: 82, san: 'Rc2#', note: 'Mate, twenty-four moves after giving the queen away.' },
+    ],
+  },
+  {
+    id: 'kasparov-topalov',
+    title: 'Kasparov’s Immortal',
+    white: 'Garry Kasparov',
+    black: 'Veselin Topalov',
+    event: 'Hoogovens, Wijk aan Zee',
+    year: 1999,
+    result: '1-0',
+    ending: 'resigned',
+    why: 'Kasparov gives up a rook on move twenty-four and drives the black king from b8 to a4 and then all the way back to d1 — the length of the board, under check almost the whole way. It is the most analysed attacking game of the modern era.',
+    moves: '1. e4 d6 2. d4 Nf6 3. Nc3 g6 4. Be3 Bg7 5. Qd2 c6 6. f3 b5 7. Nge2 Nbd7 8. Bh6 Bxh6 9. Qxh6 Bb7 10. a3 e5 11. O-O-O Qe7 12. Kb1 a6 13. Nc1 O-O-O 14. Nb3 exd4 15. Rxd4 c5 16. Rd1 Nb6 17. g3 Kb8 18. Na5 Ba8 19. Bh3 d5 20. Qf4+ Ka7 21. Rhe1 d4 22. Nd5 Nbxd5 23. exd5 Qd6 24. Rxd4 cxd4 25. Re7+ Kb6 26. Qxd4+ Kxa5 27. b4+ Ka4 28. Qc3 Qxd5 29. Ra7 Bb7 30. Rxb7 Qc4 31. Qxf6 Kxa3 32. Qxa6+ Kxb4 33. c3+ Kxc3 34. Qa1+ Kd2 35. Qb2+ Kd1 36. Bf1 Rd2 37. Rd7 Rxd7 38. Bxc4 bxc4 39. Qxh8 Rd3 40. Qa8 c3 41. Qa4+ Ke1 42. f4 f5 43. Kc1 Rd2 44. Qa7',
+    moments: [
+      { ply: 47, san: 'Rxd4', note: 'A rook for a pawn, to open a file towards a king that is about to have nowhere to stand.' },
+      { ply: 51, san: 'Qxd4+', note: 'The king is dragged out. From here it is checked on nearly every move for twenty moves and cannot go back.' },
+      { ply: 67, san: 'Qa1+', note: 'The black king has crossed the whole board — b8 to a4 and back to d1 — and is still being driven. It has been in check on nearly every move since move twenty-five.' },
+    ],
+  },
+  {
+    id: 'deep-blue',
+    title: 'Deep Blue – Kasparov, game six',
+    white: 'Deep Blue',
+    black: 'Garry Kasparov',
+    event: 'Rematch, New York',
+    year: 1997,
+    result: '1-0',
+    ending: 'resigned',
+    why: 'The game that ended the match and, for a lot of people, an era: the first time a reigning world champion lost a match to a machine. Kasparov walked into a known sacrifice on move eight and resigned on move nineteen — nineteen moves, the shortest loss of his career at that level.',
+    moves: '1. e4 c6 2. d4 d5 3. Nc3 dxe4 4. Nxe4 Nd7 5. Ng5 Ngf6 6. Bd3 e6 7. N1f3 h6 8. Nxe6 Qe7 9. O-O fxe6 10. Bg6+ Kd8 11. Bf4 b5 12. a4 Bb7 13. Re1 Nd5 14. Bg3 Kc8 15. axb5 cxb5 16. Qd3 Bc6 17. Bf5 exf5 18. Rxe7 Bxe7 19. c4',
+    moments: [
+      { ply: 15, san: 'Nxe6', note: 'A knight for a pawn, and the black king can never castle again. This was known theory, not a discovery — which is the part that stung.' },
+      { ply: 19, san: 'Bg6+', note: 'The king is pushed to d8 and the rooks on h8 and a8 take no further part in the game.' },
+      { ply: 37, san: 'c4', note: 'Kasparov resigned here. He is not yet mated and not yet a piece down; the position is simply not defensible.' },
+    ],
+  },
+  {
+    id: 'short-timman',
+    title: 'The king walk',
+    white: 'Nigel Short',
+    black: 'Jan Timman',
+    event: 'Interpolis, Tilburg',
+    year: 1991,
+    result: '1-0',
+    ending: 'resigned',
+    why: 'With the position locked, Short walks his own king from h2 to g5 — up the board, past both armies, to help mate. It is the most famous king march in tournament chess and Timman resigned rather than see it arrive.',
+    moves: '1. e4 Nf6 2. e5 Nd5 3. d4 d6 4. Nf3 g6 5. Bc4 Nb6 6. Bb3 Bg7 7. Qe2 Nc6 8. O-O O-O 9. h3 a5 10. a4 dxe5 11. dxe5 Nd4 12. Nxd4 Qxd4 13. Re1 e6 14. Nd2 Nd5 15. Nf3 Qc5 16. Qe4 Qb4 17. Bc4 Nb6 18. b3 Nxc4 19. bxc4 Re8 20. Rd1 Qc5 21. Qh4 b6 22. Be3 Qc6 23. Bh6 Bh8 24. Rd8 Bb7 25. Rad1 Bg7 26. R8d7 Rf8 27. Bxg7 Kxg7 28. R1d4 Rae8 29. Qf6+ Kg8 30. h4 h5 31. Kh2 Rc8 32. Kg3 Rce8 33. Kf4 Bc8 34. Kg5',
+    moments: [
+      { ply: 61, san: 'Kh2', note: 'The walk begins. Nothing is attacked, nothing is defended — the king is simply going somewhere, and Black has no way to stop it or to make progress elsewhere.' },
+      { ply: 65, san: 'Kf4', note: 'A king on the fourth rank in a middlegame with queens on. It is safe because every black piece is tied to stopping mate on g7.' },
+      { ply: 67, san: 'Kg5', note: 'Timman resigned. The king arrives beside its own queen, and Kh6 next move cannot be met.' },
+    ],
+  },
+];
+
+
 // ── the starting bank ──────────────────────────────────────────────────────
 //
 // GENERATED by tools/make-puzzles.mjs. Do not edit by hand.
@@ -8920,6 +9143,7 @@ const SECTIONS = [
   ['puzzles', 'Puzzles'],
   ['storm', 'Clock'],
   ['endgames', 'Endgames'],
+  ['watch', 'Watch'],
   ['drills', 'Drills'],
   ['vision', 'Vision'],
   ['progress', 'Progress'],
@@ -8930,7 +9154,7 @@ function show(section) {
   App.section = section;
   // A SECTION CHANGED FROM ANYWHERE SCROLLS ITS TAB INTO VIEW. Openings sends
   // you to Play, Progress sends you to Play, Today sends you everywhere — and
-  // with twelve tabs the one now highlighted was regularly off the side of a
+  // with a dozen tabs the one now highlighted was regularly off the side of a
   // phone, so the strip looked like it had lost its selection.
   const tab = document.getElementById('tab-' + section);
   if (tab?.scrollIntoView) tab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -8946,6 +9170,11 @@ function show(section) {
   if (section === 'progress') renderProgress();
   if (section === 'board') renderPractice();
   if (section === 'settings') renderSettings();
+  // A GAME LEFT PLAYING IS A SEARCH LEFT RUNNING. The Watch screen advances
+  // itself on a timer, and each tick is an engine search on the page's own
+  // thread — so walking away from it while it plays would make every other
+  // screen stutter for a game nobody is looking at.
+  if (section !== 'watch') stopWatch();
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
@@ -13690,6 +13919,446 @@ function renderStorm() {
 }
 
 
+// ── watching ───────────────────────────────────────────────────────────────
+//
+// Two things to watch and one way of watching them: a game between two bands
+// of the ladder, played here and now, or one of the games in famous.js,
+// replayed. Both step a move at a time with the engine saying what it makes of
+// each one.
+//
+// WHERE THE COMMENTARY COMES FROM, in order, and all of it measured:
+//
+//   1. THE OPENING BOOK THIS APP ALREADY HAS. While the moves match one of the
+//      openings in openings.js, the screen names it and prints that opening's
+//      own note for the move just played — prose already checked against the
+//      board by tools/verify-openings.mjs. That is what answers "why did they
+//      play that": for the first ten or twelve moves the honest answer is
+//      usually "because it is the line", and the line has a reason attached.
+//
+//   2. THE CURATED NOTE, for a famous game at a ply that has one. Those are
+//      the only sentences here written by a person, and tests/famous.test.mjs
+//      checks each one still quotes the move it is about.
+//
+//   3. A REFERENCE SEARCH, deeper than the band that played the move. If the
+//      move played is not the one a stronger search wants, the difference is
+//      the story — and in a game between a weak band and a strong one that is
+//      most of the game. This is the only line on the screen that is generated
+//      rather than written, and it is a measurement: two searches, a
+//      difference in centipawns, printed as pawns.
+//
+// WHAT THIS SCREEN WILL NOT SAY. It does not tell you a player's plan, or what
+// they were thinking, or why a human chose a move over the engine's. It cannot
+// know any of that. It reports the book, the note, and the number.
+//
+// NO TWO BOT GAMES ARE THE SAME, and that needed arranging. Two engines at
+// fixed settings play the same game every time, because nothing in them is
+// random above the blunder rate. So the pairing is drawn fresh, the colours
+// are drawn, one of the openings is drawn and played as the book, and the
+// search is given a `randomness` window inside which it picks among moves it
+// considers equal. Four dice, and the same two bands do not repeat a game.
+
+const Watch = {
+  source: 'bots',        // 'bots' | 'famous'
+  title: '',
+  whiteName: '',
+  blackName: '',
+  bands: null,           // { white, black } while a bot game is running
+  famous: null,          // the entry from FAMOUS_GAMES
+  book: [],              // the drawn opening's first plies, for a bot game
+  bookName: null,
+  sans: [],              // the moves so far, or the whole game for a replay
+  ply: 0,                // how many of them are on the board
+  board: null,
+  playing: false,
+  timer: null,
+  speed: 1600,
+  view: null,
+  notes: [],             // ply -> commentary, worked out once and kept
+  busy: false,
+  generation: 0,
+  finished: null,
+};
+
+/** How wide a window of "equally good" the two sides pick inside. */
+const WATCH_RANDOMNESS = 40;
+/** How many plies of a drawn opening to follow before they are on their own. */
+const WATCH_BOOK_PLIES = 8;
+// HOW STRONG THE PAIRING MAY BE, and this is a phone limit rather than a chess
+// one. The top bands are given up to 2.4 seconds a move, and a 2.4-second
+// search on the page's own thread is 2.4 seconds of a frozen board — on a
+// screen whose whole purpose is watching, that reads as a crash. Capped here
+// the slowest side thinks for a second, which is a pause rather than a hang.
+const WATCH_WEAKEST = 3;   // BANDS[3]  — 300
+const WATCH_STRONGEST = 17; // BANDS[17] — 1700, movetime 1000
+
+// ── setting one up ─────────────────────────────────────────────────────────
+
+function startWatchBots() {
+  Watch.generation++;
+  Watch.source = 'bots';
+  Watch.famous = null;
+  Watch.finished = null;
+
+  // Four dice. A pairing, a side, an opening and, inside the search, a window.
+  const pick = (list) => list[Math.floor(Math.random() * list.length)];
+  const spread = WATCH_STRONGEST - WATCH_WEAKEST;
+  const weakIndex = WATCH_WEAKEST + Math.floor(Math.random() * (spread - 4));
+  const strongIndex = Math.min(WATCH_STRONGEST, weakIndex + 4 + Math.floor(Math.random() * 6));
+  const weakIsWhite = Math.random() < 0.5;
+  Watch.bands = {
+    white: BANDS[weakIsWhite ? weakIndex : strongIndex],
+    black: BANDS[weakIsWhite ? strongIndex : weakIndex],
+  };
+  Watch.whiteName = `the ${bandLabelFor(Watch.bands.white.elo)} band`;
+  Watch.blackName = `the ${bandLabelFor(Watch.bands.black.elo)} band`;
+  Watch.title = `${bandLabelFor(Watch.bands.white.elo)} against ${bandLabelFor(Watch.bands.black.elo)}`;
+
+  // The opening is DRAWN AND PLAYED AS THE BOOK, which is the difference
+  // between a fresh game and the same one again. Both sides follow it; after
+  // it they are on their own and the randomness window does the rest.
+  const opening = pick(OPENINGS);
+  Watch.book = opening.line.slice(0, WATCH_BOOK_PLIES);
+  Watch.bookName = opening.name;
+
+  resetWatch();
+}
+
+function startWatchFamous(game) {
+  Watch.generation++;
+  Watch.source = 'famous';
+  Watch.famous = game;
+  Watch.bands = null;
+  Watch.book = [];
+  Watch.bookName = null;
+  Watch.finished = null;
+  Watch.whiteName = game.white;
+  Watch.blackName = game.black;
+  Watch.title = game.title;
+  Watch.sans = famousSans(game);
+  resetWatch(true);
+}
+
+/** A game's move text as bare SAN, the way the board will replay it. */
+function famousSans(game) {
+  return game.moves
+    .replace(/\d+\.(\.\.)?/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean);
+}
+
+function resetWatch(keepMoves = false) {
+  stopWatch();
+  if (!keepMoves) Watch.sans = [];
+  Watch.ply = 0;
+  Watch.notes = [];
+  Watch.busy = false;
+  Watch.board = new Board();
+  Watch.view.orientation = WHITE;
+  Watch.view.setFen(Watch.board.fen());
+  $('watchStage').hidden = false;
+  renderWatch();
+  explainWatchPly(0);
+}
+
+// ── stepping ───────────────────────────────────────────────────────────────
+
+/**
+ * Make sure there is a move at `ply`. A replay already has all of them; a bot
+ * game grows one search at a time, which is also what makes stepping back and
+ * forward through it cheap — the moves are kept, not searched again.
+ */
+function ensureWatchMove(ply) {
+  if (Watch.sans.length >= ply) return true;
+  if (Watch.source !== 'bots' || !Watch.bands) return false;
+
+  const board = new Board();
+  for (const san of Watch.sans) {
+    const move = sanToMove(board, san);
+    if (!move) return false;
+    board.make(move);
+  }
+  const already = board.outcome();
+  if (already) { Watch.finished = already; return false; }
+
+  const index = Watch.sans.length;
+  let move = null;
+  if (index < Watch.book.length) move = sanToMove(board, Watch.book[index]);
+  if (!move) {
+    const band = board.turn === WHITE ? Watch.bands.white : Watch.bands.black;
+    App.engine.reset();
+    const result = App.engine.search(board, {
+      movetime: band.movetime,
+      maxDepth: band.depth,
+      blunder: band.blunder,
+      randomness: WATCH_RANDOMNESS,
+    });
+    move = result.move;
+  }
+  if (!move) return false;
+  Watch.sans.push(toSan(board, move));
+  return true;
+}
+
+/** Put the board at `ply` and say what the move that got there was. */
+function goToWatchPly(ply) {
+  ply = Math.max(0, Math.min(ply, Watch.sans.length));
+  const board = new Board();
+  for (let i = 0; i < ply; i++) board.make(sanToMove(board, Watch.sans[i]));
+  Watch.board = board;
+  Watch.ply = ply;
+  Watch.view.setFen(board.fen());
+  const outcome = board.outcome();
+  if (outcome && ply >= Watch.sans.length) { Watch.finished = outcome; stopWatch(); }
+  renderWatch();
+  explainWatchPly(ply);
+}
+
+function stepWatch(forward = true) {
+  if (Watch.busy) return;
+  if (forward) {
+    if (!ensureWatchMove(Watch.ply + 1)) { stopWatch(); renderWatch(); return; }
+    const move = sanToMove(Watch.board, Watch.sans[Watch.ply]);
+    if (!move) { stopWatch(); renderWatch(); return; }
+    Watch.view.apply(move);
+    Watch.board = new Board(Watch.view.board.fen());
+    Watch.ply++;
+    const outcome = Watch.board.outcome();
+    if (outcome) { Watch.finished = outcome; stopWatch(); }
+    renderWatch();
+    explainWatchPly(Watch.ply);
+  } else {
+    if (Watch.ply === 0) return;
+    stopWatch();
+    goToWatchPly(Watch.ply - 1);
+  }
+}
+
+function playWatch() {
+  if (Watch.playing) return;
+  if (!Watch.sans.length && Watch.source !== 'bots') return;
+  Watch.playing = true;
+  $('watchPlay').hidden = true;
+  $('watchPause').hidden = false;
+  const mine = Watch.generation;
+  const tick = () => {
+    if (!Watch.playing || mine !== Watch.generation) return;
+    stepWatch(true);
+    if (!Watch.playing) return;
+    Watch.timer = setTimeout(tick, Watch.speed);
+  };
+  Watch.timer = setTimeout(tick, 200);
+}
+
+function stopWatch() {
+  Watch.playing = false;
+  clearTimeout(Watch.timer);
+  Watch.timer = null;
+  const play = $('watchPlay'), pause = $('watchPause');
+  if (play) play.hidden = false;
+  if (pause) pause.hidden = true;
+}
+
+// ── saying what happened ───────────────────────────────────────────────────
+
+/**
+ * Which opening the moves so far are still inside, and how far into it they
+ * are. The longest match wins, so a line that is a prefix of two openings is
+ * reported as whichever it has gone further into.
+ */
+function watchOpening(sans) {
+  let best = null;
+  for (const opening of OPENINGS) {
+    let depth = 0;
+    while (depth < sans.length && depth < opening.line.length && sans[depth] === opening.line[depth]) depth++;
+    if (depth >= 4 && (!best || depth > best.depth)) best = { opening, depth };
+  }
+  return best;
+}
+
+/**
+ * The note for a ply, worked out once and kept. The reference search — deeper
+ * than the band that played the move — is what turns "it played Qh5" into "a
+ * deeper search wanted Nc3, and this costs three pawns".
+ */
+function explainWatchPly(ply) {
+  if (ply < 1) {
+    $('watchMove').textContent = Watch.sans.length || Watch.source === 'bots' ? 'The starting position' : '';
+    $('watchWhy').innerHTML = '';
+    $('watchNote').textContent = Watch.source === 'bots' && Watch.bookName
+      ? `They will follow the ${Watch.bookName} for the first ${WATCH_BOOK_PLIES / 2} moves, then they are on their own.`
+      : 'Press play.';
+    $('watchNote').className = 'note';
+    return;
+  }
+  if (Watch.notes[ply]) { paintWatchNote(Watch.notes[ply]); return; }
+
+  const before = new Board();
+  for (let i = 0; i < ply - 1; i++) before.make(sanToMove(before, Watch.sans[i]));
+  const played = Watch.sans[ply - 1];
+  const mover = before.turn === WHITE ? 'White' : 'Black';
+  const moverName = before.turn === WHITE ? Watch.whiteName : Watch.blackName;
+
+  const note = { ply, played, mover, moverName, lines: [] };
+  Watch.notes[ply] = note;
+
+  // 1. The book, and its own reason for this move.
+  const inBook = watchOpening(Watch.sans.slice(0, ply));
+  if (inBook && inBook.depth >= ply) {
+    const idea = inBook.opening.ideas?.[ply - 1];
+    note.opening = `${inBook.opening.name} (${inBook.opening.eco})`;
+    note.lines.push(idea ? `Still in the ${inBook.opening.name}. ${idea}` : `Still in the ${inBook.opening.name}.`);
+    if (ply === 1 && inBook.opening.plan) note.lines.push(inBook.opening.plan);
+  } else if (Watch.source === 'bots' && ply === Watch.book.length + 1) {
+    note.lines.push('The book has run out. From here both sides are choosing for themselves.');
+  }
+
+  // 2. A curated note, where a person wrote one about this exact move.
+  const moment = Watch.famous?.moments?.find((m) => m.ply === ply);
+  if (moment) note.moment = moment.note;
+
+  paintWatchNote(note);
+
+  // 3. The reference search, deferred so the board paints first.
+  Watch.busy = true;
+  const mine = Watch.generation;
+  requestAnimationFrame(() => setTimeout(() => {
+    if (mine !== Watch.generation) { Watch.busy = false; return; }
+    let judged = null;
+    try {
+      App.engine.reset();
+      const result = App.engine.search(new Board(before.fen()), { movetime: 260, maxDepth: 12 });
+      if (result.move) {
+        const best = toSan(new Board(before.fen()), result.move);
+        const after = new Board(before.fen());
+        after.make(sanToMove(after, played));
+        const ended = after.outcome();
+        let scoreAfter;
+        if (ended === 'checkmate') scoreAfter = CHECKMATE_SCORE;
+        else if (ended) scoreAfter = 0;
+        else {
+          App.engine.reset();
+          const reply = App.engine.search(after, { movetime: 200, maxDepth: 11 });
+          scoreAfter = -reply.score;
+        }
+        judged = { best, loss: Math.max(0, result.score - scoreAfter), evalAfter: plainEval(scoreAfter, mover) };
+      }
+    } catch { judged = null; }
+    Watch.busy = false;
+    if (!judged || mine !== Watch.generation) return;
+    note.judged = judged;
+    if (Watch.ply === ply) paintWatchNote(note);
+  }, 0));
+}
+
+function paintWatchNote(note) {
+  const number = Math.ceil(note.ply / 2);
+  $('watchMove').textContent = `${number}${note.ply % 2 ? '.' : '…'} ${note.played} — ${note.moverName}`;
+
+  const why = $('watchWhy');
+  why.innerHTML = '';
+  if (note.moment) why.appendChild(el('p', 'idea', note.moment));
+  for (const text of note.lines) why.appendChild(el('p', 'note', text));
+
+  const box = $('watchNote');
+  if (!note.judged) { box.textContent = 'Looking at it…'; box.className = 'note'; return; }
+  const { best, loss, evalAfter } = note.judged;
+  if (best === note.played || loss < 40) {
+    box.textContent = `A deeper search agrees with ${note.played}. ${evalAfter}.`;
+    box.className = 'note good-note';
+  } else if (loss < 150) {
+    box.textContent = `A deeper search prefers ${best}. This is a little worse, not a mistake. ${evalAfter}.`;
+    box.className = 'note';
+  } else {
+    box.textContent = `A deeper search wanted ${best}. ${note.played} costs about ${(loss / 100).toFixed(1)} pawns against it. ${evalAfter}.`;
+    box.className = 'note bad-note';
+  }
+}
+
+function renderWatch() {
+  $('watchTitle').textContent = Watch.title || 'Nothing loaded';
+
+  // WHAT THE SUBTITLE IS FOR. On a famous game it carries the one thing this
+  // app can and cannot prove about the ending, said in the same breath.
+  $('watchSubtitle').textContent = Watch.source === 'famous' && Watch.famous
+    ? `${Watch.famous.event}, ${Watch.famous.year} · ${Watch.famous.result} · ${Watch.famous.ending === 'checkmate'
+        ? 'the mate at the end is checked on the board'
+        : 'the loser resigned, which is a fact about the room rather than the position'}`
+    : Watch.bands
+      ? `A drawn pairing, a drawn opening and a window of equally good moves — so this is not a game either of them has played before.${Watch.bookName ? ` Opening: the ${Watch.bookName}.` : ''}`
+      : '';
+
+  const total = Watch.source === 'famous' ? Watch.sans.length : null;
+  $('watchProgress').textContent = total
+    ? `Move ${Math.max(1, Math.ceil(Watch.ply / 2))} of ${Math.ceil(total / 2)}`
+    : Watch.ply ? `Move ${Math.ceil(Watch.ply / 2)}` : '';
+
+  const atEnd = Watch.ply >= Watch.sans.length && (Watch.source === 'famous' || Watch.finished !== null);
+  $('watchBack').disabled = Watch.ply === 0;
+  $('watchNext').disabled = atEnd;
+  $('watchPlay').disabled = atEnd;
+
+  let outcome = '';
+  if (Watch.finished && Watch.ply >= Watch.sans.length) {
+    outcome = {
+      checkmate: `Checkmate. ${Watch.ply % 2 ? 'White' : 'Black'} wins.`,
+      stalemate: 'Stalemate — a draw.',
+      repetition: 'Drawn by repetition.',
+      fifty_move: 'Drawn by the fifty-move rule.',
+      insufficient: 'Drawn — neither side has enough left to mate.',
+    }[Watch.finished] ?? '';
+  }
+  if (Watch.source === 'famous' && Watch.famous && Watch.ply >= Watch.sans.length && Watch.sans.length) {
+    outcome = Watch.famous.ending === 'checkmate'
+      ? `Checkmate. ${Watch.famous.result === '1-0' ? Watch.famous.white : Watch.famous.black} wins.`
+      : `${Watch.famous.result === '1-0' ? Watch.famous.black : Watch.famous.white} resigned here. The board is simply lost; nothing on it proves the game stopped.`;
+  }
+  $('watchOutcome').textContent = outcome;
+
+  $('watchWhyItMatters').textContent = Watch.source === 'famous' && Watch.famous ? Watch.famous.why : '';
+  $('watchWhyItMatters').hidden = Watch.source !== 'famous';
+
+  renderWatchMoves();
+}
+
+function renderWatchMoves() {
+  const box = $('watchMoves');
+  box.innerHTML = '';
+  for (let i = 0; i < Watch.sans.length; i++) {
+    if (i % 2 === 0) box.appendChild(el('span', 'mn', `${i / 2 + 1}.`));
+    const btn = el('button', 'mv', Watch.sans[i]);
+    btn.type = 'button';
+    if (i + 1 === Watch.ply) btn.classList.add('on');
+    btn.addEventListener('click', () => { stopWatch(); goToWatchPly(i + 1); });
+    box.appendChild(btn);
+  }
+}
+
+function renderWatchList() {
+  const box = $('watchGames');
+  box.innerHTML = '';
+  for (const game of FAMOUS_GAMES) {
+    const row = el('div', 'endgame-row');
+    const head = el('div', 'endgame-head');
+    head.appendChild(el('strong', null, game.title));
+    head.appendChild(el('span', 'tag', String(game.year)));
+    row.appendChild(head);
+    row.appendChild(el('p', 'note', `${game.white} against ${game.black} · ${game.event} · ${game.result}`));
+    row.appendChild(el('p', 'note', game.why));
+    const watch = el('button', 'btn', 'Watch it');
+    watch.type = 'button';
+    watch.addEventListener('click', () => {
+      startWatchFamous(game);
+      $('watchStage').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      playWatch();
+    });
+    row.appendChild(watch);
+    box.appendChild(row);
+  }
+}
+
+
 // ── wiring ─────────────────────────────────────────────────────────────────
 /**
  * Does the strip run off the edge, and is there anything still off it?
@@ -13763,6 +14432,7 @@ async function boot() {
   Puzzles.view = makeBoardView($('puzzleBoard'), { interactive: false });
   Endgames.view = makeBoardView($('endgameBoard'), { onMove: onEndgameMove });
   Storm.view = makeBoardView($('stormBoard'), { onMove: onStormMove });
+  Watch.view = makeBoardView($('watchBoard'), { interactive: false });
   Practice.view = makeBoardView($('practiceBoard'), { onMove: onPracticeMove });
   Practice.bar = makeEvalBar($('practiceEval'));
   applyPrefs();
@@ -13876,6 +14546,15 @@ async function boot() {
   $('endgameNext').addEventListener('click', closeEndgame);
   $('endgameTakeBack').addEventListener('click', takeBackEndgame);
   renderEndgames();
+
+  // Watch
+  $('watchBots').addEventListener('click', () => { startWatchBots(); playWatch(); });
+  $('watchSpeed').addEventListener('change', (e) => { Watch.speed = Number(e.target.value); });
+  $('watchPlay').addEventListener('click', playWatch);
+  $('watchPause').addEventListener('click', stopWatch);
+  $('watchBack').addEventListener('click', () => stepWatch(false));
+  $('watchNext').addEventListener('click', () => { stopWatch(); stepWatch(true); });
+  renderWatchList();
 
   // Clock
   $('stormStart').addEventListener('click', startStorm);

@@ -109,6 +109,7 @@ const SECTIONS = [
   ['puzzles', 'Puzzles'],
   ['storm', 'Clock'],
   ['endgames', 'Endgames'],
+  ['watch', 'Watch'],
   ['drills', 'Drills'],
   ['vision', 'Vision'],
   ['progress', 'Progress'],
@@ -119,7 +120,7 @@ function show(section) {
   App.section = section;
   // A SECTION CHANGED FROM ANYWHERE SCROLLS ITS TAB INTO VIEW. Openings sends
   // you to Play, Progress sends you to Play, Today sends you everywhere — and
-  // with twelve tabs the one now highlighted was regularly off the side of a
+  // with a dozen tabs the one now highlighted was regularly off the side of a
   // phone, so the strip looked like it had lost its selection.
   const tab = document.getElementById('tab-' + section);
   if (tab?.scrollIntoView) tab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -135,6 +136,11 @@ function show(section) {
   if (section === 'progress') renderProgress();
   if (section === 'board') renderPractice();
   if (section === 'settings') renderSettings();
+  // A GAME LEFT PLAYING IS A SEARCH LEFT RUNNING. The Watch screen advances
+  // itself on a timer, and each tick is an engine search on the page's own
+  // thread — so walking away from it while it plays would make every other
+  // screen stutter for a game nobody is looking at.
+  if (section !== 'watch') stopWatch();
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
 

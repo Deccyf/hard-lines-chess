@@ -491,6 +491,76 @@
     </div>
   </section>
 
+  <!-- WATCH -->
+  <section id="section-watch" hidden>
+    <p class="lede">Somebody else's game, a move at a time, with the engine saying what it makes of each one.</p>
+
+    <div class="panel">
+      <div class="row">
+        <button class="btn primary" id="watchBots" type="button">Watch two bots play</button>
+        <label class="field"><span>Speed</span>
+          <select id="watchSpeed">
+            <option value="2600">Slow</option>
+            <option value="1600" selected>Normal</option>
+            <option value="700">Fast</option>
+          </select>
+        </label>
+      </div>
+      <p class="note" style="margin:10px 0 0">Two bands off the ladder, drawn at random, given opposite colours and an
+        opening neither of them picked. Inside the search each side chooses freely among the moves it rates equal, so
+        the same two bands do not play the same game twice. Press it again for another one.</p>
+    </div>
+
+    <div id="watchStage" hidden>
+      <div class="layout">
+        <div>
+          <div id="watchBoard"></div>
+          <p class="prompt" id="watchMove"></p>
+          <p class="note" id="watchNote"></p>
+          <p class="idea" id="watchOutcome"></p>
+          <div class="row">
+            <button class="btn" id="watchBack" type="button">Back</button>
+            <button class="btn primary" id="watchPlay" type="button">Play</button>
+            <button class="btn danger" id="watchPause" type="button" hidden>Pause</button>
+            <button class="btn" id="watchNext" type="button">Next</button>
+          </div>
+          <p class="note" id="watchProgress"></p>
+        </div>
+        <div>
+          <div class="panel">
+            <h3 id="watchTitle"></h3>
+            <p class="note" id="watchSubtitle"></p>
+            <div id="watchWhy"></div>
+          </div>
+          <div class="panel">
+            <h3>Why this game</h3>
+            <p class="note" id="watchWhyItMatters" hidden></p>
+            <div class="movelist" id="watchMoves"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Games worth watching</h3>
+      <p class="note">Every move below is replayed through this app's own move generator before it ships, so a game
+        here is the game it says it is. Where the record says checkmate, the final position has to be checkmate or the
+        build fails. Where a player resigned, nothing here can check that — a resignation is a fact about a room, not
+        about a position — and the screen says so rather than pretending the board proves it.</p>
+    </div>
+    <div id="watchGames"></div>
+
+    <div class="panel">
+      <h3>What the commentary is, and what it is not</h3>
+      <p class="note">Three sources, in this order. While the moves are still in one of the app's openings, you get
+        that opening's own note for the move just played — the same prose the Openings screen uses, already checked
+        against a board. On a famous game, at the moves that have one, you get a sentence somebody wrote about that
+        exact move. And after every move, a search deeper than the one that played it: if it wanted something else,
+        the gap between the two is printed in pawns.</p>
+      <p class="note">What you will not get is what the player was thinking. This app cannot know that, and a
+        confident guess dressed as commentary would be the one thing here that is not measured.</p>
+    </div>
+  </section>
   <!-- VISION -->
   <section id="section-vision" hidden>
     <p class="lede" id="visionLede">Where the squares are, without counting up from a1.</p>
