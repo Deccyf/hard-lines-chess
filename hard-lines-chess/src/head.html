@@ -591,7 +591,13 @@
   .curve-fill { fill: color-mix(in srgb, var(--ink) 16%, transparent); stroke: none; }
   .curve-line { fill: none; stroke: var(--ink); stroke-width: 1.4; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
   .curve-mid { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 4 4; opacity: .5; }
-  .curve-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 0.5; vector-effect: non-scaling-stroke; }
+  /* A zero-length line with a round cap: a circle measured in screen pixels,
+     which is the only way to draw a round dot inside a viewBox that is
+     stretched to the width of its panel. */
+  .curve-dot {
+    fill: none; stroke: var(--accent); stroke-width: 7px; stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
 
   /* ── the coach ──────────────────────────────────────────────────────── */
   .coach-log { max-height: 320px; overflow-y: auto; display: grid; gap: 10px; }
@@ -676,5 +682,33 @@
   .readout-row:first-child { border-top: 0; }
   .readout-row .k { color: var(--ink-soft); font-size: 12px; }
   .readout-row .v { font-family: var(--display); font-variant-numeric: tabular-nums; }
+  /* Room for the half of an edge dot that falls outside the plot. */
+  .chart-frame { padding: 10px 9px; }
+  .chart { overflow: visible; }
   .chart-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-faint); font-family: var(--mono); padding: 4px 2px 0; }
+
+  /* ── the tab strip runs off the edge, and now says so ───────────────────
+     Twelve sections do not fit across a phone. The strip has always scrolled;
+     what it never did was look scrollable, so the last tab was simply cut
+     through the middle of a word and read as a rendering fault. The fade is
+     drawn only while there is more to the right of it. */
+  .tabs-wrap { position: relative; }
+  .tabs-wrap::after {
+    content: ""; position: absolute; top: 0; bottom: 2px; right: 0; width: 22px;
+    background: linear-gradient(to right, transparent, var(--page) 85%);
+    pointer-events: none; opacity: 0; transition: opacity .15s;
+  }
+  /* So scrollIntoView() leaves the selected tab clear of the fade rather than
+     parking it underneath, where a highlighted tab looks half-erased. */
+  .tabs { scroll-padding-inline: 28px; }
+  .tabs-wrap.more::after { opacity: 1; }
+
+  /* ── what you are doing goes above what you are doing it on ─────────────
+     On a phone the board is the height of the screen, so anything under it is
+     off screen — which is where the clock, the score and the question all sat
+     during a timed round. While a round is running the panel comes first. */
+  @media (max-width: 859px) {
+    .layout.live > :last-child { order: -1; }
+    .layout.live { display: flex; flex-direction: column; }
+  }
 </style>

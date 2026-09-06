@@ -148,18 +148,24 @@ function showEndgameVerdict() {
   const verdict = endgameVerdict(entry, Endgames.board);
   if (!verdict) { box.textContent = ''; box.className = 'note'; return; }
 
+  // MOVES, NOT PLIES. The table counts in plies because that is what backward
+  // induction steps in; nobody sitting at a board counts in half-moves, and
+  // this app is written for somebody who does not read notation fluently.
+  const moves = verdict.plies === null ? null : Math.ceil(verdict.plies / 2);
+  const inMoves = moves === 1 ? 'in one move' : `in ${moves} moves`;
+
   if (entry.goal === 'draw') {
     if (verdict.result === 'draw') {
       box.textContent = 'Still drawn.';
       box.className = 'note good-note';
     } else {
-      box.textContent = `This is lost now — the pawn queens in ${verdict.plies} plies with best play.`;
+      box.textContent = `This is lost now — with best play the pawn queens ${inMoves}.`;
       box.className = 'note bad-note';
     }
     return;
   }
   if (verdict.result === 'winning') {
-    box.textContent = `Still winning — the pawn goes through in ${verdict.plies} plies from here.`;
+    box.textContent = `Still winning — the pawn goes through ${inMoves} from here.`;
     box.className = 'note good-note';
   } else {
     box.textContent = 'This is a draw now. The win has gone.';

@@ -1,4 +1,17 @@
 // ── wiring ─────────────────────────────────────────────────────────────────
+/**
+ * Does the strip run off the edge, and is there anything still off it?
+ * Called on build, on scroll and on resize, because all three change the
+ * answer and a fade that lies is worse than no fade.
+ */
+function markTabOverflow() {
+  const nav = $('tabs');
+  const wrap = $('tabsWrap');
+  if (!nav || !wrap) return;
+  const more = nav.scrollWidth - nav.clientWidth - nav.scrollLeft > 4;
+  wrap.classList.toggle('more', more);
+}
+
 function buildTabs() {
   const nav = $('tabs');
   nav.innerHTML = '';
@@ -9,6 +22,9 @@ function buildTabs() {
     btn.addEventListener('click', () => show(id));
     nav.appendChild(btn);
   }
+  nav.addEventListener('scroll', markTabOverflow, { passive: true });
+  window.addEventListener('resize', markTabOverflow);
+  markTabOverflow();
 }
 
 async function boot() {

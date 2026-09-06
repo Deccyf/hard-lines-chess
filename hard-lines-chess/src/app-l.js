@@ -87,6 +87,12 @@ function startStorm() {
   Storm.bestStreak = 0;
   Storm.endsAt = Date.now() + STORM_SECONDS * 1000;
 
+  // The same reason as the vision round, and one more: the setup panel says
+  // how many positions are queued, and it was still saying "there are none"
+  // in the middle of a run because nothing had asked it to say otherwise.
+  $('stormSetup').hidden = true;
+  $('stormLede').hidden = true;
+  $('stormLayout').classList.add('live');
   $('stormStart').hidden = true;
   $('stormStop').hidden = false;
   $('stormBoardWrap').hidden = false;
@@ -178,6 +184,9 @@ async function finishStorm(reason = 'time') {
   Storm.view.interactive = false;
   Storm.view.locked = true;
 
+  $('stormSetup').hidden = false;
+  $('stormLede').hidden = false;
+  $('stormLayout').classList.remove('live');
   $('stormStart').hidden = false;
   $('stormStop').hidden = true;
   $('stormPrompt').textContent = reason === 'ran out' ? 'That is every position there is.' : 'Time.';

@@ -597,7 +597,13 @@
   .curve-fill { fill: color-mix(in srgb, var(--ink) 16%, transparent); stroke: none; }
   .curve-line { fill: none; stroke: var(--ink); stroke-width: 1.4; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
   .curve-mid { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 4 4; opacity: .5; }
-  .curve-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 0.5; vector-effect: non-scaling-stroke; }
+  /* A zero-length line with a round cap: a circle measured in screen pixels,
+     which is the only way to draw a round dot inside a viewBox that is
+     stretched to the width of its panel. */
+  .curve-dot {
+    fill: none; stroke: var(--accent); stroke-width: 7px; stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
 
   /* ── the coach ──────────────────────────────────────────────────────── */
   .coach-log { max-height: 320px; overflow-y: auto; display: grid; gap: 10px; }
@@ -682,7 +688,35 @@
   .readout-row:first-child { border-top: 0; }
   .readout-row .k { color: var(--ink-soft); font-size: 12px; }
   .readout-row .v { font-family: var(--display); font-variant-numeric: tabular-nums; }
+  /* Room for the half of an edge dot that falls outside the plot. */
+  .chart-frame { padding: 10px 9px; }
+  .chart { overflow: visible; }
   .chart-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-faint); font-family: var(--mono); padding: 4px 2px 0; }
+
+  /* ── the tab strip runs off the edge, and now says so ───────────────────
+     Twelve sections do not fit across a phone. The strip has always scrolled;
+     what it never did was look scrollable, so the last tab was simply cut
+     through the middle of a word and read as a rendering fault. The fade is
+     drawn only while there is more to the right of it. */
+  .tabs-wrap { position: relative; }
+  .tabs-wrap::after {
+    content: ""; position: absolute; top: 0; bottom: 2px; right: 0; width: 22px;
+    background: linear-gradient(to right, transparent, var(--page) 85%);
+    pointer-events: none; opacity: 0; transition: opacity .15s;
+  }
+  /* So scrollIntoView() leaves the selected tab clear of the fade rather than
+     parking it underneath, where a highlighted tab looks half-erased. */
+  .tabs { scroll-padding-inline: 28px; }
+  .tabs-wrap.more::after { opacity: 1; }
+
+  /* ── what you are doing goes above what you are doing it on ─────────────
+     On a phone the board is the height of the screen, so anything under it is
+     off screen — which is where the clock, the score and the question all sat
+     during a timed round. While a round is running the panel comes first. */
+  @media (max-width: 859px) {
+    .layout.live > :last-child { order: -1; }
+    .layout.live { display: flex; flex-direction: column; }
+  }
 </style>
 
 </head>
@@ -693,7 +727,7 @@
       <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
       <h1>Hard Lines Chess</h1>
     </div>
-    <nav class="tabs" id="tabs" aria-label="Sections"></nav>
+    <div class="tabs-wrap" id="tabsWrap"><nav class="tabs" id="tabs" aria-label="Sections"></nav></div>
   </header>
 
   <!-- TODAY -->
@@ -1091,9 +1125,9 @@
 
   <!-- STORM -->
   <section id="section-storm" hidden>
-    <p class="lede">Three minutes. One position after another. The only way to go faster is to see faster.</p>
+    <p class="lede" id="stormLede">Three minutes. One position after another. The only way to go faster is to see faster.</p>
 
-    <div class="panel">
+    <div class="panel" id="stormSetup">
       <p class="note" style="margin:0 0 10px">Everything else here is untimed on purpose — a drill you rush is a drill you
         did not do. Recognition is the exception: you already know what a fork looks like, and what you do not have is
         finding it in four seconds. A wrong move costs ten seconds rather than ending the run, because the thing that
@@ -1107,7 +1141,7 @@
     </div>
 
     <div id="stormBoardWrap" hidden>
-      <div class="layout">
+      <div class="layout" id="stormLayout">
         <div>
           <div id="stormBoard"></div>
         </div>
@@ -1139,20 +1173,25 @@
     <div id="endgameBoardWrap" hidden>
       <div class="layout">
         <div>
+          <p class="prompt" id="endgameGoal"></p>
           <div id="endgameBoard"></div>
+          <!-- THE VERDICT LIVES WITH THE BOARD. It is the whole point of this
+               screen — "that was the move the win went" — and in the side panel
+               it sat below a full-height board on a phone, so the one thing
+               worth reading was the one thing off screen. So are the buttons:
+               the answer to a verdict is usually to take the move back. -->
           <p class="note" id="endgameCount"></p>
+          <p class="note" id="endgameVerdict"></p>
+          <p class="idea" id="endgameOutcome"></p>
+          <div class="row">
+            <button class="btn" id="endgameTakeBack" type="button" hidden>Take it back</button>
+            <button class="btn primary" id="endgameNext" type="button" hidden>Back to the list</button>
+          </div>
         </div>
         <div>
           <div class="panel">
             <h3 id="endgameName"></h3>
             <p class="note" id="endgameIdea"></p>
-            <p class="prompt" id="endgameGoal"></p>
-            <p class="note" id="endgameVerdict"></p>
-            <p class="idea" id="endgameOutcome"></p>
-            <div class="row">
-              <button class="btn" id="endgameTakeBack" type="button" hidden>Take it back</button>
-              <button class="btn primary" id="endgameNext" type="button" hidden>Back to the list</button>
-            </div>
           </div>
           <div class="panel">
             <h3>The method</h3>
@@ -1177,9 +1216,9 @@
 
   <!-- VISION -->
   <section id="section-vision" hidden>
-    <p class="lede">Where the squares are, without counting up from a1.</p>
+    <p class="lede" id="visionLede">Where the squares are, without counting up from a1.</p>
 
-    <div class="panel">
+    <div class="panel" id="visionSetup">
       <p class="note" style="margin:0 0 10px">Every other part of this app assumes you can do this. The
         openings talk about d4 and c5, the review says the mistake was on f7, and the coach answers in
         algebraic — all of it is noise until the letters and numbers are somewhere you can reach without
@@ -1209,7 +1248,7 @@
     </div>
 
     <div id="visionBoardWrap">
-      <div class="layout">
+      <div class="layout" id="visionLayout">
         <div>
           <div id="visionBoard"></div>
         </div>
@@ -1225,11 +1264,15 @@
             <div class="row" id="visionOptions"></div>
             <p class="note" id="visionFeedback"></p>
           </div>
-          <div class="panel">
-            <h3>Your best</h3>
-            <div id="visionBest"></div>
-          </div>
         </div>
+      </div>
+      <!-- OUTSIDE THE TWO COLUMNS. While a round is running the right column is
+           lifted above the board, and anything else in it goes up too — so the
+           table of past scores sat between the question and the board it is
+           asked about. -->
+      <div class="panel">
+        <h3>Your best</h3>
+        <div id="visionBest"></div>
       </div>
     </div>
   </section>
@@ -8879,6 +8922,12 @@ const SECTIONS = [
 
 function show(section) {
   App.section = section;
+  // A SECTION CHANGED FROM ANYWHERE SCROLLS ITS TAB INTO VIEW. Openings sends
+  // you to Play, Progress sends you to Play, Today sends you everywhere — and
+  // with twelve tabs the one now highlighted was regularly off the side of a
+  // phone, so the strip looked like it had lost its selection.
+  const tab = document.getElementById('tab-' + section);
+  if (tab?.scrollIntoView) tab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   for (const [id] of SECTIONS) {
     $('section-' + id).hidden = id !== section;
     $('tab-' + id).classList.toggle('on', id === section);
@@ -10117,10 +10166,13 @@ function renderCurve(box) {
   // read to answer is "where did it go wrong, and was it me".
   for (const m of judged) {
     if (!m.mine || m.cls === 'best' || m.cls === 'good') continue;
-    const dot = document.createElementNS(NS, 'circle');
-    dot.setAttribute('cx', m.ply);
-    dot.setAttribute('cy', y(chance[m.ply] ?? 0.5));
-    dot.setAttribute('r', 1.6);
+    // Drawn as a zero-length line rather than a circle: see the note on the
+    // progress chart's dots. This viewBox is stretched too — sixty plies wide
+    // by a hundred tall, into a box that is far wider than it is high — so a
+    // circle here has always come out as an ellipse.
+    const dot = document.createElementNS(NS, 'line');
+    dot.setAttribute('x1', m.ply); dot.setAttribute('x2', m.ply);
+    dot.setAttribute('y1', y(chance[m.ply] ?? 0.5)); dot.setAttribute('y2', y(chance[m.ply] ?? 0.5));
     dot.setAttribute('class', 'curve-dot');
     svg.appendChild(dot);
   }
@@ -10569,23 +10621,37 @@ function renderProgressChart(games) {
     line.setAttribute('class', 'curve-line');
     svg.appendChild(line);
   }
+  // A DOT DRAWN AS A CIRCLE IN THIS VIEWBOX IS NOT A DOT. The chart is stretched
+  // to the width of the panel with preserveAspectRatio="none", so one unit
+  // across is nothing like one unit down — with nine games the x axis is
+  // scaled about ninety times more than the y, and every circle came out as a
+  // red ellipse the width of the panel. A zero-length line with a round cap
+  // and a non-scaling stroke is a circle in SCREEN units, which is the only
+  // place a dot is round.
   for (let i = 0; i < values.length; i++) {
     if (values[i] === null) continue;
-    const dot = document.createElementNS(NS, 'circle');
-    dot.setAttribute('cx', i);
-    dot.setAttribute('cy', y(values[i]));
-    dot.setAttribute('r', 1.8);
+    const dot = document.createElementNS(NS, 'line');
+    dot.setAttribute('x1', i); dot.setAttribute('x2', i);
+    dot.setAttribute('y1', y(values[i])); dot.setAttribute('y2', y(values[i]));
     dot.setAttribute('class', 'curve-dot');
     svg.appendChild(dot);
   }
 
-  const frame = el('div', 'curve-frame');
+  // PADDED, because a dot is drawn in screen pixels and the first and last of
+  // them sit on x=0 and x=width. Without room outside the plot they are sliced
+  // in half by the frame, which reads as data running off the edge.
+  svg.classList.add('chart');
+  const frame = el('div', 'curve-frame chart-frame');
   frame.appendChild(svg);
   panel.appendChild(frame);
 
+  // Two facts, not four muddled together: the left-to-right axis is time, and
+  // the up-and-down one is the measure. The first version wrote
+  // "oldest · 62%" at one end and "86% · newest" at the other, which reads as
+  // though the oldest game scored 62%.
   const scale = el('div', 'chart-scale');
-  scale.appendChild(el('span', null, `oldest · ${measure.format(lo)}`));
-  scale.appendChild(el('span', null, `${measure.format(hi)} · newest`));
+  scale.appendChild(el('span', null, `${games.length} games, oldest at the left`));
+  scale.appendChild(el('span', null, `${measure.format(lo)} to ${measure.format(hi)}`));
   panel.appendChild(scale);
 
   // ── and what it amounts to, in a sentence ────────────────────────────────
@@ -12717,18 +12783,24 @@ function showEndgameVerdict() {
   const verdict = endgameVerdict(entry, Endgames.board);
   if (!verdict) { box.textContent = ''; box.className = 'note'; return; }
 
+  // MOVES, NOT PLIES. The table counts in plies because that is what backward
+  // induction steps in; nobody sitting at a board counts in half-moves, and
+  // this app is written for somebody who does not read notation fluently.
+  const moves = verdict.plies === null ? null : Math.ceil(verdict.plies / 2);
+  const inMoves = moves === 1 ? 'in one move' : `in ${moves} moves`;
+
   if (entry.goal === 'draw') {
     if (verdict.result === 'draw') {
       box.textContent = 'Still drawn.';
       box.className = 'note good-note';
     } else {
-      box.textContent = `This is lost now — the pawn queens in ${verdict.plies} plies with best play.`;
+      box.textContent = `This is lost now — with best play the pawn queens ${inMoves}.`;
       box.className = 'note bad-note';
     }
     return;
   }
   if (verdict.result === 'winning') {
-    box.textContent = `Still winning — the pawn goes through in ${verdict.plies} plies from here.`;
+    box.textContent = `Still winning — the pawn goes through ${inMoves} from here.`;
     box.className = 'note good-note';
   } else {
     box.textContent = 'This is a draw now. The win has gone.';
@@ -13047,6 +13119,13 @@ function startVision() {
   Vision.streak = 0;
   Vision.endsAt = Date.now() + Vision.seconds * 1000;
 
+  // OUT OF THE WAY WHILE THE CLOCK RUNS. The blurb and the two pickers are
+  // most of a phone screen, and with them there the clock, the score, the
+  // question and the board were all below the fold — thirty seconds of a
+  // thirty-second round spent scrolling.
+  $('visionSetup').hidden = true;
+  $('visionLede').hidden = true;
+  $('visionLayout').classList.add('live');
   $('visionStart').hidden = true;
   $('visionStop').hidden = false;
   $('visionSummary').textContent = '';
@@ -13198,6 +13277,9 @@ async function finishVision() {
   Vision.question = null;
   clearVisionMarks();
 
+  $('visionSetup').hidden = false;
+  $('visionLede').hidden = false;
+  $('visionLayout').classList.remove('live');
   $('visionStart').hidden = false;
   $('visionStop').hidden = true;
   $('visionPrompt').textContent = 'Time.';
@@ -13339,6 +13421,12 @@ function startStorm() {
   Storm.bestStreak = 0;
   Storm.endsAt = Date.now() + STORM_SECONDS * 1000;
 
+  // The same reason as the vision round, and one more: the setup panel says
+  // how many positions are queued, and it was still saying "there are none"
+  // in the middle of a run because nothing had asked it to say otherwise.
+  $('stormSetup').hidden = true;
+  $('stormLede').hidden = true;
+  $('stormLayout').classList.add('live');
   $('stormStart').hidden = true;
   $('stormStop').hidden = false;
   $('stormBoardWrap').hidden = false;
@@ -13430,6 +13518,9 @@ async function finishStorm(reason = 'time') {
   Storm.view.interactive = false;
   Storm.view.locked = true;
 
+  $('stormSetup').hidden = false;
+  $('stormLede').hidden = false;
+  $('stormLayout').classList.remove('live');
   $('stormStart').hidden = false;
   $('stormStop').hidden = true;
   $('stormPrompt').textContent = reason === 'ran out' ? 'That is every position there is.' : 'Time.';
@@ -13474,6 +13565,19 @@ function renderStorm() {
 
 
 // ── wiring ─────────────────────────────────────────────────────────────────
+/**
+ * Does the strip run off the edge, and is there anything still off it?
+ * Called on build, on scroll and on resize, because all three change the
+ * answer and a fade that lies is worse than no fade.
+ */
+function markTabOverflow() {
+  const nav = $('tabs');
+  const wrap = $('tabsWrap');
+  if (!nav || !wrap) return;
+  const more = nav.scrollWidth - nav.clientWidth - nav.scrollLeft > 4;
+  wrap.classList.toggle('more', more);
+}
+
 function buildTabs() {
   const nav = $('tabs');
   nav.innerHTML = '';
@@ -13484,6 +13588,9 @@ function buildTabs() {
     btn.addEventListener('click', () => show(id));
     nav.appendChild(btn);
   }
+  nav.addEventListener('scroll', markTabOverflow, { passive: true });
+  window.addEventListener('resize', markTabOverflow);
+  markTabOverflow();
 }
 
 async function boot() {

@@ -117,6 +117,12 @@ const SECTIONS = [
 
 function show(section) {
   App.section = section;
+  // A SECTION CHANGED FROM ANYWHERE SCROLLS ITS TAB INTO VIEW. Openings sends
+  // you to Play, Progress sends you to Play, Today sends you everywhere — and
+  // with twelve tabs the one now highlighted was regularly off the side of a
+  // phone, so the strip looked like it had lost its selection.
+  const tab = document.getElementById('tab-' + section);
+  if (tab?.scrollIntoView) tab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   for (const [id] of SECTIONS) {
     $('section-' + id).hidden = id !== section;
     $('tab-' + id).classList.toggle('on', id === section);

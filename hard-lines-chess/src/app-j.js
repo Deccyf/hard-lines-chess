@@ -103,6 +103,13 @@ function startVision() {
   Vision.streak = 0;
   Vision.endsAt = Date.now() + Vision.seconds * 1000;
 
+  // OUT OF THE WAY WHILE THE CLOCK RUNS. The blurb and the two pickers are
+  // most of a phone screen, and with them there the clock, the score, the
+  // question and the board were all below the fold — thirty seconds of a
+  // thirty-second round spent scrolling.
+  $('visionSetup').hidden = true;
+  $('visionLede').hidden = true;
+  $('visionLayout').classList.add('live');
   $('visionStart').hidden = true;
   $('visionStop').hidden = false;
   $('visionSummary').textContent = '';
@@ -254,6 +261,9 @@ async function finishVision() {
   Vision.question = null;
   clearVisionMarks();
 
+  $('visionSetup').hidden = false;
+  $('visionLede').hidden = false;
+  $('visionLayout').classList.remove('live');
   $('visionStart').hidden = false;
   $('visionStop').hidden = true;
   $('visionPrompt').textContent = 'Time.';

@@ -4,7 +4,7 @@
       <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
       <h1>Hard Lines Chess</h1>
     </div>
-    <nav class="tabs" id="tabs" aria-label="Sections"></nav>
+    <div class="tabs-wrap" id="tabsWrap"><nav class="tabs" id="tabs" aria-label="Sections"></nav></div>
   </header>
 
   <!-- TODAY -->
@@ -402,9 +402,9 @@
 
   <!-- STORM -->
   <section id="section-storm" hidden>
-    <p class="lede">Three minutes. One position after another. The only way to go faster is to see faster.</p>
+    <p class="lede" id="stormLede">Three minutes. One position after another. The only way to go faster is to see faster.</p>
 
-    <div class="panel">
+    <div class="panel" id="stormSetup">
       <p class="note" style="margin:0 0 10px">Everything else here is untimed on purpose — a drill you rush is a drill you
         did not do. Recognition is the exception: you already know what a fork looks like, and what you do not have is
         finding it in four seconds. A wrong move costs ten seconds rather than ending the run, because the thing that
@@ -418,7 +418,7 @@
     </div>
 
     <div id="stormBoardWrap" hidden>
-      <div class="layout">
+      <div class="layout" id="stormLayout">
         <div>
           <div id="stormBoard"></div>
         </div>
@@ -450,20 +450,25 @@
     <div id="endgameBoardWrap" hidden>
       <div class="layout">
         <div>
+          <p class="prompt" id="endgameGoal"></p>
           <div id="endgameBoard"></div>
+          <!-- THE VERDICT LIVES WITH THE BOARD. It is the whole point of this
+               screen — "that was the move the win went" — and in the side panel
+               it sat below a full-height board on a phone, so the one thing
+               worth reading was the one thing off screen. So are the buttons:
+               the answer to a verdict is usually to take the move back. -->
           <p class="note" id="endgameCount"></p>
+          <p class="note" id="endgameVerdict"></p>
+          <p class="idea" id="endgameOutcome"></p>
+          <div class="row">
+            <button class="btn" id="endgameTakeBack" type="button" hidden>Take it back</button>
+            <button class="btn primary" id="endgameNext" type="button" hidden>Back to the list</button>
+          </div>
         </div>
         <div>
           <div class="panel">
             <h3 id="endgameName"></h3>
             <p class="note" id="endgameIdea"></p>
-            <p class="prompt" id="endgameGoal"></p>
-            <p class="note" id="endgameVerdict"></p>
-            <p class="idea" id="endgameOutcome"></p>
-            <div class="row">
-              <button class="btn" id="endgameTakeBack" type="button" hidden>Take it back</button>
-              <button class="btn primary" id="endgameNext" type="button" hidden>Back to the list</button>
-            </div>
           </div>
           <div class="panel">
             <h3>The method</h3>
@@ -488,9 +493,9 @@
 
   <!-- VISION -->
   <section id="section-vision" hidden>
-    <p class="lede">Where the squares are, without counting up from a1.</p>
+    <p class="lede" id="visionLede">Where the squares are, without counting up from a1.</p>
 
-    <div class="panel">
+    <div class="panel" id="visionSetup">
       <p class="note" style="margin:0 0 10px">Every other part of this app assumes you can do this. The
         openings talk about d4 and c5, the review says the mistake was on f7, and the coach answers in
         algebraic — all of it is noise until the letters and numbers are somewhere you can reach without
@@ -520,7 +525,7 @@
     </div>
 
     <div id="visionBoardWrap">
-      <div class="layout">
+      <div class="layout" id="visionLayout">
         <div>
           <div id="visionBoard"></div>
         </div>
@@ -536,11 +541,15 @@
             <div class="row" id="visionOptions"></div>
             <p class="note" id="visionFeedback"></p>
           </div>
-          <div class="panel">
-            <h3>Your best</h3>
-            <div id="visionBest"></div>
-          </div>
         </div>
+      </div>
+      <!-- OUTSIDE THE TWO COLUMNS. While a round is running the right column is
+           lifted above the board, and anything else in it goes up too — so the
+           table of past scores sat between the question and the board it is
+           asked about. -->
+      <div class="panel">
+        <h3>Your best</h3>
+        <div id="visionBest"></div>
       </div>
     </div>
   </section>

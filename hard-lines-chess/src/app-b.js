@@ -624,10 +624,13 @@ function renderCurve(box) {
   // read to answer is "where did it go wrong, and was it me".
   for (const m of judged) {
     if (!m.mine || m.cls === 'best' || m.cls === 'good') continue;
-    const dot = document.createElementNS(NS, 'circle');
-    dot.setAttribute('cx', m.ply);
-    dot.setAttribute('cy', y(chance[m.ply] ?? 0.5));
-    dot.setAttribute('r', 1.6);
+    // Drawn as a zero-length line rather than a circle: see the note on the
+    // progress chart's dots. This viewBox is stretched too — sixty plies wide
+    // by a hundred tall, into a box that is far wider than it is high — so a
+    // circle here has always come out as an ellipse.
+    const dot = document.createElementNS(NS, 'line');
+    dot.setAttribute('x1', m.ply); dot.setAttribute('x2', m.ply);
+    dot.setAttribute('y1', y(chance[m.ply] ?? 0.5)); dot.setAttribute('y2', y(chance[m.ply] ?? 0.5));
     dot.setAttribute('class', 'curve-dot');
     svg.appendChild(dot);
   }
@@ -1076,23 +1079,37 @@ function renderProgressChart(games) {
     line.setAttribute('class', 'curve-line');
     svg.appendChild(line);
   }
+  // A DOT DRAWN AS A CIRCLE IN THIS VIEWBOX IS NOT A DOT. The chart is stretched
+  // to the width of the panel with preserveAspectRatio="none", so one unit
+  // across is nothing like one unit down — with nine games the x axis is
+  // scaled about ninety times more than the y, and every circle came out as a
+  // red ellipse the width of the panel. A zero-length line with a round cap
+  // and a non-scaling stroke is a circle in SCREEN units, which is the only
+  // place a dot is round.
   for (let i = 0; i < values.length; i++) {
     if (values[i] === null) continue;
-    const dot = document.createElementNS(NS, 'circle');
-    dot.setAttribute('cx', i);
-    dot.setAttribute('cy', y(values[i]));
-    dot.setAttribute('r', 1.8);
+    const dot = document.createElementNS(NS, 'line');
+    dot.setAttribute('x1', i); dot.setAttribute('x2', i);
+    dot.setAttribute('y1', y(values[i])); dot.setAttribute('y2', y(values[i]));
     dot.setAttribute('class', 'curve-dot');
     svg.appendChild(dot);
   }
 
-  const frame = el('div', 'curve-frame');
+  // PADDED, because a dot is drawn in screen pixels and the first and last of
+  // them sit on x=0 and x=width. Without room outside the plot they are sliced
+  // in half by the frame, which reads as data running off the edge.
+  svg.classList.add('chart');
+  const frame = el('div', 'curve-frame chart-frame');
   frame.appendChild(svg);
   panel.appendChild(frame);
 
+  // Two facts, not four muddled together: the left-to-right axis is time, and
+  // the up-and-down one is the measure. The first version wrote
+  // "oldest · 62%" at one end and "86% · newest" at the other, which reads as
+  // though the oldest game scored 62%.
   const scale = el('div', 'chart-scale');
-  scale.appendChild(el('span', null, `oldest · ${measure.format(lo)}`));
-  scale.appendChild(el('span', null, `${measure.format(hi)} · newest`));
+  scale.appendChild(el('span', null, `${games.length} games, oldest at the left`));
+  scale.appendChild(el('span', null, `${measure.format(lo)} to ${measure.format(hi)}`));
   panel.appendChild(scale);
 
   // ── and what it amounts to, in a sentence ────────────────────────────────
