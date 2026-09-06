@@ -17,12 +17,22 @@ android/
 
 ## Getting it
 
-You do not have to build this. Every push to `main` produces an APK at a link
-that does not change:
+You do not have to build this. Every push to `main` publishes an APK to two
+addresses, neither of which changes. Try this one first — it is the same host
+that serves the app itself:
+
+**https://deccyf.github.io/hard-lines-chess/hard-lines-chess.apk**
+
+The identical file is also attached to a release:
 
 **https://github.com/Deccyf/hard-lines-chess/releases/download/android-latest/hard-lines-chess.apk**
 
-Open it on the phone, tap the file when it lands, and allow your browser to
+GitHub serves release assets from a separate download host, and a VPN, a
+filtered DNS or a captive network can stall that redirect with no error at all
+— a download that sits at nothing for ever. That is the only reason there are
+two links.
+
+Open one on the phone, tap the file when it lands, and allow your browser to
 install apps when Android asks.
 
 ## The three decisions

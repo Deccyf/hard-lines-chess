@@ -36,6 +36,13 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET') return;
 
+  // THE APK IS NOT PART OF THE APP AND MUST NOT BE TREATED AS IT. The Android
+  // build is published beside this page, which puts it inside this worker's
+  // scope, and a download is a request only the network can answer correctly:
+  // a cached or substituted response here is a 1.9MB file that installs as
+  // nothing. Handing it back to the browser untouched is the whole fix.
+  if (new URL(request.url).pathname.endsWith('.apk')) return;
+
   // A navigation always gets the app, online or not. Without this an install
   // that opens on a dead connection shows the browser's error page, which
   // looks exactly like the app being broken. The network is asked first and
@@ -45,7 +52,13 @@ self.addEventListener('fetch', (event) => {
     event.respondWith((async () => {
       try {
         const response = await fetch(request);
-        if (response.ok) {
+        // ONLY AN HTML ANSWER IS THE SHELL. This cached whatever came back
+        // from any navigation, under the shell's name — so one navigation to
+        // anything else on this origin replaced the app with that thing, and
+        // the next opening offline served it. What made that reachable was
+        // publishing the APK here; what made it a bug was never checking.
+        const type = response.headers.get('Content-Type') ?? '';
+        if (response.ok && type.includes('text/html')) {
           const cache = await caches.open(VERSION);
           cache.put('./index.html', response.clone());
         }

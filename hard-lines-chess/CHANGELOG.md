@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.1.1 — 2026-09-06
+
+Both ways of getting the app onto a phone were broken in ways the build called
+a success.
+
+### The site served a 404
+- The Pages deployment reported success and served nothing. The repository's
+  Pages source was still "Deploy from a branch", so GitHub's own Jekyll builder
+  ran alongside the workflow, built the repository root — which has no
+  `index.html` — and, finishing last, won. Nothing in either run said so.
+  The source has to be **GitHub Actions**; the README says so now, and the
+  workflow **fetches the deployed page** and fails with that instruction when
+  what comes back is not the app. A deployment nobody fetches is a deployment
+  nobody has checked.
+
+### The download stuck
+- The APK was published only as a release asset, which GitHub serves from a
+  different host to the page. A VPN, a filtered DNS or a captive network can
+  stall that redirect with no error — a download that sits at nothing for ever.
+  The APK is now also a plain file beside the page, on the same origin, so a
+  phone that can reach the site can reach the app. Both links are given, and
+  the workflow checks the served file really is a zip.
+
+### Wrong on screen
+- The service worker cached **every** successful navigation under the shell's
+  name, whatever came back. One navigation to anything else on the origin
+  replaced the app in the cache with that thing, and the next opening without a
+  signal served it — so after tapping the download link, an offline open showed
+  the download instead of the app. Only an HTML answer is the shell now, and a
+  `.apk` is not the worker's business at all. Pinned both ways by
+  `tests/sw-shell-test.cjs`, which fails against the old worker.
+
+### Housekeeping
+- `pages.yml` and `android.yml` are one `publish.yml`, because the site now
+  carries the APK and the two could not be built independently.
+
 ## 1.1.0 — 2026-09-06
 
 The app becomes an app you can install on a phone, by two routes. The chess is

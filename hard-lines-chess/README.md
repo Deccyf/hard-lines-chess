@@ -33,10 +33,18 @@ tests/          node unit tests (*.mjs) and Playwright browser drivers (*.cjs)
 dist/           build output (committed so the repo is usable without building)
 ```
 
-Two workflows in `.github/workflows/` publish it: `pages.yml` serves the
-installable kit at a web address, `android.yml` builds the APK. Both build from
-source rather than from the committed `dist/`, because a build that ships
-whatever happens to be committed can ship an older game than the source.
+`.github/workflows/publish.yml` builds both and publishes them together: the
+installable kit and the APK go to the same web address, and the APK is also
+attached to a release. It builds from source rather than from the committed
+`dist/`, because a build that ships whatever happens to be committed can ship
+an older game than the source — and it fetches the deployed page afterwards,
+because a deployment nobody fetches is a deployment nobody has checked.
+
+The repository's Pages source must be set to **GitHub Actions**
+(Settings → Pages → Build and deployment → Source). On the default, "Deploy
+from a branch", GitHub runs its own Jekyll build of the repository root
+alongside this workflow, and — having no `index.html` there — serves a 404 over
+the top of whatever was deployed.
 
 ## Build
 
@@ -78,17 +86,21 @@ offers "Install app", iOS uses Share → Add to Home Screen. This route updates
 itself — the service worker is network-first, so the next opening with a signal
 is the newest build.
 
-**As a file.** An Android APK is attached to a release at an address that does
-not change:
+**As a file.** The Android APK sits beside the page, on the same host:
 
 ```
-https://github.com/Deccyf/hard-lines-chess/releases/download/android-latest/hard-lines-chess.apk
+https://deccyf.github.io/hard-lines-chess/hard-lines-chess.apk
 ```
 
 Tap it once downloaded and allow your browser to install apps when Android
 asks. This one holds no internet permission at all, so it is the same app on a
 plane as at home. See [`android/README.md`](android/README.md) for how it is
 built, and for what the committed signing key is and is not for.
+
+The identical file is attached to a release, at
+`/releases/download/android-latest/hard-lines-chess.apk`. That copy is served
+from a different host to the page, which some VPNs and filtered networks stall
+without an error — so the link above is the one to give a phone first.
 
 There is no iOS equivalent of the second route: Apple has no sideloading, so an
 iPhone takes the first one. Either way, a page opened from a Files app cannot

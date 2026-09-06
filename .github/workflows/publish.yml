@@ -1,0 +1,232 @@
+# Builds the app, builds the APK, and publishes both.
+#
+# ONE WORKFLOW, BECAUSE THE SITE CARRIES THE APK. The Android build used to be
+# published only as a release asset, which sends a phone to a different host
+# (objects.githubusercontent.com) than the one it just loaded the page from —
+# a redirect that a VPN, a filtered DNS or a captive network can stall with no
+# error, leaving a download that sits at nothing for ever. The APK is now also
+# a plain file beside the page, on the same origin, so a phone that can reach
+# the site can reach the app.
+name: Publish
+
+on:
+  push:
+    branches: ['**']
+    paths-ignore:
+      - '**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.apk.outputs.version }}
+      sha256: ${{ steps.apk.outputs.sha256 }}
+      size: ${{ steps.apk.outputs.size }}
+      pages: ${{ steps.apk.outputs.pages }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Built from source rather than taken from the committed dist/. dist/ is
+      # committed so the repo is usable without building, but publishing
+      # whatever happens to be committed is how a stale page ships with a fresh
+      # service worker — the one thing that worker's version stamp exists to
+      # prevent.
+      - name: Build the app
+        working-directory: hard-lines-chess
+        run: python3 build.py
+
+      - name: Check the kit is complete
+        working-directory: hard-lines-chess
+        run: |
+          for f in index.html manifest.webmanifest sw.js icon-192.png icon-512.png icon-maskable-512.png; do
+            test -s "dist/pwa/$f" || { echo "dist/pwa/$f is missing or empty"; exit 1; }
+          done
+          grep -q 'rel="manifest"' dist/pwa/index.html || { echo 'dist/pwa/index.html does not link the manifest'; exit 1; }
+          echo "kit ok — index.html is $(wc -c < dist/pwa/index.html) bytes"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+
+      - name: Assemble the release APK
+        working-directory: hard-lines-chess/android
+        env:
+          # Must increase for every build, or Android refuses to install this
+          # one over the copy already on the phone. The run number only goes up.
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+        run: ./gradlew --no-daemon --stacktrace assembleRelease
+
+      - name: Check the APK, and lay out the site around it
+        id: apk
+        working-directory: hard-lines-chess/android
+        run: |
+          set -euo pipefail
+          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          test -n "$APK" || { echo "no APK was produced"; exit 1; }
+          echo "built $APK ($(du -h "$APK" | cut -f1))"
+
+          # THE APK MUST CONTAIN THE APP. A wrapper that builds and installs
+          # and opens on a blank screen is the failure this exists to prevent,
+          # and it is invisible from a green build: the asset copy is a separate
+          # task from the compile, so the compile can succeed with nothing to
+          # show.
+          unzip -l "$APK" | grep -q 'assets/index.html' \
+            || { echo "the APK has no assets/index.html — the app is missing from it"; exit 1; }
+          for f in archivo-black-400 space-mono-400 space-mono-700; do
+            unzip -l "$APK" | grep -q "assets/fonts/$f.woff2" \
+              || { echo "the APK is missing assets/fonts/$f.woff2"; exit 1; }
+          done
+
+          # And it must be signed, or a phone will not install it at all.
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | tee certs.txt
+          grep -q 'SHA-256 digest' certs.txt || { echo "the APK is not signed"; exit 1; }
+
+          # ── the site, with the app inside it ──────────────────────────────
+          SITE="$GITHUB_WORKSPACE/site"
+          mkdir -p "$SITE"
+          cp -r ../dist/pwa/. "$SITE/"
+          cp "$APK" "$SITE/hard-lines-chess.apk"
+          cp "$APK" "$GITHUB_WORKSPACE/hard-lines-chess.apk"
+
+          {
+            echo "version=$(python3 -c "import json;print(json.load(open('../package.json'))['version'])")"
+            echo "sha256=$(sha256sum "$SITE/hard-lines-chess.apk" | cut -d' ' -f1)"
+            echo "size=$(du -h "$SITE/hard-lines-chess.apk" | cut -f1)"
+            # A Pages host is all lower case; the owner name keeps whatever
+            # capital the account was registered with.
+            echo "pages=https://$(echo "${GITHUB_REPOSITORY%%/*}" | tr '[:upper:]' '[:lower:]').github.io/${GITHUB_REPOSITORY#*/}/"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hard-lines-chess-apk
+          path: hard-lines-chess.apk
+          if-no-files-found: error
+
+  pages:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+      # ── AND THEN LOOK AT IT ───────────────────────────────────────────────
+      #
+      # deploy-pages reported "success" for a site that served a 404 to every
+      # visitor: the repository's Pages source was still "Deploy from a branch",
+      # so GitHub's own Jekyll builder ran alongside this workflow, built the
+      # repository root — which has no index.html — and, finishing last, won.
+      # Nothing in the run said so. A deployment nobody fetches is a deployment
+      # nobody has checked, so this fetches it.
+      - name: Check the site actually serves the app
+        run: |
+          set -uo pipefail
+          URL="${{ steps.deployment.outputs.page_url }}"
+          echo "checking $URL"
+          CODE=000
+          for attempt in 1 2 3 4 5 6; do
+            CODE=$(curl -sSL -o page.html -w '%{http_code}' "$URL" || echo 000)
+            [ "$CODE" = "200" ] && break
+            echo "  attempt $attempt: HTTP $CODE — waiting for Pages to propagate"
+            sleep 10
+          done
+          if [ "$CODE" != "200" ] || ! grep -q '<title>Hard Lines Chess</title>' page.html; then
+            echo
+            echo "The site at $URL is not serving the app (HTTP $CODE)."
+            echo
+            echo "The usual cause is the repository's Pages source. This workflow"
+            echo "publishes through GitHub Actions, so it has to be set to that:"
+            echo "  Settings -> Pages -> Build and deployment -> Source -> GitHub Actions"
+            echo "While it is set to 'Deploy from a branch', GitHub builds the"
+            echo "repository root with Jekyll instead, and that has no index.html."
+            exit 1
+          fi
+          echo "the page is live and is the app"
+
+          # The download link the release points people at. A 404 here is a
+          # phone left with nothing to install.
+          APK_CODE=$(curl -sSL -o apk.bin -w '%{http_code}' "${URL}hard-lines-chess.apk" || echo 000)
+          test "$APK_CODE" = "200" || { echo "the APK is not being served (HTTP $APK_CODE)"; exit 1; }
+          head -c2 apk.bin | grep -q 'PK' || { echo "the served APK is not a zip archive"; exit 1; }
+          echo "the APK is live: $(wc -c < apk.bin) bytes"
+
+  release:
+    needs: build
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: hard-lines-chess-apk
+
+      # One release, replaced in place, so the address never changes.
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          name: Hard Lines Chess — Android
+          files: hard-lines-chess.apk
+          target_commitish: ${{ github.sha }}
+          body: |
+            The Android app: the whole trainer — engine, 22-band ladder, 25
+            openings, review, drills and puzzles — inside one APK.
+
+            ## Download it
+
+            **[From the site](${{ needs.build.outputs.pages }}hard-lines-chess.apk)** — the
+            same host that serves the app, and the one to try first.
+
+            **[From this release](https://github.com/${{ github.repository }}/releases/download/android-latest/hard-lines-chess.apk)** —
+            identical file. GitHub serves this one from a separate download
+            host, which some VPNs and filtered networks stall silently, so if a
+            download sits at nothing, use the link above instead.
+
+            Tap the file once it has downloaded and allow your browser to
+            install apps when Android asks. There is no account, and the app
+            holds no internet permission at all, so it works the same on a
+            plane as at home.
+
+            | | |
+            |---|---|
+            | version | `${{ needs.build.outputs.version }}` (build ${{ github.run_number }}) |
+            | size | ${{ needs.build.outputs.size }} |
+            | sha256 | `${{ needs.build.outputs.sha256 }}` |
+            | built from | [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }}) |
+
+            Updates install over the top and keep your games, drills and
+            settings, because every build is signed with the same key —
+            `4F:71:75:E9:02:F6:C0:8F:49:C9:38:CF:24:E1:B4:98:9D:28:49:5C:AE:4B:D1:67:0E:D0:DD:98:83:90:DB:92`.
+            That key is in the repository and is not a secret; see
+            `hard-lines-chess/android/README.md` for what it does and does not
+            protect.
+
+            Prefer not to sideload at all? The same app installs from the web at
+            ${{ needs.build.outputs.pages }} — Chrome offers "Install app" and
+            it lands on the home screen too.
