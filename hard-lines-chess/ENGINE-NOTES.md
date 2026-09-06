@@ -32,6 +32,13 @@ the interval spans zero rather than reporting a small win.
 cd tools && node match.mjs ./engine-candidates/stronger 120 100
 ```
 
+**`tools/depth-probe.mjs`** — where a change paid, in twenty seconds rather
+than an hour. A match gives one number for the whole engine, so a change that
+helps in the middlegame and hurts in the endgame comes back as "not separated"
+— true, and useless as a next step. This runs both builds on five positions at
+three time controls and prints depth and nodes for each. It is what explained
+the result in §1g.
+
 **`tools/verify-candidate.mjs`** — the questions a match cannot answer. A match
 tells you whether a change wins games; it does not tell you whether the change
 is correct, and null-move pruning that returns a mate score it has not proved
@@ -133,6 +140,50 @@ right about something rather than approximately better.
   movetime whatever the position. Spending longer when the best move changed
   between iterations, and less in a position with one legal reply, is free
   strength.
+
+### 1g. What the candidate actually measured
+
+`tools/engine-candidates/stronger/` holds 1a, 1b and 1c together. It is correct
+by the verifier: perft passes on all five standard positions, no illegal move
+in several hundred searches, all 42 forced mates still found.
+
+**It is not shipped**, and the reason is the whole point of having the tools.
+
+`depth-probe.mjs` at a second a move, against the current build:
+
+| position | baseline | candidate | |
+|---|---|---|---|
+| opening | 7 ply | 7 ply | |
+| middlegame | 6 ply | 7 ply | deeper |
+| tactical | 7 ply | 8 ply | deeper |
+| endgame | 14 ply | 14 ply | |
+| **king and pawn** | **29 ply** | **25 ply** | **four plies shallower** |
+
+So the search improvements work in the middle of the board and cost depth at
+the end of it, and a match over 120 games is the sum of those two — which is
+what it came out as. Isolating them (candidates `no-pvs` and `pvs-only` in the
+same directory) shows both changes lose depth in the pawn ending independently,
+so it is not one culprit:
+
+- **PVS loses depth where the move ordering is weakest.** A null-window scout
+  is a saving only when the first move is usually best; when it is not, every
+  fail-high costs a full re-search. The history heuristic here is indexed by
+  from-square and to-square globally, which carries almost no information in an
+  endgame with three pieces on the board.
+- **Quiescence with check evasions has no cap.** In a pawn ending near
+  promotion, checks are everywhere, and every evasion is now searched, and each
+  of those can be in check again. Real engines extend checks only for the first
+  ply or two of quiescence. This one does not, and pays for it exactly where
+  checks are cheapest to give.
+
+Both have specific fixes, and each is worth its own match:
+
+1. Cap the check extension inside quiescence at one or two plies.
+2. Index the history heuristic by (piece, to-square) rather than (from, to),
+   and add counter-moves, before relying on PVS.
+
+That is a better outcome than shipping the package would have been: the same
+hour of measurement that refused it also said what to fix.
 
 ---
 
