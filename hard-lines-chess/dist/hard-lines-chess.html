@@ -676,6 +676,7 @@
   .readout-row:first-child { border-top: 0; }
   .readout-row .k { color: var(--ink-soft); font-size: 12px; }
   .readout-row .v { font-family: var(--display); font-variant-numeric: tabular-nums; }
+  .chart-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-faint); font-family: var(--mono); padding: 4px 2px 0; }
 </style>
 
 <div class="wrap">
@@ -843,6 +844,7 @@
           <p class="note" style="margin:0 0 8px">Answers are written from what the engine found in <em>this</em> position — the
             pieces, the evaluation, the top lines, and any move you name, searched on its own. It is not allowed to
             tell you anything the engine did not find, and it is allowed to say there is no clear reason.</p>
+          <p class="note" style="margin:0 0 8px" id="coachHow"></p>
           <div class="chips" id="coachSuggestions"></div>
           <div class="coach-log" id="coachLog"></div>
           <label class="field" style="margin-top:10px"><span>Your question</span>
@@ -10394,6 +10396,143 @@ const THEME_LABEL = {
 };
 
 // ── progress ───────────────────────────────────────────────────────────────
+// ── progress over time ─────────────────────────────────────────────────────
+//
+// The panels below this one say what your mistakes have in common. They do not
+// say whether there are fewer of them than there used to be, which is the only
+// question anybody opens a progress screen to ask.
+//
+// WHAT IS PLOTTED IS WHAT WAS ALREADY MEASURED. Every review stores its own
+// accuracy, its mistake list and a calibrated strength estimate; none of that
+// was ever shown against time. Nothing new is computed here and nothing is
+// smoothed away: the dots are the games, and the line through them is a
+// rolling median, which one collapse cannot drag the way a mean can.
+const Progress = { measure: 'accuracy' };
+
+const PROGRESS_MEASURES = {
+  accuracy: {
+    label: 'Accuracy',
+    note: 'The share of your moves the engine judged best or near it. Games too short to score are left out rather than counted as nought.',
+    better: 'up',
+    value: (game) => (Number.isFinite(game.accuracy) ? game.accuracy : null),
+    format: (v) => `${Math.round(v)}%`,
+  },
+  mistakes: {
+    label: 'Mistakes a game',
+    note: 'Every inaccuracy, mistake and blunder the review found in your moves. A long game has more room for them than a short one.',
+    better: 'down',
+    value: (game) => (game.mistakes ?? []).length,
+    format: (v) => v.toFixed(1),
+  },
+  estimate: {
+    label: 'Strength estimate',
+    note: 'What each game’s average loss per move resembles on this app’s own ladder. The ladder’s numbers are targets rather than measured ratings, and above the calibration ceiling it can only say "or above".',
+    better: 'up',
+    value: (game) => (Number.isFinite(game.estimate?.elo) ? game.estimate.elo : null),
+    format: (v) => String(Math.round(v)),
+  },
+};
+
+/** The middle value of a window, so one disaster moves the line by one place. */
+function rollingMedian(values, window = 5) {
+  return values.map((_, i) => {
+    const from = Math.max(0, i - Math.floor(window / 2));
+    const slice = values.slice(from, from + window).filter((v) => v !== null);
+    if (!slice.length) return null;
+    const sorted = [...slice].sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length / 2)];
+  });
+}
+
+function renderProgressChart(games) {
+  const measure = PROGRESS_MEASURES[Progress.measure];
+  const panel = el('div', 'panel');
+  panel.appendChild(el('h3', null, 'Over time'));
+
+  const picker = el('div', 'row');
+  for (const [key, spec] of Object.entries(PROGRESS_MEASURES)) {
+    const button = el('button', key === Progress.measure ? 'btn primary' : 'btn', spec.label);
+    button.type = 'button';
+    button.addEventListener('click', () => { Progress.measure = key; renderProgress(); });
+    picker.appendChild(button);
+  }
+  panel.appendChild(picker);
+
+  const values = games.map(measure.value);
+  const scored = values.filter((v) => v !== null);
+
+  // THREE POINTS IS NOT A TREND AND IS NOT DRAWN AS ONE. A line through two
+  // games always slopes, and the slope is noise; saying so is more use than
+  // a chart that implies otherwise.
+  if (scored.length < 3) {
+    panel.appendChild(el('p', 'note',
+      `${scored.length} of your ${games.length} reviewed ${games.length === 1 ? 'game has' : 'games have'} a ${measure.label.toLowerCase()} to plot. Three are needed before a line through them means anything.`));
+    return panel;
+  }
+
+  const lo = Math.min(...scored), hi = Math.max(...scored);
+  const span = hi - lo || 1;
+  const trend = rollingMedian(values);
+  const width = Math.max(2, values.length - 1);
+  const y = (v) => 96 - ((v - lo) / span) * 92;
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'curve');
+  svg.setAttribute('viewBox', `0 0 ${width} 100`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', `${measure.label} across ${games.length} reviewed games`);
+
+  // The trend first, so the dots sit on top of it.
+  const points = trend.map((v, i) => (v === null ? null : `${i},${y(v)}`)).filter(Boolean);
+  if (points.length > 1) {
+    const line = document.createElementNS(NS, 'polyline');
+    line.setAttribute('points', points.join(' '));
+    line.setAttribute('class', 'curve-line');
+    svg.appendChild(line);
+  }
+  for (let i = 0; i < values.length; i++) {
+    if (values[i] === null) continue;
+    const dot = document.createElementNS(NS, 'circle');
+    dot.setAttribute('cx', i);
+    dot.setAttribute('cy', y(values[i]));
+    dot.setAttribute('r', 1.8);
+    dot.setAttribute('class', 'curve-dot');
+    svg.appendChild(dot);
+  }
+
+  const frame = el('div', 'curve-frame');
+  frame.appendChild(svg);
+  panel.appendChild(frame);
+
+  const scale = el('div', 'chart-scale');
+  scale.appendChild(el('span', null, `oldest · ${measure.format(lo)}`));
+  scale.appendChild(el('span', null, `${measure.format(hi)} · newest`));
+  panel.appendChild(scale);
+
+  // ── and what it amounts to, in a sentence ────────────────────────────────
+  const half = Math.floor(scored.length / 2);
+  const mean = (list) => list.reduce((a, b) => a + b, 0) / list.length;
+  const earlier = mean(scored.slice(0, half));
+  const later = mean(scored.slice(half));
+  const change = later - earlier;
+  const improving = measure.better === 'up' ? change > 0 : change < 0;
+  // A difference smaller than this is not worth a word either way, and the
+  // number of games here is never large enough to prove one.
+  const meaningful = Math.abs(change) >= (measure.better === 'up' ? Math.max(1, span * 0.08) : 0.3);
+
+  const verdict = el('p', 'note');
+  verdict.textContent = scored.length < 6
+    ? `${measure.format(earlier)} across the first ${half}, ${measure.format(later)} across the last ${scored.length - half}. With ${scored.length} scored games that is a difference, not a trend — it takes many more before one bad afternoon stops moving the line.`
+    : !meaningful
+      ? `${measure.format(earlier)} across the first ${half}, ${measure.format(later)} across the last ${scored.length - half}. That is flat: the two halves are close enough that the order of the games would change which was higher.`
+      : `${measure.format(earlier)} across the first ${half}, ${measure.format(later)} across the last ${scored.length - half} — ${improving ? 'the right way' : 'the wrong way'}. Both halves are your own games at whatever search setting you reviewed them with, so a change of setting shows up here as a change in you.`;
+  panel.appendChild(verdict);
+  panel.appendChild(el('p', 'note', measure.note));
+  return panel;
+}
+
 function renderProgress() {
   const box = $('progressOut');
   box.innerHTML = '';
@@ -10427,6 +10566,7 @@ function renderProgress() {
       <div><span class="k">Mean accuracy</span><span class="v">${accuracy === null ? '—' : `${accuracy}%`}</span></div>
     </div>${scored.length < games.length ? `<p class="note">${games.length - scored.length} of these ${games.length - scored.length === 1 ? 'was' : 'were'} too short to score and ${games.length - scored.length === 1 ? 'is' : 'are'} left out of the mean.</p>` : ''}`;
   box.appendChild(summary);
+  box.appendChild(renderProgressChart(games));
 
   // A rolling estimate over recent reviewed games — the MEDIAN, so one
   // collapse or one lucky game does not drag it — and the band it points at.
@@ -11619,11 +11759,21 @@ function stopScan() {
 //      clear reason here, this is calculation rather than a principle" is a
 //      true sentence and a fabricated explanation is worse than none.
 //
-// The coach is hidden entirely where the capability is absent, because a
-// button that cannot answer is worse than no button.
+// WHERE THERE IS NO MODEL, A FUNCTION NARRATES. The coach used to be hidden
+// wherever Claude could not be reached — which is every installed copy of this
+// app, since the APK holds no internet permission and a saved file has no
+// runtime to ask. But the model was never the part that knew anything: the
+// bundle below already contains the search, the material, the top four lines
+// and every named move's refutation, each turned into English by plainEval().
+// Choosing which of those answers the question and writing it as sentences is
+// a function, and narrateCoach() in app-k.js is that function. Same bundle,
+// same search, plainer prose, no network.
 const Coach = {
   ready: false,
   sample: null,
+  // True where no model can be reached and narrateCoach() writes the answers
+  // from the engine's own output instead. See app-k.js.
+  onDevice: false,
   busy: false,
   abort: null,
   sessions: {},     // fen -> [{role, content}]
@@ -11951,10 +12101,21 @@ function coachGoBack() {
 // ── asking ─────────────────────────────────────────────────────────────────
 async function setupCoach() {
   try { Coach.sample = await window.claude?.use?.('sample') ?? null; } catch { Coach.sample = null; }
-  Coach.ready = Coach.sample !== null;
-  $('coachPanel').hidden = !Coach.ready;
-  $('coachAbsent').hidden = Coach.ready;
-  if (Coach.ready) renderCoachSession();
+
+  // THE COACH IS NEVER ABSENT NOW. It used to be hidden wherever Claude could
+  // not be reached, which is every installed copy of this app — the APK holds
+  // no internet permission and a saved file has no runtime to ask. The engine
+  // work was always local; only the sentences were not. narrateCoach() writes
+  // them from the same bundle, so the answer rests on the same search either
+  // way and the panel is shown either way.
+  Coach.ready = true;
+  Coach.onDevice = Coach.sample === null;
+  $('coachPanel').hidden = false;
+  $('coachAbsent').hidden = true;
+  $('coachHow').textContent = Coach.onDevice
+    ? 'No model is reachable from here, so the answers are written on this device from the engine\u2019s own output. Plainer than the model\u2019s, and made of the same measurements.'
+    : 'Answers are written by Claude from what the engine found, and it is never asked to evaluate anything itself.';
+  renderCoachSession();
 }
 
 function coachSession(fen) {
@@ -12025,6 +12186,7 @@ async function askCoach() {
   if (!Coach.ready || Coach.busy) return;
   const question = $('coachQuestion').value.trim();
   if (!question) return;
+  if (Coach.onDevice) { await askCoachOnDevice(); return; }
 
   const board = new Board(Practice.view.board.fen());
   const fen = board.fen();
@@ -12149,6 +12311,196 @@ function askCoachAbout(fen, question, { arrows = [] } = {}) {
     $('coachPanel').scrollIntoView({ behavior: 'smooth', block: 'center' });
     askCoach();
   }
+}
+
+
+// ── the coach, without a model ─────────────────────────────────────────────
+//
+// The rule this app is built on is that the engine is the source of truth and
+// the model is the narrator. In the installed app there is no model: the APK
+// holds no internet permission and a saved copy has no runtime to ask. So the
+// coach was simply absent, which is the one thing the README advertises that
+// the phone could not do.
+//
+// The way out is to notice what the model was actually for. buildCoachBundle()
+// already searches the position, already resolves every move the question
+// names, already turns each score into English through plainEval(), and hands
+// over a structure with the material, the check, the top four lines and every
+// refutation in it. The model was never evaluating anything — it was choosing
+// which of those facts answered the question and writing them as sentences.
+// That is a function, and this is that function.
+//
+// WHAT IT WILL NOT DO. It will not say anything the bundle does not contain,
+// it will not rank a move the engine did not search, and where the bundle has
+// no answer it says so rather than producing a sentence shaped like one. The
+// prose is plainer than the model's. It is not less true — it is the same
+// facts with the hedging removed, and where the model would have found a way
+// to sound helpful about a position it knew nothing about, this stops.
+
+/** Which of the handful of questions people actually ask this is. */
+function coachIntent(question) {
+  const q = ' ' + String(question).toLowerCase().replace(/[^a-z0-9? ]+/g, ' ') + ' ';
+  if (/\bwhy not\b|\bwhat about\b|\bis \w+ (good|bad|any good|playable|safe)\b|\bcan i (play|go)\b/.test(q)) return 'about-move';
+  if (/\bthreat|\bthreaten|\bdanger|\battack(ing)?\b|\bwhat is (he|she|they|it) (doing|up to)\b/.test(q)) return 'threat';
+  if (/\bwho is (better|winning)\b|\bam i (better|winning|losing|lost)\b|\bhow (bad|good) is\b|\bevaluat/.test(q)) return 'assess';
+  if (/\bplan\b|\bidea\b|\bwhat should i (do|play)\b|\bbest move\b|\bwhat next\b/.test(q)) return 'best';
+  return 'general';
+}
+
+const coachSide = (bundle) => (bundle.mover === 'White' ? 'Black' : 'White');
+
+/**
+ * The moves of a line, without the move numbers.
+ *
+ * lineToSan() writes lines the way a human reads them — "4... Qxg5 5. O-O Nf6"
+ * — and renderCoachAnswer() replays a bracketed line by feeding each token to
+ * sanToMove(). "4..." is not a move, so the whole line failed to parse and was
+ * shown as dead text instead of a button; the same tokens also made the first
+ * move of a line print as "4..." in the sentence naming it. The prompt tells
+ * the model to strip them. Nothing was telling this.
+ */
+const coachSans = (line) => String(line ?? '')
+  .split(/\s+/)
+  .filter((token) => token && !/^\d+\.(\.\.)?$/.test(token));
+
+/** A line as a button the board will play, or nothing when there is no line. */
+const coachLine = (line) => {
+  const sans = coachSans(line);
+  return sans.length ? ` [[${sans.join(' ')}]]` : '';
+};
+
+/**
+ * The whole answer, assembled from the bundle and nothing else.
+ *
+ * Every sentence below traces to a field: `positionEval` and `depth` come from
+ * one search, `lines` from the same search asked for four, `moves` from a
+ * separate search of each move the question named, and `notLegal` from the
+ * move generator. Nothing is inferred and nothing is softened.
+ */
+function narrateCoach(bundle, question) {
+  const parts = [];
+  const other = coachSide(bundle);
+  const intent = coachIntent(question);
+
+  // ── a finished position is stated, not analysed ──────────────────────────
+  if (bundle.outcome) {
+    parts.push(`${bundle.positionEval}. There is no move to find here — the game is over.`);
+    if (bundle.notLegal.length) {
+      parts.push(`You named ${bundle.notLegal.join(' and ')}, which cannot be played in a finished position.`);
+    }
+    return parts.join('\n\n');
+  }
+
+  // ── moves that do not exist ──────────────────────────────────────────────
+  //
+  // Said FIRST and plainly. A question resting on a move that cannot be played
+  // is answered by saying so; burying it under an evaluation of a different
+  // move is how you get an answer that reads as agreement.
+  if (bundle.notLegal.length) {
+    parts.push(`${bundle.notLegal.join(' and ')} ${bundle.notLegal.length === 1 ? 'is not a legal move' : 'are not legal moves'} in this position, so there is nothing to look at. Check the square — either the piece cannot reach it, or something of yours is already there, or the move would leave your king in check.`);
+  }
+
+  // ── the moves the question actually named ────────────────────────────────
+  if (bundle.moves.length) {
+    for (const move of bundle.moves) {
+      const reply = coachSans(move.replyLine);
+      const after = !reply.length || move.replyLine === '(the game ends here)'
+        ? 'the game ends there'
+        : `${other} answers ${reply[0]}${coachLine(move.replyLine)}`;
+      parts.push(`${move.san}: ${move.eval}. After it, ${after}.`);
+    }
+    // How the named move compares with the engine's own choice, when it is not
+    // already the engine's own choice.
+    const best = bundle.lines[0];
+    if (best && !bundle.moves.some((m) => m.san === best.san)) {
+      parts.push(`The engine prefers ${best.san} here — ${best.eval}.${coachLine(best.line)}`);
+    }
+  }
+
+  // ── the position, and what to do in it ───────────────────────────────────
+  const depth = bundle.depth ? ` (searched ${bundle.depth} plies deep)` : '';
+  const checkNote = bundle.check ? ` ${bundle.mover} is in check, so the only moves are the ones that answer it.` : '';
+
+  if (intent === 'assess' || intent === 'general' || !bundle.moves.length) {
+    parts.push(`${bundle.positionEval}${depth}.${checkNote} Material: ${bundle.material}.`);
+  }
+
+  if (intent === 'threat') {
+    // WHAT THE OPPONENT IS THREATENING IS NOT IN THE BUNDLE, and this does not
+    // pretend otherwise. What IS there is the line the engine expects, whose
+    // second move is the opponent's reply — that is the threat, named exactly
+    // as far as the search saw it and no further.
+    const best = bundle.lines[0];
+    const sans = coachSans(best?.line);
+    const reply = sans.length > 1 ? sans[1] : null;
+    if (reply) {
+      parts.push(`The engine expects ${best.san}, and ${other}'s answer to it is ${reply}. That is what the search sees coming; it is the line, not a list of every threat on the board.${coachLine(best.line)}`);
+    } else {
+      parts.push(`The search did not return a line here, so there is nothing to name. The threat readout on the board is measured separately and will show a concrete one if there is one.`);
+    }
+  }
+
+  if ((intent === 'best' || intent === 'general' || intent === 'assess') && bundle.lines.length) {
+    const best = bundle.lines[0];
+    parts.push(`Best is ${best.san} — ${best.eval}.${coachLine(best.line)}`);
+    const rest = bundle.lines.slice(1, 3);
+    if (rest.length) {
+      parts.push(`Also searched: ${rest.map((l) => `${l.san} (${l.eval})`).join(', ')}.`);
+    }
+  }
+
+  if (!parts.length) {
+    parts.push(`${bundle.positionEval}${depth}. Nothing in the question named a move to look at, so there is only the position itself.`);
+  }
+
+  // The one thing this narrator can honestly say about itself.
+  // renderCoachAnswer() draws text nodes and line buttons, nothing else, so
+  // this is written as a sentence rather than marked up as one.
+  parts.push('Written from the engine’s own output on this device. No model was asked, so there is nothing in it beyond what the search found.');
+  return parts.join('\n\n');
+}
+
+/**
+ * Ask, without a model. The engine work is identical — the same bundle, from
+ * the same search — so the answer rests on exactly what the model's would
+ * have, and the position's conversation gets the same pair of turns.
+ */
+async function askCoachOnDevice() {
+  const question = $('coachQuestion').value.trim();
+  if (!question || Coach.busy) return;
+
+  const board = new Board(Practice.view.board.fen());
+  const fen = board.fen();
+  const turns = coachSession(fen);
+  const status = $('coachStatus');
+
+  Coach.busy = true;
+  $('coachAsk').disabled = true;
+  $('coachQuestion').value = '';
+  status.textContent = 'Looking at the position…';
+
+  // Yield so the status paints before the search blocks the thread.
+  await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+
+  let bundle;
+  try {
+    bundle = buildCoachBundle(board, question);
+  } catch (e) {
+    status.textContent = `The engine could not read this position: ${e?.message ?? e}.`;
+    $('coachQuestion').value = question;
+    Coach.busy = false;
+    $('coachAsk').disabled = false;
+    return;
+  }
+  Coach.lastBundle = bundle;
+
+  turns.push({ role: 'user', content: question, display: question, fen });
+  turns.push({ role: 'assistant', content: narrateCoach(bundle, question), fen });
+  status.textContent = '';
+  Coach.busy = false;
+  $('coachAsk').disabled = false;
+  renderCoachSession();
+  renderCoachSuggestions();
 }
 
 

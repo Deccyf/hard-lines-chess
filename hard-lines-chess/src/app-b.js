@@ -980,6 +980,143 @@ const THEME_LABEL = {
 };
 
 // ── progress ───────────────────────────────────────────────────────────────
+// ── progress over time ─────────────────────────────────────────────────────
+//
+// The panels below this one say what your mistakes have in common. They do not
+// say whether there are fewer of them than there used to be, which is the only
+// question anybody opens a progress screen to ask.
+//
+// WHAT IS PLOTTED IS WHAT WAS ALREADY MEASURED. Every review stores its own
+// accuracy, its mistake list and a calibrated strength estimate; none of that
+// was ever shown against time. Nothing new is computed here and nothing is
+// smoothed away: the dots are the games, and the line through them is a
+// rolling median, which one collapse cannot drag the way a mean can.
+const Progress = { measure: 'accuracy' };
+
+const PROGRESS_MEASURES = {
+  accuracy: {
+    label: 'Accuracy',
+    note: 'The share of your moves the engine judged best or near it. Games too short to score are left out rather than counted as nought.',
+    better: 'up',
+    value: (game) => (Number.isFinite(game.accuracy) ? game.accuracy : null),
+    format: (v) => `${Math.round(v)}%`,
+  },
+  mistakes: {
+    label: 'Mistakes a game',
+    note: 'Every inaccuracy, mistake and blunder the review found in your moves. A long game has more room for them than a short one.',
+    better: 'down',
+    value: (game) => (game.mistakes ?? []).length,
+    format: (v) => v.toFixed(1),
+  },
+  estimate: {
+    label: 'Strength estimate',
+    note: 'What each game’s average loss per move resembles on this app’s own ladder. The ladder’s numbers are targets rather than measured ratings, and above the calibration ceiling it can only say "or above".',
+    better: 'up',
+    value: (game) => (Number.isFinite(game.estimate?.elo) ? game.estimate.elo : null),
+    format: (v) => String(Math.round(v)),
+  },
+};
+
+/** The middle value of a window, so one disaster moves the line by one place. */
+function rollingMedian(values, window = 5) {
+  return values.map((_, i) => {
+    const from = Math.max(0, i - Math.floor(window / 2));
+    const slice = values.slice(from, from + window).filter((v) => v !== null);
+    if (!slice.length) return null;
+    const sorted = [...slice].sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length / 2)];
+  });
+}
+
+function renderProgressChart(games) {
+  const measure = PROGRESS_MEASURES[Progress.measure];
+  const panel = el('div', 'panel');
+  panel.appendChild(el('h3', null, 'Over time'));
+
+  const picker = el('div', 'row');
+  for (const [key, spec] of Object.entries(PROGRESS_MEASURES)) {
+    const button = el('button', key === Progress.measure ? 'btn primary' : 'btn', spec.label);
+    button.type = 'button';
+    button.addEventListener('click', () => { Progress.measure = key; renderProgress(); });
+    picker.appendChild(button);
+  }
+  panel.appendChild(picker);
+
+  const values = games.map(measure.value);
+  const scored = values.filter((v) => v !== null);
+
+  // THREE POINTS IS NOT A TREND AND IS NOT DRAWN AS ONE. A line through two
+  // games always slopes, and the slope is noise; saying so is more use than
+  // a chart that implies otherwise.
+  if (scored.length < 3) {
+    panel.appendChild(el('p', 'note',
+      `${scored.length} of your ${games.length} reviewed ${games.length === 1 ? 'game has' : 'games have'} a ${measure.label.toLowerCase()} to plot. Three are needed before a line through them means anything.`));
+    return panel;
+  }
+
+  const lo = Math.min(...scored), hi = Math.max(...scored);
+  const span = hi - lo || 1;
+  const trend = rollingMedian(values);
+  const width = Math.max(2, values.length - 1);
+  const y = (v) => 96 - ((v - lo) / span) * 92;
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'curve');
+  svg.setAttribute('viewBox', `0 0 ${width} 100`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', `${measure.label} across ${games.length} reviewed games`);
+
+  // The trend first, so the dots sit on top of it.
+  const points = trend.map((v, i) => (v === null ? null : `${i},${y(v)}`)).filter(Boolean);
+  if (points.length > 1) {
+    const line = document.createElementNS(NS, 'polyline');
+    line.setAttribute('points', points.join(' '));
+    line.setAttribute('class', 'curve-line');
+    svg.appendChild(line);
+  }
+  for (let i = 0; i < values.length; i++) {
+    if (values[i] === null) continue;
+    const dot = document.createElementNS(NS, 'circle');
+    dot.setAttribute('cx', i);
+    dot.setAttribute('cy', y(values[i]));
+    dot.setAttribute('r', 1.8);
+    dot.setAttribute('class', 'curve-dot');
+    svg.appendChild(dot);
+  }
+
+  const frame = el('div', 'curve-frame');
+  frame.appendChild(svg);
+  panel.appendChild(frame);
+
+  const scale = el('div', 'chart-scale');
+  scale.appendChild(el('span', null, `oldest · ${measure.format(lo)}`));
+  scale.appendChild(el('span', null, `${measure.format(hi)} · newest`));
+  panel.appendChild(scale);
+
+  // ── and what it amounts to, in a sentence ────────────────────────────────
+  const half = Math.floor(scored.length / 2);
+  const mean = (list) => list.reduce((a, b) => a + b, 0) / list.length;
+  const earlier = mean(scored.slice(0, half));
+  const later = mean(scored.slice(half));
+  const change = later - earlier;
+  const improving = measure.better === 'up' ? change > 0 : change < 0;
+  // A difference smaller than this is not worth a word either way, and the
+  // number of games here is never large enough to prove one.
+  const meaningful = Math.abs(change) >= (measure.better === 'up' ? Math.max(1, span * 0.08) : 0.3);
+
+  const verdict = el('p', 'note');
+  verdict.textContent = scored.length < 6
+    ? `${measure.format(earlier)} across the first ${half}, ${measure.format(later)} across the last ${scored.length - half}. With ${scored.length} scored games that is a difference, not a trend — it takes many more before one bad afternoon stops moving the line.`
+    : !meaningful
+      ? `${measure.format(earlier)} across the first ${half}, ${measure.format(later)} across the last ${scored.length - half}. That is flat: the two halves are close enough that the order of the games would change which was higher.`
+      : `${measure.format(earlier)} across the first ${half}, ${measure.format(later)} across the last ${scored.length - half} — ${improving ? 'the right way' : 'the wrong way'}. Both halves are your own games at whatever search setting you reviewed them with, so a change of setting shows up here as a change in you.`;
+  panel.appendChild(verdict);
+  panel.appendChild(el('p', 'note', measure.note));
+  return panel;
+}
+
 function renderProgress() {
   const box = $('progressOut');
   box.innerHTML = '';
@@ -1013,6 +1150,7 @@ function renderProgress() {
       <div><span class="k">Mean accuracy</span><span class="v">${accuracy === null ? '—' : `${accuracy}%`}</span></div>
     </div>${scored.length < games.length ? `<p class="note">${games.length - scored.length} of these ${games.length - scored.length === 1 ? 'was' : 'were'} too short to score and ${games.length - scored.length === 1 ? 'is' : 'are'} left out of the mean.</p>` : ''}`;
   box.appendChild(summary);
+  box.appendChild(renderProgressChart(games));
 
   // A rolling estimate over recent reviewed games — the MEDIAN, so one
   // collapse or one lucky game does not drag it — and the band it points at.

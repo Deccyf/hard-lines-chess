@@ -23,11 +23,21 @@
 //      clear reason here, this is calculation rather than a principle" is a
 //      true sentence and a fabricated explanation is worse than none.
 //
-// The coach is hidden entirely where the capability is absent, because a
-// button that cannot answer is worse than no button.
+// WHERE THERE IS NO MODEL, A FUNCTION NARRATES. The coach used to be hidden
+// wherever Claude could not be reached — which is every installed copy of this
+// app, since the APK holds no internet permission and a saved file has no
+// runtime to ask. But the model was never the part that knew anything: the
+// bundle below already contains the search, the material, the top four lines
+// and every named move's refutation, each turned into English by plainEval().
+// Choosing which of those answers the question and writing it as sentences is
+// a function, and narrateCoach() in app-k.js is that function. Same bundle,
+// same search, plainer prose, no network.
 const Coach = {
   ready: false,
   sample: null,
+  // True where no model can be reached and narrateCoach() writes the answers
+  // from the engine's own output instead. See app-k.js.
+  onDevice: false,
   busy: false,
   abort: null,
   sessions: {},     // fen -> [{role, content}]
@@ -355,10 +365,21 @@ function coachGoBack() {
 // ── asking ─────────────────────────────────────────────────────────────────
 async function setupCoach() {
   try { Coach.sample = await window.claude?.use?.('sample') ?? null; } catch { Coach.sample = null; }
-  Coach.ready = Coach.sample !== null;
-  $('coachPanel').hidden = !Coach.ready;
-  $('coachAbsent').hidden = Coach.ready;
-  if (Coach.ready) renderCoachSession();
+
+  // THE COACH IS NEVER ABSENT NOW. It used to be hidden wherever Claude could
+  // not be reached, which is every installed copy of this app — the APK holds
+  // no internet permission and a saved file has no runtime to ask. The engine
+  // work was always local; only the sentences were not. narrateCoach() writes
+  // them from the same bundle, so the answer rests on the same search either
+  // way and the panel is shown either way.
+  Coach.ready = true;
+  Coach.onDevice = Coach.sample === null;
+  $('coachPanel').hidden = false;
+  $('coachAbsent').hidden = true;
+  $('coachHow').textContent = Coach.onDevice
+    ? 'No model is reachable from here, so the answers are written on this device from the engine\u2019s own output. Plainer than the model\u2019s, and made of the same measurements.'
+    : 'Answers are written by Claude from what the engine found, and it is never asked to evaluate anything itself.';
+  renderCoachSession();
 }
 
 function coachSession(fen) {
@@ -429,6 +450,7 @@ async function askCoach() {
   if (!Coach.ready || Coach.busy) return;
   const question = $('coachQuestion').value.trim();
   if (!question) return;
+  if (Coach.onDevice) { await askCoachOnDevice(); return; }
 
   const board = new Board(Practice.view.board.fen());
   const fen = board.fen();
