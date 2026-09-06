@@ -990,14 +990,30 @@
             is not the same as finding it. "Test me" plays the other side and makes you produce the move
             yourself, then spaces the line out over days so it sticks.</li>
           <li><strong>Review your own games against it.</strong> When you leave the line, that is the
-            interesting moment. Paste the game into Review and see what the engine wanted at the move where
-            you were on your own.</li>
+            interesting moment — and you no longer have to find it by hand. The panel below this one walks
+            every game you have played or pasted against these lines and lists the moves where you stopped
+            following them, commonest first, with what each one cost.</li>
         </ol>
 
         <p class="note">Every line below, and every branch, has been checked move by move against this app's own
           engine, and none of them leaves you worse than about half a pawn. Where the text counts something —
           attackers on a square, a piece with one move — the count was made on the board, not from memory.</p>
       </details>
+
+      <!-- WHERE YOUR GAMES LEFT THE BOOK. Above the list of openings on
+           purpose: it is the only thing on this screen that knows anything
+           about you, and it says which of the lines below is worth your
+           afternoon. -->
+      <div class="panel" id="deviationPanel" hidden>
+        <h2>Where you leave the book</h2>
+        <p class="note" id="deviationSummary"></p>
+        <div id="deviationList"></div>
+        <p class="note">Every game you have played here or pasted into Review, walked against the lines below. The
+          opening named is the one the game followed furthest — nobody records what they meant to play, and the moves
+          are what there is. A move that transposes into another line you know is not counted as leaving anything.
+          What each one cost is two searches of the same depth, one after your move and one after the book's, and the
+          answer is allowed to be nothing: leaving your preparation is not automatically a mistake.</p>
+      </div>
 
       <div id="openingList"></div>
     </div>
@@ -1041,11 +1057,68 @@
 
   <!-- REVIEW -->
   <section id="section-review" hidden>
+    <!-- BRINGING GAMES IN. This panel replaced a paragraph that said the page
+         "cannot reach Chess.com or Lichess directly — it is not allowed to make
+         requests to other sites". That was true of Lichess and had stopped
+         being true of Chess.com, whose public archive endpoint sends the header
+         a browser needs to read it. A page that tells you something is
+         impossible while it is possible is worse than one that never mentioned
+         it. -->
+    <div class="panel">
+      <h2>Bring in your Chess.com games</h2>
+      <p class="note">Chess.com publishes every public game through an endpoint that needs no password and no
+        account to connect. Type your username and this reads your archives, newest month first, and stores the
+        games here. The request goes from this browser to Chess.com and back; there is no server in this app for
+        anything to be sent to.</p>
+      <div class="fields">
+        <label class="field"><span>Chess.com username</span>
+          <input type="text" id="importUser" autocomplete="username" spellcheck="false" placeholder="the name in your profile address">
+        </label>
+        <label class="field"><span>How many</span>
+          <select id="importCount">
+            <option value="50">The last 50 games</option>
+            <option value="100" selected>The last 100 games</option>
+            <option value="300">The last 300 games</option>
+            <option value="1000">Everything it can find</option>
+          </select>
+        </label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" id="importRun" type="button">Fetch my games</button>
+        <button class="btn danger" id="importStop" type="button" hidden>Stop</button>
+      </div>
+      <p class="note" id="importNote"></p>
+      <p class="note" id="importState"></p>
+      <p class="note">Importing is not reviewing. The games arrive with their moves, which is everything the
+        repertoire report needs — an accuracy and a list of mistakes need the engine to walk the game.</p>
+
+      <div class="after" style="margin-top:14px">
+        <h3>Walk them with the engine</h3>
+        <p class="note">Oldest first, one at a time, saved after each — so stopping keeps what it has done and
+          pressing it again carries on. A game already walked is never walked twice.</p>
+        <div class="fields">
+          <label class="field"><span>How hard it looks</span>
+            <select id="walkDepth">
+              <option value="7" selected>Quick — a few seconds a game</option>
+              <option value="9">Normal</option>
+              <option value="12">Careful — slow over many games</option>
+            </select>
+          </label>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="walkRun" type="button">Walk the imported games</button>
+          <button class="btn danger" id="walkStop" type="button" hidden>Stop</button>
+        </div>
+        <div class="progress" id="walkBar" hidden><span id="walkFill"></span></div>
+        <p class="note" id="walkNote"></p>
+      </div>
+    </div>
+
     <div class="panel">
       <h2>Review a game you played</h2>
       <p class="note">
-        This page cannot reach Chess.com or Lichess directly — it is not allowed to make requests to
-        other sites, so there is no account to connect. Copying the game across takes one tap.
+        Or paste one. Lichess games have to come across this way — that site does not send the header a browser
+        needs to read its games from another page — and so does any game from anywhere else.
       </p>
       <details class="how">
         <summary>Where to find the PGN</summary>
@@ -7078,6 +7151,372 @@ function nearestPlayableBand(elo) {
 }
 
 
+// ── where your games leave your repertoire ─────────────────────────────────
+//
+// The app has had both halves of this since the openings went in and has
+// never joined them: 25 verified lines with 79 branches on one side, and every
+// game you have played or pasted, stored with its moves, on the other. Nothing
+// asked the obvious question, which is whether the games are the lines.
+//
+// It is the question worth asking, too. Studying an opening you already play
+// correctly is time spent on something that was not costing you anything. The
+// move worth knowing is the one where you stopped following your own
+// preparation — and you cannot remember it, because at the time you did not
+// notice.
+//
+// WHOSE FAULT THE DIVERGENCE WAS, and the two are not the same problem.
+//
+//   'you'   — you played something the book does not. This is preparation you
+//             have not learnt, and it is the list to work through.
+//   'them'  — they played something the book has no answer written for. That
+//             is a gap in the repertoire rather than a gap in you, and it is
+//             counted separately and never called a mistake.
+//
+// AND WHAT IT COST IS MEASURED, NOT ASSERTED. The cost of a deviation is the
+// difference between two searches: the position after the move you played and
+// the position after the move the book plays, both scored from your side. A
+// deviation that costs nothing is reported as costing nothing — leaving the
+// book is not automatically an error, and a screen that implied it was would
+// be teaching obedience rather than chess.
+
+/** How many plies of a line must match before the deviation gets a name. */
+const REPERTOIRE_MIN_MATCH = 2;
+
+/**
+ * Every line in the repertoire, main and branch alike, as one flat list.
+ *
+ * A variation's `line` is written from move one — it shares the first `at`
+ * plies with its main line and then diverges — so a branch can be walked
+ * exactly like a main line and nothing here needs to know which it is.
+ */
+function repertoireLines(openings) {
+  const lines = [];
+  for (const opening of openings) {
+    lines.push({
+      openingId: opening.id,
+      name: opening.name,
+      eco: opening.eco,
+      side: opening.side,
+      variation: null,
+      line: opening.line,
+    });
+    for (const variation of opening.variations ?? []) {
+      lines.push({
+        openingId: opening.id,
+        name: opening.name,
+        eco: opening.eco,
+        side: opening.side,
+        variation: variation.name,
+        line: variation.line,
+      });
+    }
+  }
+  return lines;
+}
+
+/** How many leading plies two move lists share. */
+function sharedPlies(a, b) {
+  let n = 0;
+  while (n < a.length && n < b.length && a[n] === b[n]) n++;
+  return n;
+}
+
+/**
+ * Where one game left the repertoire.
+ *
+ * The line it is judged against is THE ONE IT FOLLOWED FURTHEST, which is the
+ * only defensible answer to "which opening was this": nobody records what they
+ * intended, and the moves are what there is. A game that matches two lines
+ * equally far is judged against the first, and it does not matter — they agree
+ * up to the point being reported.
+ *
+ * @param sans   the game's moves, as bare algebraic from move one
+ * @param side   'white' or 'black' — which colour you had
+ * @param openings the repertoire
+ */
+function findDeviation(sans, side, openings) {
+  const mine = repertoireLines(openings).filter((l) => l.side === side);
+  if (!mine.length || !sans.length) return { kind: 'no-repertoire' };
+
+  let best = null;
+  for (const entry of mine) {
+    const matched = sharedPlies(sans, entry.line);
+    if (!best || matched > best.matched) best = { ...entry, matched };
+  }
+
+  // The first ply that is not in the line. Whose move it is decides everything
+  // else, and it is decided by the ply's parity rather than by anything stored:
+  // ply 0 is always White's.
+  const at = best.matched;
+  const moverIsMine = (at % 2 === 0) === (side === 'white');
+
+  // Followed to the end of the line — or as far as the game went.
+  if (at >= sans.length) return { kind: 'followed', ...best, plies: sans.length };
+  if (at >= best.line.length) return { kind: 'followed', ...best, plies: best.line.length };
+
+  // NOTHING MATCHED AT ALL, so there is no opening to name. Naming one anyway
+  // — "you left the Italian on move 1" for a game that opened 1.d4 — would be
+  // an invented fact about a game nobody played.
+  if (at === 0) {
+    return moverIsMine
+      ? { kind: 'never-entered', side, played: sans[0], firstMoves: [...new Set(mine.map((l) => l.line[0]))] }
+      : { kind: 'they-avoided', side, played: sans[0], firstMoves: [...new Set(mine.map((l) => l.line[0]))] };
+  }
+
+  return {
+    kind: moverIsMine ? 'you-left' : 'they-left',
+    ...best,
+    // One-based, the way a person counts and the way the rest of the app
+    // prints plies.
+    ply: at + 1,
+    moveNumber: Math.floor(at / 2) + 1,
+    played: sans[at],
+    book: best.line[at],
+    // Enough of the game to replay to the position, so the cost can be
+    // measured later without storing a board.
+    prefix: sans.slice(0, at),
+    named: at >= REPERTOIRE_MIN_MATCH,
+  };
+}
+
+/**
+ * Every game's deviation, grouped so the same one seen four times is one row
+ * saying four rather than four rows.
+ *
+ * `games` is [{ at, side, sans, label }]. A game from a set-up position has no
+ * business here and is the caller's to leave out: a line that did not start at
+ * move one cannot be compared with one that did.
+ */
+function collectDeviations(games, openings) {
+  const rows = new Map();
+  const counts = { games: 0, youLeft: 0, theyLeft: 0, followed: 0, neverEntered: 0, theyAvoided: 0 };
+
+  for (const game of games) {
+    if (!game.sans?.length) continue;
+    counts.games++;
+    const found = findDeviation(game.sans, game.side, openings);
+
+    if (found.kind === 'followed') { counts.followed++; continue; }
+    if (found.kind === 'never-entered') { counts.neverEntered++; continue; }
+    if (found.kind === 'they-avoided') { counts.theyAvoided++; continue; }
+    if (found.kind === 'no-repertoire') continue;
+    if (found.kind === 'they-left') { counts.theyLeft++; continue; }
+
+    counts.youLeft++;
+    // Grouped by the position and the move, not by the game: the same mistake
+    // in four games is one thing to learn.
+    const key = `${found.openingId}|${found.ply}|${found.played}`;
+    const row = rows.get(key) ?? {
+      key,
+      openingId: found.openingId,
+      name: found.name,
+      eco: found.eco,
+      variation: found.variation,
+      side: found.side,
+      ply: found.ply,
+      moveNumber: found.moveNumber,
+      played: found.played,
+      book: found.book,
+      prefix: found.prefix,
+      times: 0,
+      games: [],
+    };
+    row.times++;
+    row.games.push({ at: game.at, label: game.label });
+    rows.set(key, row);
+  }
+
+  // The one you do most often, first; ties broken by the earlier move, because
+  // an opening mistake on move three matters more than the same mistake on
+  // move eleven.
+  const list = [...rows.values()].sort((a, b) => b.times - a.times || a.ply - b.ply);
+  return { rows: list, counts };
+}
+
+/**
+ * What a deviation cost, in centipawns from your side.
+ *
+ * Two searches of equal depth: the position after your move, and the position
+ * after the book's. Their difference is the whole claim, and it is a
+ * measurement rather than an opinion about the opening.
+ *
+ * A POSITIVE NUMBER IS A LOSS. Zero or below means leaving the book cost you
+ * nothing here, which happens and is reported as such.
+ */
+function measureDeviation(row, { Board, sanToMove, engine, movetime = 300, depth = 10 }) {
+  const board = new Board();
+  for (const san of row.prefix) {
+    const move = sanToMove(board, san);
+    if (!move) return null;
+    board.make(move);
+  }
+  const fen = board.fen();
+
+  const after = (san) => {
+    const copy = new Board(fen);
+    const move = sanToMove(copy, san);
+    if (!move) return null;
+    copy.make(move);
+    const outcome = copy.outcome();
+    if (outcome === 'checkmate') return -30000;   // the mover is mated: from OUR side, lost
+    if (outcome) return 0;
+    engine.reset();
+    // The score comes back from the side to move, which after our move is
+    // theirs, so it is negated onto our side.
+    return -engine.search(copy, { movetime, maxDepth: depth }).score;
+  };
+
+  const yours = after(row.played);
+  const book = after(row.book);
+  if (yours === null || book === null) return null;
+  return { yours, book, loss: book - yours, fen };
+}
+
+
+// ── bringing in games from Chess.com ───────────────────────────────────────
+//
+// Everything else in this app works on games it already has: the ones played
+// here, and the ones pasted into Review one at a time. That is a bottleneck
+// with a shape — the review, the tactics miner and the repertoire report all
+// get better with more games, and pasting three hundred of them by hand is not
+// something anybody does.
+//
+// Chess.com publishes every public game through an API that needs no key and
+// no password: an archive list per player, a month of games per archive. This
+// reads it.
+//
+// WHAT IT DOES NOT DO, and both are on purpose.
+//
+//   NO PASSWORD, EVER. The public endpoint is all this uses. Nothing here asks
+//   for a Chess.com login, and if this app ever puts a password field on the
+//   screen for a service that is not this one, something has gone wrong.
+//
+//   NOTHING LEAVES YOUR DEVICE. The request goes from your browser to
+//   Chess.com and back. There is no server in this app to send anything to.
+//   In the Android app it does not run at all, because the APK holds no
+//   INTERNET permission — which is the promise that makes the rest of it
+//   trustworthy, and is worth more than the convenience.
+
+const CHESSCOM_API = 'https://api.chess.com/pub/player';
+
+/** The archive list for a player. Usernames are case-insensitive there. */
+const archivesUrl = (username) =>
+  `${CHESSCOM_API}/${encodeURIComponent(String(username).trim().toLowerCase())}/games/archives`;
+
+/**
+ * One game from the API, as a row this app can store — or null when it is not
+ * a game this app can use.
+ *
+ * WHAT IS REFUSED. Anything that is not standard chess: Chess960 has a
+ * different starting position, and bughouse and crazyhouse have different
+ * rules, so a review of one would be an engine confidently analysing a game it
+ * does not know the rules of. Games with no movetext are refused too — an
+ * abandoned game has nothing in it to look at.
+ */
+function chessComGame(game, username) {
+  if (!game || typeof game !== 'object') return null;
+  if (game.rules && game.rules !== 'chess') return null;
+  if (typeof game.pgn !== 'string' || !game.pgn.trim()) return null;
+
+  const me = String(username).trim().toLowerCase();
+  const white = game.white?.username ?? '?';
+  const black = game.black?.username ?? '?';
+  const iAmWhite = String(white).toLowerCase() === me;
+  const iAmBlack = String(black).toLowerCase() === me;
+  // A game the named player is not in cannot have a side, and every screen
+  // downstream needs one to say whose mistake a mistake was.
+  if (!iAmWhite && !iAmBlack) return null;
+
+  // A Chess960 game can also be marked by its FEN header rather than by
+  // `rules`, so the movetext is checked as well as the metadata.
+  if (/\[Variant\s+"(?!Standard)/i.test(game.pgn)) return null;
+
+  const outcome = game.white?.result;
+  const result = outcome === 'win' ? '1-0'
+    : (game.black?.result === 'win' ? '0-1'
+      : (outcome ? '1/2-1/2' : '*'));
+
+  return {
+    at: (game.end_time ?? 0) * 1000 || Date.now(),
+    white,
+    black,
+    result,
+    side: iAmWhite ? 'white' : 'black',
+    pgn: game.pgn,
+    url: game.url ?? null,
+    timeClass: game.time_class ?? null,
+    rated: game.rated !== false,
+    // NOT REVIEWED. It has been imported, which is not the same thing, and
+    // every screen that averages accuracy has to be able to tell the
+    // difference — otherwise importing three hundred games would report three
+    // hundred reviews whose accuracy nobody measured.
+    reviewed: false,
+    accuracy: null,
+    meanLoss: null,
+    mistakes: [],
+    source: 'chess.com',
+  };
+}
+
+/**
+ * A month of games, filtered and newest first, with a count of each reason a
+ * game did not make it.
+ *
+ * THE THREE OUTCOMES ARE COUNTED SEPARATELY because they mean different
+ * things to a person reading the summary. "Already here" is the import working
+ * — you asked twice. "Not standard chess" is a game this app cannot analyse.
+ * Rolling them together produced a first-ever import that claimed three games
+ * were already here on a device that had never held one, which is a sentence
+ * that makes a reader distrust every other number on the screen.
+ *
+ * `existing` is whatever is already stored. Games are identified by their
+ * Chess.com URL where there is one and by end time and colour where there is
+ * not, because two of your games cannot end at the same second with you on the
+ * same side.
+ */
+function chessComMonth(games, username, existing = []) {
+  const seen = new Set();
+  for (const row of existing) {
+    if (row?.url) seen.add(row.url);
+    if (row?.at) seen.add(`${row.at}|${row.side}`);
+  }
+
+  const rows = [];
+  let unusable = 0, duplicate = 0;
+  for (const raw of games ?? []) {
+    const row = chessComGame(raw, username);
+    if (!row) { unusable++; continue; }
+    const key = row.url ?? `${row.at}|${row.side}`;
+    if (seen.has(key) || seen.has(`${row.at}|${row.side}`)) { duplicate++; continue; }
+    seen.add(key);
+    seen.add(`${row.at}|${row.side}`);
+    rows.push(row);
+  }
+  rows.sort((a, b) => b.at - a.at);
+  return { rows, unusable, duplicate, found: (games ?? []).length };
+}
+
+/**
+ * A short line about what an import brought in, or why it brought nothing.
+ *
+ * Every number here is one of the counts above, and they add up: found is
+ * added plus duplicate plus unusable. A summary whose numbers do not add up is
+ * how the first version of this told somebody their brand-new install already
+ * had three of their games.
+ */
+function importSummary({ found = 0, added = 0, duplicate = 0, unusable = 0, months = 0 }) {
+  const month = (n) => `${n} ${n === 1 ? 'month' : 'months'}`;
+  if (!found) return `No games at all in the ${month(months)} looked at.`;
+
+  const parts = [];
+  if (added) parts.push(`${added} ${added === 1 ? 'game' : 'games'} brought in from ${month(months)}.`);
+  else parts.push(`Nothing new in ${month(months)}.`);
+  if (duplicate) parts.push(`${duplicate} ${duplicate === 1 ? 'was' : 'were'} already here.`);
+  if (unusable) parts.push(`${unusable} skipped: not standard chess, no moves, or not your game.`);
+  return parts.join(' ');
+}
+
+
 // ── one board, used by every screen ────────────────────────────────────────
 //
 // Play, the opening trainer and the drills all need a board that can be tapped,
@@ -9623,6 +10062,12 @@ function renderToday() {
 
   const rows = [];
 
+  // WHERE YOU LEAVE THE BOOK goes first when there is one, because it is the
+  // only row on this page derived from what you actually did rather than from
+  // a schedule.
+  const leak = deviationTask();
+  if (leak) rows.push(leak);
+
   const openings = dueOpenings();
   if (openings.length) {
     rows.push({
@@ -9670,12 +10115,19 @@ function renderToday() {
     });
   }
 
-  if (!App.reviews.games.length) {
+  // IMPORTED IS NOT REVIEWED, so a store full of games nobody has walked still
+  // says there is a review to do — and says how many are waiting rather than
+  // pretending the shelf is empty.
+  const reviewed = App.reviews.games.filter((g) => g.reviewed !== false);
+  const waiting = App.reviews.games.length - reviewed.length;
+  if (!reviewed.length) {
     rows.push({
       kind: 'Review',
-      title: 'No games reviewed yet',
-      note: 'Paste a game from Chess.com or Lichess and the engine will walk it and name the mistakes.',
-      action: 'Paste one',
+      title: waiting ? `${waiting} imported ${waiting === 1 ? 'game' : 'games'}, none walked yet` : 'No games reviewed yet',
+      note: waiting
+        ? 'Importing brings the moves. An accuracy and a list of mistakes need the engine to walk the game.'
+        : 'Bring your games in from Chess.com, or paste one, and the engine will walk it and name the mistakes.',
+      action: waiting ? 'Walk one' : 'Bring them in',
       go: () => show('review'),
     });
   }
@@ -9981,6 +10433,7 @@ async function finishPlay(key) {
     record[result]++;
     App.history.bands[game.band.elo] = record;
   }
+  forgetDeviations();
   App.history.games.push({
     at: Date.now(),
     band: game.band.elo,
@@ -10272,6 +10725,7 @@ function openingCardState(opening) {
 
 function renderOpenings() {
   if (Openings.current) return;
+  renderDeviations();
 
   const box = $('openingList');
   box.innerHTML = '';
@@ -10706,6 +11160,7 @@ async function runReview() {
   // something to count.
   const at = Date.now();
   const label = `${parsed.headers.White ?? '?'} vs ${parsed.headers.Black ?? '?'}`;
+  forgetDeviations();
   App.reviews.games.push({
     at,
     white: parsed.headers.White ?? '?',
@@ -11341,9 +11796,25 @@ function renderProgress() {
   const box = $('progressOut');
   box.innerHTML = '';
 
-  const games = App.reviews.games;
+  // AN IMPORTED GAME IS NOT A REVIEWED ONE. Bringing games in from Chess.com
+  // stores their moves, which is all the repertoire report and the tactics
+  // miner need — but nothing on this page can be said about a game the engine
+  // has not walked. Counting them here would report three hundred reviews
+  // whose accuracy nobody measured, and would file them under "too short to
+  // score", which is not why they have no score.
+  //
+  // A row with no `reviewed` field at all was stored before importing existed,
+  // and every one of those WAS a review, so absent means reviewed.
+  const games = App.reviews.games.filter((g) => g.reviewed !== false);
+  const waiting = App.reviews.games.length - games.length;
   const allMistakes = games.flatMap((g) => g.mistakes ?? []);
 
+  if (!games.length) {
+    if (waiting) {
+      box.innerHTML = `<p class="note">${waiting} imported ${waiting === 1 ? 'game is' : 'games are'} stored and none of them has been walked by the engine yet. Review one and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.</p>`;
+      return;
+    }
+  }
   if (!games.length) {
     box.innerHTML = '<p class="note">Review a game and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.</p>';
     return;
@@ -11364,7 +11835,7 @@ function renderProgress() {
   const accuracy = scored.length ? Math.round(scored.reduce((sum, g) => sum + g.accuracy, 0) / scored.length) : null;
 
   const summary = el('div', 'panel');
-  summary.innerHTML = `<h3>Across ${games.length} reviewed ${games.length === 1 ? 'game' : 'games'}</h3>
+  summary.innerHTML = `<h3>Across ${games.length} reviewed ${games.length === 1 ? 'game' : 'games'}${waiting ? `, with ${waiting} imported and not yet walked` : ''}</h3>
     <div class="readout">
       <div><span class="k">Mistakes a game</span><span class="v">${perGame}</span></div>
       <div><span class="k">Mean accuracy</span><span class="v">${accuracy === null ? '—' : `${accuracy}%`}</span></div>
@@ -15022,6 +15493,465 @@ function flipNotation() {
 }
 
 
+// ── the deviation report ───────────────────────────────────────────────────
+//
+// The screen for deviation.js. It gathers every game the app has stored — the
+// ones played here and the ones pasted into Review — walks each against the
+// repertoire, and lists the places you stopped following it, commonest first.
+//
+// TWO THINGS IT IS CAREFUL ABOUT.
+//
+// A GAME FROM A SET-UP POSITION IS NOT IN THE LIST. A line that did not start
+// at move one cannot be compared with one that did, and quietly including them
+// would put "you left the Italian on move 1" against a game that began in a
+// rook ending.
+//
+// AND THE COST IS MEASURED WHEN THE ROW IS SHOWN, not asserted when it is
+// built. Two searches per row, deferred a frame at a time so the list paints
+// first — and the answer is allowed to be "nothing". Leaving your preparation
+// is not automatically a mistake, and a report that assumed it was would be
+// teaching obedience rather than chess.
+
+const Deviations = {
+  rows: [],
+  counts: null,
+  costs: {},        // row key -> { yours, book, loss } once measured
+  parsed: new Map(),// game timestamp -> its moves, so a PGN is read once
+  measuring: false,
+  built: false,
+};
+
+/**
+ * HOW FAR BACK IT LOOKS. Every stored game has to be read out of its PGN, and
+ * reading one means replaying it through the move generator — cheap once,
+ * noticeable four hundred times on a page that is supposed to open instantly.
+ * The most recent sixty are walked and the screen says sixty, because a report
+ * that quietly ignored half your games while printing a total would be lying
+ * about its own sample.
+ */
+const DEVIATION_GAMES = 60;
+
+/** Every stored game that can be compared with a line, as moves from move one. */
+function deviationGames() {
+  const games = [];
+
+  const add = (key, side, pgn, label, startFen) => {
+    if (!pgn || !side) return;
+    if (startFen) return;      // see the header: not comparable
+    let sans = Deviations.parsed.get(key);
+    if (sans === undefined) {
+      try {
+        const parsed = parsePgn(pgn);
+        sans = parsed.startFen ? null : parsed.plies.map((p) => p.san);
+      } catch { sans = null; }
+      Deviations.parsed.set(key, sans);
+    }
+    if (sans && sans.length) games.push({ at: key, side, sans, label });
+  };
+
+  const stored = [
+    ...(App.history?.games ?? []).map((g) => ({ at: g.at, side: g.colour, pgn: g.pgn, from: g.from,
+      label: `against the ${bandLabelFor(g.band)} band` })),
+    ...(App.reviews?.games ?? []).map((g) => ({ at: g.at, side: g.side, pgn: g.pgn, from: null,
+      label: `${g.white ?? '?'} vs ${g.black ?? '?'}` })),
+  ].sort((a, b) => (b.at ?? 0) - (a.at ?? 0)).slice(0, DEVIATION_GAMES);
+
+  for (const game of stored) add(game.at, game.side, game.pgn, game.label, game.from);
+  return games;
+}
+
+/**
+ * Say the report is out of date.
+ *
+ * Called wherever a game is stored. Without it the panel is whatever it was
+ * when the screen was last opened, so the game you just played — the one you
+ * came to look at — is the one game it does not know about.
+ */
+function forgetDeviations() {
+  Deviations.built = false;
+  Deviations.costs = {};
+}
+
+function buildDeviations() {
+  const games = deviationGames();
+  const { rows, counts } = collectDeviations(games, OPENINGS);
+  Deviations.rows = rows;
+  Deviations.counts = counts;
+  Deviations.built = true;
+}
+
+/**
+ * The cost of the top rows, one search pair at a time, yielding between each.
+ *
+ * Only the rows on screen, and only once: a report that froze the page for
+ * three seconds to price twenty rows nobody scrolled to would be worse than
+ * one that priced none.
+ */
+function measureDeviations(limit = 6) {
+  if (Deviations.measuring) return;
+  const todo = Deviations.rows.slice(0, limit).filter((r) => !(r.key in Deviations.costs));
+  if (!todo.length) return;
+  Deviations.measuring = true;
+
+  const step = () => {
+    const row = todo.shift();
+    if (!row) { Deviations.measuring = false; return; }
+    let cost = null;
+    try {
+      cost = measureDeviation(row, { Board, sanToMove, engine: App.engine, movetime: 260, depth: 10 });
+    } catch { cost = null; }
+    Deviations.costs[row.key] = cost;
+    renderDeviationRows();
+    requestAnimationFrame(() => setTimeout(step, 0));
+  };
+  requestAnimationFrame(() => setTimeout(step, 0));
+}
+
+function renderDeviations() {
+  if (!Deviations.built) buildDeviations();
+  const panel = $('deviationPanel');
+  const counts = Deviations.counts;
+
+  // NOTHING TO SAY IS SAID BY SAYING NOTHING. A panel that reads "0 games
+  // analysed" on a fresh install is a panel that looks broken.
+  if (!counts || counts.games === 0) { panel.hidden = true; return; }
+  panel.hidden = false;
+
+  const parts = [`${counts.games} ${counts.games === 1 ? 'game' : 'games'} walked against your repertoire.`];
+  if (counts.followed) parts.push(`${counts.followed} stayed in it to the end of the line.`);
+  if (counts.youLeft) parts.push(`${counts.youLeft} left it on a move of yours.`);
+  if (counts.theyLeft) parts.push(`${counts.theyLeft} ended when your opponent played something the book has no answer for — a gap in the repertoire rather than in you.`);
+  if (counts.neverEntered) parts.push(`${counts.neverEntered} opened with a move that is not in your repertoire at all.`);
+  if (counts.theyAvoided) parts.push(`${counts.theyAvoided} were steered somewhere else by your opponent's first move.`);
+  $('deviationSummary').textContent = parts.join(' ');
+
+  renderDeviationRows();
+  measureDeviations();
+}
+
+function renderDeviationRows() {
+  const box = $('deviationList');
+  box.innerHTML = '';
+
+  if (!Deviations.rows.length) {
+    box.appendChild(el('p', 'note good-note',
+      'You did not leave your own preparation in any of these games. Where the line ended, it ended because your opponent left it.'));
+    return;
+  }
+
+  for (const row of Deviations.rows.slice(0, 8)) {
+    const item = el('div', 'endgame-row');
+    const head = el('div', 'endgame-head');
+    head.appendChild(el('strong', null, `${row.name}${row.variation ? ` — ${row.variation}` : ''}`));
+    head.appendChild(el('span', 'tag', row.times === 1 ? 'once' : `${row.times} times`));
+    item.appendChild(head);
+
+    // The move number the way a person says it, and the move a person plays.
+    const number = `${row.moveNumber}${row.side === 'white' ? '.' : '…'}`;
+    item.appendChild(el('p', 'prompt', `${number} you played ${row.played} — the book plays ${row.book}`));
+
+    const cost = Deviations.costs[row.key];
+    const line = el('p', 'note');
+    if (!(row.key in Deviations.costs)) {
+      line.textContent = 'Measuring what it cost…';
+    } else if (!cost) {
+      line.textContent = 'The cost could not be measured here.';
+    } else if (cost.loss >= 100) {
+      line.textContent = `Measured: about ${(cost.loss / 100).toFixed(1)} pawns worse than the book move.`;
+      line.className = 'note bad-note';
+    } else if (cost.loss >= 30) {
+      line.textContent = `Measured: about ${(cost.loss / 100).toFixed(2)} of a pawn worse than the book move.`;
+    } else if (cost.loss > -30) {
+      line.textContent = 'Measured: it costs nothing here. Worth knowing the line anyway, but this move is not the problem.';
+      line.className = 'note good-note';
+    } else {
+      line.textContent = `Measured: your move came out ${(Math.abs(cost.loss) / 100).toFixed(2)} of a pawn BETTER than the book's, at this depth.`;
+      line.className = 'note good-note';
+    }
+    item.appendChild(line);
+
+    const opening = OPENINGS.find((o) => o.id === row.openingId);
+    if (opening) {
+      const go = el('button', 'btn', 'Learn this line');
+      go.type = 'button';
+      go.addEventListener('click', () => {
+        // Straight to the branch and the ply it went wrong on, rather than the
+        // top of a line you already know the first six moves of.
+        const branch = row.variation === null ? null
+          : (opening.variations ?? []).findIndex((v) => v.name === row.variation);
+        startOpening(opening, 'learn', {
+          branch: branch === null || branch < 0 ? null : branch,
+          fromPly: Math.max(0, row.ply - 3),
+        });
+      });
+      item.appendChild(go);
+    }
+    box.appendChild(item);
+  }
+
+  if (Deviations.rows.length > 8) {
+    box.appendChild(el('p', 'note', `${Deviations.rows.length - 8} more, seen fewer times.`));
+  }
+}
+
+/** A Today row, when there is one worth acting on. */
+function deviationTask() {
+  if (!Deviations.built) buildDeviations();
+  const top = Deviations.rows[0];
+  if (!top || top.times < 2) return null;
+  return {
+    kind: 'Openings',
+    title: `You keep leaving the ${top.name} on move ${top.moveNumber}`,
+    note: `${top.times} times, you played ${top.played} where the book plays ${top.book}. Read off your own games.`,
+    action: 'Look at it',
+    go: () => {
+      show('openings');
+      requestAnimationFrame(() => $('deviationPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    },
+  };
+}
+
+
+// ── the import screen ──────────────────────────────────────────────────────
+//
+// The fetching half of import.js: archives newest first, a month at a time,
+// stopping when it has enough. Serial rather than parallel — Chess.com asks
+// for that, and a burst of thirty requests is how an app gets rate-limited
+// into looking broken.
+//
+// AND IT SAYS WHAT IT IS DOING WHILE IT DOES IT. Fetching a year of games is
+// twelve requests and can take twenty seconds; a button that goes quiet for
+// twenty seconds is a button that did nothing as far as anybody watching can
+// tell.
+
+const Import = {
+  running: false,
+  cancelled: false,
+  found: 0,
+  added: 0,
+  duplicate: 0,
+  unusable: 0,
+  months: 0,
+};
+
+/** Where the games go, and what has to be told they arrived. */
+async function storeImported(rows) {
+  App.reviews.games.push(...rows);
+  // Newest last, the way the rest of the app stores them.
+  App.reviews.games.sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
+  forgetDeviations();
+  await Store.set('reviews', App.reviews);
+}
+
+function importNote(text, kind = 'note') {
+  const box = $('importNote');
+  box.textContent = text;
+  box.className = kind;
+}
+
+async function runImport() {
+  if (Import.running) return;
+
+  // THE ANDROID APP CANNOT DO THIS AND SAYS SO RATHER THAN FAILING. The APK
+  // holds no INTERNET permission — that is the promise that makes everything
+  // else in it trustworthy — so there is no request to make and no error worth
+  // showing. Pasting a game still works there, and so does everything else.
+  if (IN_ANDROID_APP) {
+    importNote('The Android app holds no internet permission, so it cannot fetch anything — that is what lets it promise nothing leaves your device. Import your games in the web version at the same address you installed this from, or paste a game below.', 'note');
+    return;
+  }
+
+  const username = $('importUser').value.trim();
+  if (!username) { importNote('Type your Chess.com username first.', 'note bad-note'); return; }
+  const wanted = Number($('importCount').value) || 100;
+
+  Import.running = true;
+  Import.cancelled = false;
+  Import.found = 0; Import.added = 0; Import.duplicate = 0; Import.unusable = 0; Import.months = 0;
+  $('importRun').hidden = true;
+  $('importStop').hidden = false;
+  importNote(`Asking Chess.com which months ${username} has games in…`);
+
+  try {
+    const listed = await fetch(archivesUrl(username), { headers: { Accept: 'application/json' } });
+    if (listed.status === 404) {
+      importNote(`Chess.com has no public player called "${username}". Check the spelling — it is the name in your profile address, not your display name.`, 'note bad-note');
+      return;
+    }
+    if (!listed.ok) { importNote(`Chess.com answered ${listed.status}. Try again in a minute.`, 'note bad-note'); return; }
+
+    const { archives = [] } = await listed.json();
+    if (!archives.length) { importNote('That account has no public games to fetch.', 'note'); return; }
+
+    const fresh = [];
+    // Newest month first, so a small import is your recent games rather than
+    // your first ever ones.
+    for (const url of [...archives].reverse()) {
+      if (Import.cancelled || fresh.length >= wanted) break;
+      Import.months++;
+      importNote(`Reading ${url.slice(-7)} — ${fresh.length} of ${wanted} games so far…`);
+
+      const response = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!response.ok) continue;
+      const { games = [] } = await response.json();
+
+      const month = chessComMonth(games, username, [...App.reviews.games, ...fresh]);
+      Import.found += month.found;
+      Import.duplicate += month.duplicate;
+      Import.unusable += month.unusable;
+      // Anything past the limit is not brought in and is not counted as
+      // anything else either: it was simply not asked for.
+      fresh.push(...month.rows.slice(0, wanted - fresh.length));
+
+      // A breath between requests. Chess.com asks for serial access and this
+      // is a personal trainer, not a scraper.
+      await new Promise((r) => setTimeout(r, 120));
+    }
+
+    Import.added = fresh.length;
+    if (fresh.length) await storeImported(fresh);
+
+    importNote(importSummary({
+      found: Import.found, added: Import.added, months: Import.months,
+      duplicate: Import.duplicate, unusable: Import.unusable,
+    }) + (fresh.length ? ' They are in Review, and the repertoire report has already been walked against them.' : ''),
+    fresh.length ? 'note good-note' : 'note');
+
+    if (fresh.length) renderDeviations();
+  } catch (error) {
+    // THE FAILURE THAT ACTUALLY HAPPENS is not an error code, it is the
+    // request never arriving: a browser extension, an offline phone, or a
+    // network that blocks the host. Saying "check your connection" is more use
+    // than printing the exception.
+    importNote(`Could not reach Chess.com. That is usually a connection, an extension blocking the request, or the page being opened from a file rather than a web address. Pasting a game below always works. (${error?.message ?? 'no detail'})`, 'note bad-note');
+  } finally {
+    Import.running = false;
+    $('importRun').hidden = false;
+    $('importStop').hidden = true;
+    renderImport();
+  }
+}
+
+function stopImport() {
+  if (!Import.running) return;
+  Import.cancelled = true;
+  importNote('Stopping after this month…');
+}
+
+function renderImport() {
+  const imported = (App.reviews?.games ?? []).filter((g) => g.source === 'chess.com');
+  const unreviewed = imported.filter((g) => g.reviewed === false).length;
+  const box = $('importState');
+  if (!imported.length) { box.textContent = ''; return; }
+  box.textContent = `${imported.length} imported ${imported.length === 1 ? 'game' : 'games'} stored`
+    + (unreviewed ? `, ${unreviewed} not yet walked by the engine. Importing is not reviewing: the repertoire report works on them now, and an accuracy needs a review.` : '.');
+}
+
+// ── walking the imported games ─────────────────────────────────────────────
+//
+// Importing brings the moves. Everything on the Progress page, and every drill
+// mined from a mistake, needs the engine to have WALKED the game — and doing
+// that one game at a time through the panel below is the same bottleneck the
+// import was built to remove, moved somewhere else.
+//
+// So this walks them in a queue: oldest first, one at a time, saving after
+// each, with a Stop that takes effect between games rather than losing the one
+// in progress. A hundred games at the quick setting is several minutes of a
+// phone thinking, which is why it says how far through it is and why it can be
+// stopped and picked up later — a game already walked is never walked again.
+//
+// THE QUICK SETTING IS THE DEFAULT HERE and it is a different trade from a
+// single review. One game at 650ms a position is worth waiting for; a hundred
+// of them is forty minutes. The estimate a review prints is calibrated per
+// depth, so a shallower walk is not a worse measurement, it is a measurement
+// of a different thing, and the depth is stored beside the result.
+
+const Walk = { running: false, cancelled: false, done: 0, total: 0, failed: 0 };
+
+/** The imported games with no review behind them, oldest first. */
+function unwalkedGames() {
+  return App.reviews.games.filter((g) => g.reviewed === false && g.pgn)
+    .sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
+}
+
+function walkNote(text, kind = 'note') {
+  const box = $('walkNote');
+  box.textContent = text;
+  box.className = kind;
+}
+
+async function walkImported() {
+  if (Walk.running) return;
+  const queue = unwalkedGames();
+  if (!queue.length) { walkNote('Every imported game has been walked.', 'note good-note'); return; }
+
+  Walk.running = true;
+  Walk.cancelled = false;
+  Walk.done = 0; Walk.failed = 0; Walk.total = queue.length;
+  $('walkRun').hidden = true;
+  $('walkStop').hidden = false;
+  $('walkBar').hidden = false;
+
+  const depth = Number($('walkDepth').value) || 7;
+  const budget = REVIEW_BUDGET[depth] ?? REVIEW_BUDGET[7];
+
+  for (const game of queue) {
+    if (Walk.cancelled) break;
+    walkNote(`Walking ${Walk.done + 1} of ${Walk.total} — ${game.white} vs ${game.black}…`);
+    try {
+      const parsed = parsePgn(game.pgn);
+      if (!parsed.plies.length) throw new Error('no moves');
+      const result = await reviewGame(parsed, game.side, {
+        movetime: budget.movetime,
+        depth,
+        onProgress: (at, of) => {
+          $('walkFill').style.width = `${Math.round(((Walk.done + at / of) / Walk.total) * 100)}%`;
+        },
+      });
+      // Written onto the row that is already stored, so the game is not
+      // duplicated and its Chess.com identity is kept.
+      game.reviewed = true;
+      game.accuracy = result.accuracy;
+      game.meanLoss = result.meanLoss;
+      game.mistakes = result.mistakes;
+      game.tactics = result.tactics.length;
+      game.depth = depth;
+      game.estimate = result.meanLoss === null ? null : estimateRating(result.meanLoss, depth);
+    } catch {
+      // A game that will not walk is MARKED so the queue does not offer it
+      // again for ever, and counted so the summary is not silently short.
+      game.reviewed = true;
+      game.accuracy = null;
+      game.walkFailed = true;
+      Walk.failed++;
+    }
+    Walk.done++;
+    // Saved after each, so stopping — or closing the tab — keeps what was done.
+    await Store.set('reviews', App.reviews);
+    forgetDeviations();
+  }
+
+  $('walkFill').style.width = '0%';
+  $('walkBar').hidden = true;
+  Walk.running = false;
+  $('walkRun').hidden = false;
+  $('walkStop').hidden = true;
+
+  const left = unwalkedGames().length;
+  walkNote(`${Walk.done} walked${Walk.failed ? `, ${Walk.failed} of them would not read` : ''}.`
+    + (left ? ` ${left} still to go — press it again to carry on.` : ' Progress and the drills now include them.'),
+    left ? 'note' : 'note good-note');
+  renderImport();
+  refreshBook();
+}
+
+function stopWalk() {
+  if (!Walk.running) return;
+  Walk.cancelled = true;
+  walkNote('Stopping after this game…');
+}
+
+
 // ── wiring ─────────────────────────────────────────────────────────────────
 /**
  * Does the strip run off the edge, and is there anything still off it?
@@ -15239,6 +16169,14 @@ async function boot() {
   $('endgameNext').addEventListener('click', closeEndgame);
   $('endgameTakeBack').addEventListener('click', takeBackEndgame);
   renderEndgames();
+
+  // Bringing games in
+  $('importRun').addEventListener('click', runImport);
+  $('importStop').addEventListener('click', stopImport);
+  $('importUser').addEventListener('keydown', (e) => { if (e.key === 'Enter') runImport(); });
+  $('walkRun').addEventListener('click', walkImported);
+  $('walkStop').addEventListener('click', stopWalk);
+  renderImport();
 
   // Notation
   $('notationTakeBack').addEventListener('click', takeBackNotation);

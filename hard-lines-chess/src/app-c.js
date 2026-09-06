@@ -216,6 +216,14 @@ async function boot() {
   $('endgameTakeBack').addEventListener('click', takeBackEndgame);
   renderEndgames();
 
+  // Bringing games in
+  $('importRun').addEventListener('click', runImport);
+  $('importStop').addEventListener('click', stopImport);
+  $('importUser').addEventListener('keydown', (e) => { if (e.key === 'Enter') runImport(); });
+  $('walkRun').addEventListener('click', walkImported);
+  $('walkStop').addEventListener('click', stopWalk);
+  renderImport();
+
   // Notation
   $('notationTakeBack').addEventListener('click', takeBackNotation);
   $('notationShow').addEventListener('click', showNotationMove);

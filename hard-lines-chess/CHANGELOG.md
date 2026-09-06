@@ -1,5 +1,72 @@
 # Changelog
 
+## 1.4.0 — 2026-09-06
+
+### Your Chess.com games, brought in
+- **Type your username and the app fetches your games.** Chess.com publishes
+  every public game through an endpoint that needs no password and no account
+  to connect. Archives are read newest month first, serially, up to a limit you
+  pick, and the games are stored here.
+- **This replaced a paragraph that said it was impossible.** The Review screen
+  read "this page cannot reach Chess.com or Lichess directly — it is not
+  allowed to make requests to other sites". That was true of Lichess and had
+  stopped being true of Chess.com, whose archive endpoint sends the header a
+  browser needs to read it. A page that tells you something is impossible while
+  it is possible is worse than one that never mentioned it.
+- **Not in the Android app, and it says so instead of failing.** The APK holds
+  no `INTERNET` permission — that is the promise that makes everything else in
+  it trustworthy — so there is nothing to fetch with. Pasting still works, and
+  so does importing in the web version at the same address.
+- Chess960, bughouse, games with no movetext and games you are not in are
+  refused, and the summary says how many of each. **The numbers add up**: found
+  is added plus already-here plus refused. The first version rolled two of
+  those into one subtraction and announced, on a device that had never held a
+  game, that three of them were already here.
+- **Importing is not reviewing**, and nothing pretends otherwise. An imported
+  game arrives with its moves, which is everything the repertoire report needs;
+  Progress counts only games the engine has actually walked, and says how many
+  are waiting.
+- **"Walk the imported games"** does the reviewing in a queue: oldest first,
+  saved after each, stoppable, and a game already walked is never walked twice.
+
+### Where you leave the book
+- **Every game you have played or pasted, walked against your own repertoire.**
+  The app has had both halves of this since the openings went in and never
+  joined them: 25 verified lines with 79 branches on one side, and every game
+  stored with its moves on the other. Nothing asked whether the games were the
+  lines.
+- It is the question worth asking. Studying an opening you already play
+  correctly is time spent on something that was not costing you anything; the
+  move worth knowing is the one where you stopped following your own
+  preparation, and you cannot remember it, because at the time you did not
+  notice.
+- The report names the opening the game followed **furthest**, which is the
+  only defensible answer to "which opening was this" — nobody records what they
+  meant to play, and the moves are what there is.
+- **A transposition is not a deviation.** 1.e4 e5 2.Nc3 is not the Italian; it
+  is the Vienna, which is also in the repertoire, and a player who plays it has
+  not left their preparation. This was found by the test, which called the
+  correct behaviour a failure until the test was fixed.
+- **Whose divergence it was is not guessed.** A move of yours the book does not
+  play is preparation you have not learnt. A move of *theirs* the book has no
+  answer for is a gap in the repertoire rather than a gap in you, and is
+  counted separately and never called a mistake.
+- **What it cost is measured**: two searches of equal depth, one after your
+  move and one after the book's, and the difference between them. The answer is
+  allowed to be nothing — leaving your preparation is not automatically an
+  error, and a screen that implied it was would be teaching obedience rather
+  than chess.
+- The same mistake in four games is one row saying four, commonest first, ties
+  broken by the earlier move. "Learn this line" opens that opening at the
+  branch and the move it went wrong on, rather than at the top of a line whose
+  first six moves you clearly already know.
+- Today carries the top row when it has happened more than once — the only row
+  on that page derived from what you actually did rather than from a schedule.
+- A game from a set-up position is left out: a line that did not start at move
+  one cannot be compared with one that did. The most recent sixty games are
+  walked, and the screen says sixty rather than printing a total from half a
+  sample.
+
 ## 1.3.0 — 2026-09-06
 
 Two screens for watching and reading, a navigation that fits a phone, and four

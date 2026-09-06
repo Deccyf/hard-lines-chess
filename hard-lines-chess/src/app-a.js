@@ -212,6 +212,12 @@ function renderToday() {
 
   const rows = [];
 
+  // WHERE YOU LEAVE THE BOOK goes first when there is one, because it is the
+  // only row on this page derived from what you actually did rather than from
+  // a schedule.
+  const leak = deviationTask();
+  if (leak) rows.push(leak);
+
   const openings = dueOpenings();
   if (openings.length) {
     rows.push({
@@ -259,12 +265,19 @@ function renderToday() {
     });
   }
 
-  if (!App.reviews.games.length) {
+  // IMPORTED IS NOT REVIEWED, so a store full of games nobody has walked still
+  // says there is a review to do — and says how many are waiting rather than
+  // pretending the shelf is empty.
+  const reviewed = App.reviews.games.filter((g) => g.reviewed !== false);
+  const waiting = App.reviews.games.length - reviewed.length;
+  if (!reviewed.length) {
     rows.push({
       kind: 'Review',
-      title: 'No games reviewed yet',
-      note: 'Paste a game from Chess.com or Lichess and the engine will walk it and name the mistakes.',
-      action: 'Paste one',
+      title: waiting ? `${waiting} imported ${waiting === 1 ? 'game' : 'games'}, none walked yet` : 'No games reviewed yet',
+      note: waiting
+        ? 'Importing brings the moves. An accuracy and a list of mistakes need the engine to walk the game.'
+        : 'Bring your games in from Chess.com, or paste one, and the engine will walk it and name the mistakes.',
+      action: waiting ? 'Walk one' : 'Bring them in',
       go: () => show('review'),
     });
   }
@@ -570,6 +583,7 @@ async function finishPlay(key) {
     record[result]++;
     App.history.bands[game.band.elo] = record;
   }
+  forgetDeviations();
   App.history.games.push({
     at: Date.now(),
     band: game.band.elo,

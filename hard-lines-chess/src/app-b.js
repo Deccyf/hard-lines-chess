@@ -69,6 +69,7 @@ function openingCardState(opening) {
 
 function renderOpenings() {
   if (Openings.current) return;
+  renderDeviations();
 
   const box = $('openingList');
   box.innerHTML = '';
@@ -503,6 +504,7 @@ async function runReview() {
   // something to count.
   const at = Date.now();
   const label = `${parsed.headers.White ?? '?'} vs ${parsed.headers.Black ?? '?'}`;
+  forgetDeviations();
   App.reviews.games.push({
     at,
     white: parsed.headers.White ?? '?',
@@ -1138,9 +1140,25 @@ function renderProgress() {
   const box = $('progressOut');
   box.innerHTML = '';
 
-  const games = App.reviews.games;
+  // AN IMPORTED GAME IS NOT A REVIEWED ONE. Bringing games in from Chess.com
+  // stores their moves, which is all the repertoire report and the tactics
+  // miner need — but nothing on this page can be said about a game the engine
+  // has not walked. Counting them here would report three hundred reviews
+  // whose accuracy nobody measured, and would file them under "too short to
+  // score", which is not why they have no score.
+  //
+  // A row with no `reviewed` field at all was stored before importing existed,
+  // and every one of those WAS a review, so absent means reviewed.
+  const games = App.reviews.games.filter((g) => g.reviewed !== false);
+  const waiting = App.reviews.games.length - games.length;
   const allMistakes = games.flatMap((g) => g.mistakes ?? []);
 
+  if (!games.length) {
+    if (waiting) {
+      box.innerHTML = `<p class="note">${waiting} imported ${waiting === 1 ? 'game is' : 'games are'} stored and none of them has been walked by the engine yet. Review one and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.</p>`;
+      return;
+    }
+  }
   if (!games.length) {
     box.innerHTML = '<p class="note">Review a game and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.</p>';
     return;
@@ -1161,7 +1179,7 @@ function renderProgress() {
   const accuracy = scored.length ? Math.round(scored.reduce((sum, g) => sum + g.accuracy, 0) / scored.length) : null;
 
   const summary = el('div', 'panel');
-  summary.innerHTML = `<h3>Across ${games.length} reviewed ${games.length === 1 ? 'game' : 'games'}</h3>
+  summary.innerHTML = `<h3>Across ${games.length} reviewed ${games.length === 1 ? 'game' : 'games'}${waiting ? `, with ${waiting} imported and not yet walked` : ''}</h3>
     <div class="readout">
       <div><span class="k">Mistakes a game</span><span class="v">${perGame}</span></div>
       <div><span class="k">Mean accuracy</span><span class="v">${accuracy === null ? '—' : `${accuracy}%`}</span></div>

@@ -228,14 +228,30 @@
             is not the same as finding it. "Test me" plays the other side and makes you produce the move
             yourself, then spaces the line out over days so it sticks.</li>
           <li><strong>Review your own games against it.</strong> When you leave the line, that is the
-            interesting moment. Paste the game into Review and see what the engine wanted at the move where
-            you were on your own.</li>
+            interesting moment — and you no longer have to find it by hand. The panel below this one walks
+            every game you have played or pasted against these lines and lists the moves where you stopped
+            following them, commonest first, with what each one cost.</li>
         </ol>
 
         <p class="note">Every line below, and every branch, has been checked move by move against this app's own
           engine, and none of them leaves you worse than about half a pawn. Where the text counts something —
           attackers on a square, a piece with one move — the count was made on the board, not from memory.</p>
       </details>
+
+      <!-- WHERE YOUR GAMES LEFT THE BOOK. Above the list of openings on
+           purpose: it is the only thing on this screen that knows anything
+           about you, and it says which of the lines below is worth your
+           afternoon. -->
+      <div class="panel" id="deviationPanel" hidden>
+        <h2>Where you leave the book</h2>
+        <p class="note" id="deviationSummary"></p>
+        <div id="deviationList"></div>
+        <p class="note">Every game you have played here or pasted into Review, walked against the lines below. The
+          opening named is the one the game followed furthest — nobody records what they meant to play, and the moves
+          are what there is. A move that transposes into another line you know is not counted as leaving anything.
+          What each one cost is two searches of the same depth, one after your move and one after the book's, and the
+          answer is allowed to be nothing: leaving your preparation is not automatically a mistake.</p>
+      </div>
 
       <div id="openingList"></div>
     </div>
@@ -279,11 +295,68 @@
 
   <!-- REVIEW -->
   <section id="section-review" hidden>
+    <!-- BRINGING GAMES IN. This panel replaced a paragraph that said the page
+         "cannot reach Chess.com or Lichess directly — it is not allowed to make
+         requests to other sites". That was true of Lichess and had stopped
+         being true of Chess.com, whose public archive endpoint sends the header
+         a browser needs to read it. A page that tells you something is
+         impossible while it is possible is worse than one that never mentioned
+         it. -->
+    <div class="panel">
+      <h2>Bring in your Chess.com games</h2>
+      <p class="note">Chess.com publishes every public game through an endpoint that needs no password and no
+        account to connect. Type your username and this reads your archives, newest month first, and stores the
+        games here. The request goes from this browser to Chess.com and back; there is no server in this app for
+        anything to be sent to.</p>
+      <div class="fields">
+        <label class="field"><span>Chess.com username</span>
+          <input type="text" id="importUser" autocomplete="username" spellcheck="false" placeholder="the name in your profile address">
+        </label>
+        <label class="field"><span>How many</span>
+          <select id="importCount">
+            <option value="50">The last 50 games</option>
+            <option value="100" selected>The last 100 games</option>
+            <option value="300">The last 300 games</option>
+            <option value="1000">Everything it can find</option>
+          </select>
+        </label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" id="importRun" type="button">Fetch my games</button>
+        <button class="btn danger" id="importStop" type="button" hidden>Stop</button>
+      </div>
+      <p class="note" id="importNote"></p>
+      <p class="note" id="importState"></p>
+      <p class="note">Importing is not reviewing. The games arrive with their moves, which is everything the
+        repertoire report needs — an accuracy and a list of mistakes need the engine to walk the game.</p>
+
+      <div class="after" style="margin-top:14px">
+        <h3>Walk them with the engine</h3>
+        <p class="note">Oldest first, one at a time, saved after each — so stopping keeps what it has done and
+          pressing it again carries on. A game already walked is never walked twice.</p>
+        <div class="fields">
+          <label class="field"><span>How hard it looks</span>
+            <select id="walkDepth">
+              <option value="7" selected>Quick — a few seconds a game</option>
+              <option value="9">Normal</option>
+              <option value="12">Careful — slow over many games</option>
+            </select>
+          </label>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="walkRun" type="button">Walk the imported games</button>
+          <button class="btn danger" id="walkStop" type="button" hidden>Stop</button>
+        </div>
+        <div class="progress" id="walkBar" hidden><span id="walkFill"></span></div>
+        <p class="note" id="walkNote"></p>
+      </div>
+    </div>
+
     <div class="panel">
       <h2>Review a game you played</h2>
       <p class="note">
-        This page cannot reach Chess.com or Lichess directly — it is not allowed to make requests to
-        other sites, so there is no account to connect. Copying the game across takes one tap.
+        Or paste one. Lichess games have to come across this way — that site does not send the header a browser
+        needs to read its games from another page — and so does any game from anywhere else.
       </p>
       <details class="how">
         <summary>Where to find the PGN</summary>
