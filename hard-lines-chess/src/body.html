@@ -399,6 +399,108 @@
     <div class="panel" id="puzzleList"></div>
   </section>
 
+  <!-- ENDGAMES -->
+  <section id="section-endgames" hidden>
+    <p class="lede">Positions with a technique attached, played out against a defence that will not help you.</p>
+
+    <div id="endgameBoardWrap" hidden>
+      <div class="layout">
+        <div>
+          <div id="endgameBoard"></div>
+          <p class="note" id="endgameCount"></p>
+        </div>
+        <div>
+          <div class="panel">
+            <h3 id="endgameName"></h3>
+            <p class="note" id="endgameIdea"></p>
+            <p class="prompt" id="endgameGoal"></p>
+            <p class="note" id="endgameVerdict"></p>
+            <p class="idea" id="endgameOutcome"></p>
+            <div class="row">
+              <button class="btn" id="endgameTakeBack" type="button" hidden>Take it back</button>
+              <button class="btn primary" id="endgameNext" type="button" hidden>Back to the list</button>
+            </div>
+          </div>
+          <div class="panel">
+            <h3>The method</h3>
+            <ol class="method-steps" id="endgameMethod"></ol>
+            <p class="note" id="endgameReferee"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="endgameList"></div>
+
+    <div class="panel">
+      <h3>Why these are graded and your games are not</h3>
+      <p class="note">King and pawn against king is not estimated here, it is solved: every one of the
+        393,216 positions is a win or a draw, worked out once and looked up after every move. That is
+        why the app can tell you the move a win turned into a draw rather than only that it did. The
+        search cannot do this — shown the drawn opposition it is confident White is winning — and where
+        the search is the referee instead, the panel above says so.</p>
+    </div>
+  </section>
+
+  <!-- VISION -->
+  <section id="section-vision" hidden>
+    <p class="lede">Where the squares are, without counting up from a1.</p>
+
+    <div class="panel">
+      <p class="note" style="margin:0 0 10px">Every other part of this app assumes you can do this. The
+        openings talk about d4 and c5, the review says the mistake was on f7, and the coach answers in
+        algebraic — all of it is noise until the letters and numbers are somewhere you can reach without
+        thinking. Thirty seconds a round.</p>
+      <div class="fields">
+        <label class="field"><span>Questions</span>
+          <select id="visionMode">
+            <option value="mixed">All three</option>
+            <option value="find">Tap the square</option>
+            <option value="name">Name the square</option>
+            <option value="colour">Light or dark</option>
+          </select>
+        </label>
+        <label class="field"><span>Board</span>
+          <select id="visionOrientation">
+            <option value="white">White at the bottom</option>
+            <option value="black">Black at the bottom</option>
+            <option value="random">Either, at random</option>
+          </select>
+        </label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" id="visionStart" type="button">Start</button>
+        <button class="btn danger" id="visionStop" type="button" hidden>Stop</button>
+      </div>
+      <p class="note" id="visionSummary"></p>
+    </div>
+
+    <div id="visionBoardWrap">
+      <div class="layout">
+        <div>
+          <div id="visionBoard"></div>
+        </div>
+        <div>
+          <div class="panel">
+            <div class="readout">
+              <div><span class="k">Score</span><span class="v" id="visionScore">0</span></div>
+              <div><span class="k">Time</span><span class="v" id="visionClock">30.0s</span></div>
+            </div>
+            <p class="note" id="visionStreak"></p>
+            <p class="prompt" id="visionPrompt">Press start.</p>
+            <p class="note" id="visionHow"></p>
+            <div class="row" id="visionOptions"></div>
+            <p class="note" id="visionFeedback"></p>
+          </div>
+          <div class="panel">
+            <h3>Your best</h3>
+            <div id="visionBest"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- DRILLS -->
   <section id="section-drills" hidden>
     <div class="panel">

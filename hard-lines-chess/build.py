@@ -42,10 +42,16 @@ else:
     rating_js = '// No calibration has been run, so no rating is estimated anywhere.\nconst RATING_FIT = null;\n'
     print('rating fit: NONE (rating-calibration.json missing)')
 open('src/rating-fit.js', 'w').write(rating_js)
-parts = [open(f).read() for f in [
+# THE `export` KEYWORD IS FOR NODE, NOT FOR THE PAGE. Files the tests import as
+# modules — the engine, and the solved pawn endings — declare exports so `node
+# --test` can reach them; concatenated into one <script> those same lines are a
+# syntax error and the whole app is a blank screen. Stripping them here means a
+# file can be both without anybody remembering which it is.
+parts = [re.sub(r'^export ', '', open(f).read(), flags=re.M) for f in [
     'src/engine/bundle.js', 'src/engine/bands.js', 'src/openings.js', 'src/notation.js',
     'src/store.js', 'src/pgn.js', 'src/motifs.js', 'src/rating-fit.js', 'src/review.js', 'src/board-view.js',
-    'src/icons.js', 'src/traps.js', 'src/app-h.js', 'src/app-g.js', 'src/app-a.js', 'src/app-b.js', 'src/app-d.js', 'src/app-e.js', 'src/app-f.js', 'src/app-c.js',
+    'src/pawn-tb.js', 'src/endgames.js',
+    'src/icons.js', 'src/traps.js', 'src/app-h.js', 'src/app-g.js', 'src/app-a.js', 'src/app-b.js', 'src/app-d.js', 'src/app-e.js', 'src/app-f.js', 'src/app-i.js', 'src/app-j.js', 'src/app-c.js',
 ]]
 script = "<script>\n" + "\n\n".join(parts) + "\n</" + "script>\n"
 

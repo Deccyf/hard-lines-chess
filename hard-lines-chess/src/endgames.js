@@ -103,11 +103,12 @@ const ENDGAMES = [
     goal: 'promote',
     budget: 12,
     referee: 'table',
-    idea: 'With the king beside the pawn rather than in front of it, the win depends entirely on who has to move first. Take the opposition and it is a win; lose it and it is a draw.',
+    idea: 'The king wins this, not the pawn. Two moves here win and the other six draw — and the one that looks most natural, pushing the pawn, is one of the six.',
     method: [
-      'Move so that the two kings stand on the same file with one square between them and the DEFENDER has to move.',
-      'The defender must step aside; follow it, and your king reaches the sixth.',
-      'Push the pawn only when the king is already ahead of it.',
+      'Advance the KING towards the sixth rank. Both king moves to the sixth win from here.',
+      'A king on the sixth in front of its own pawn wins whoever is to move. That is the position you are heading for.',
+      'Do not push. The pawn is not what wins this, and every pawn move here throws the win away.',
+      'Push only once the king is already ahead of the pawn and cannot be shouldered aside.',
     ],
   },
   {

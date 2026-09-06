@@ -107,7 +107,9 @@ const SECTIONS = [
   ['openings', 'Openings'],
   ['review', 'Review'],
   ['puzzles', 'Puzzles'],
+  ['endgames', 'Endgames'],
   ['drills', 'Drills'],
+  ['vision', 'Vision'],
   ['progress', 'Progress'],
   ['settings', 'Settings'],
 ];

@@ -6,7 +6,7 @@
 // its material counted, its verdict taken from whichever referee it names, and
 // the budget checked against the distance the table actually reports.
 import { readFileSync } from 'node:fs';
-import { Board, WHITE, BLACK, typeOf, colourOf, squareName, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING } from '../src/engine/core.js';
+import { Board, WHITE, BLACK, typeOf, colourOf, squareName, moveFrom, moveTo, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING } from '../src/engine/core.js';
 import { Engine } from '../src/engine/search.js';
 import { probePawnEnding, buildPawnTable } from '../src/pawn-tb.js';
 
@@ -151,6 +151,19 @@ const opp = ENDGAMES.find((e) => e.id === 'opposition-fifth');
   ok('opposition-fifth: some moves throw the win away',
     winning > 0 && winning < board.legalMoves().length,
     `${winning} of ${board.legalMoves().length} moves keep the win`);
+  // The prose says "two moves here win and the other six draw", and that both
+  // winning moves are king moves to the sixth. Counted claims, so counted.
+  ok('opposition-fifth: exactly two moves win', winning === 2, `${winning} win`);
+  ok('opposition-fifth: eight moves in total', board.legalMoves().length === 8,
+    `${board.legalMoves().length} legal moves`);
+  const pushKeepsIt = (() => {
+    const after = new Board(opp.fen);
+    const push = after.legalMoves().find((m) => squareName(moveFrom(m)) === 'e5' && squareName(moveTo(m)) === 'e6');
+    if (!push) return 'no push';
+    after.make(push);
+    return probePawnEnding(after)?.result;
+  })();
+  ok('opposition-fifth: pushing the pawn draws it away', pushKeepsIt === 'draw', `push gives ${pushKeepsIt}`);
 }
 
 console.log(`${ENDGAMES.length} endgames, ${pass} checks passed, ${fail} failed`);

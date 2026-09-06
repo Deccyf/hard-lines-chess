@@ -23,6 +23,8 @@ async function boot() {
   App.reviews = await Store.get('reviews', { games: [] });
   App.puzzles = await Store.get('puzzles', { items: [], scanned: [] });
   App.teaching = await Store.get('teaching', { games: [] });
+  Endgames.results = await Store.get('endgames', {});
+  Vision.best = await Store.get('vision', {});
   App.teaching.games ??= [];
   App.prefs = { ...DEFAULT_PREFS, ...(await Store.get('prefs', {})) };
 
@@ -35,6 +37,8 @@ async function boot() {
   App.reviews.games ??= [];
   App.puzzles.items ??= [];
   App.puzzles.scanned ??= [];
+  Endgames.results ??= {};
+  Vision.best ??= {};
 
   $('storeNote').textContent = hasStore
     ? 'Saved to your Claude account, so it follows you to another device, with a copy in this browser.'
@@ -48,6 +52,7 @@ async function boot() {
   Review.bar = makeEvalBar($('reviewEval'));
   Drill.view = makeBoardView($('drillBoard'), { interactive: false });
   Puzzles.view = makeBoardView($('puzzleBoard'), { interactive: false });
+  Endgames.view = makeBoardView($('endgameBoard'), { onMove: onEndgameMove });
   Practice.view = makeBoardView($('practiceBoard'), { onMove: onPracticeMove });
   Practice.bar = makeEvalBar($('practiceEval'));
   applyPrefs();
@@ -156,6 +161,22 @@ async function boot() {
   $('puzzleNext').addEventListener('click', nextPuzzle);
   $('puzzleScan').addEventListener('click', scanGamesForTactics);
   $('puzzleStop').addEventListener('click', stopScan);
+
+  // Endgames
+  $('endgameNext').addEventListener('click', closeEndgame);
+  $('endgameTakeBack').addEventListener('click', takeBackEndgame);
+  renderEndgames();
+
+  // Vision
+  $('visionStart').addEventListener('click', startVision);
+  $('visionStop').addEventListener('click', stopVision);
+  $('visionMode').addEventListener('change', (e) => { Vision.mode = e.target.value; renderVisionBest(); });
+  $('visionOrientation').addEventListener('change', (e) => {
+    Vision.orientation = e.target.value;
+    if (!Vision.running) buildVisionGrid(Vision.orientation !== 'black');
+    renderVisionBest();
+  });
+  renderVision();
 
   // Settings
   $('settingTheme').addEventListener('change', (e) => { App.prefs.theme = e.target.value; savePrefs(); });

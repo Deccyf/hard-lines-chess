@@ -647,4 +647,33 @@
   .gear { margin-left: auto; }
 
   [hidden] { display: none !important; }
+
+  /* ── the endgame list ──────────────────────────────────────────────────── */
+  .endgame-row { border-top: 2px solid var(--line); padding: 12px 0 14px; }
+  .endgame-row:first-of-type { border-top: 0; }
+  .endgame-head { display: flex; align-items: baseline; gap: 10px; justify-content: space-between; }
+  .tag {
+    font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    border: 2px solid var(--line); padding: 1px 6px; white-space: nowrap; color: var(--ink-soft);
+  }
+  .tag.good { background: var(--good); color: var(--on-accent); border-color: var(--line); }
+
+  /* A verdict is not decoration: green means the result is still there, red
+     means it has gone, and both are statements the app can prove. */
+  .good-note { color: var(--good); }
+  .bad-note { color: var(--accent); }
+
+  /* ── board vision ──────────────────────────────────────────────────────── */
+  #visionBoard .sq { cursor: pointer; }
+  .sq.vision-ask::after {
+    content: ""; position: absolute; inset: 6%; border: 3px solid var(--threat);
+    border-radius: 50%; z-index: 2; pointer-events: none;
+  }
+  .sq.vision-right { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--good) 55%, transparent); }
+  .sq.vision-wrong { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--accent) 55%, transparent); }
+  .v.urgent { color: var(--accent); }
+  .readout-row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-top: 1px solid var(--sunk); }
+  .readout-row:first-child { border-top: 0; }
+  .readout-row .k { color: var(--ink-soft); font-size: 12px; }
+  .readout-row .v { font-family: var(--display); font-variant-numeric: tabular-nums; }
 </style>
