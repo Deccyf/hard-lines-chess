@@ -50,3 +50,17 @@ async function gotoSection(page, id) {
   await page.click('#tab-' + id);
 }
 module.exports.gotoSection = gotoSection;
+
+/**
+ * The same, by touch. Phones tap; the drivers that emulate one need the two
+ * levels reached the way a thumb reaches them, not through a synthetic click.
+ */
+async function tapSection(page, id) {
+  const group = await page.evaluate((section) => {
+    const g = GROUPS.find((x) => x.sections.includes(section));
+    return g && g.sections.length > 1 ? 'gtab-' + g.id : null;
+  }, id);
+  if (group) { await page.tap('#' + group); await page.waitForTimeout(120); }
+  await page.tap('#tab-' + id);
+}
+module.exports.tapSection = tapSection;

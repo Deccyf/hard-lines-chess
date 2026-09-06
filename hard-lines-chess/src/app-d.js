@@ -601,7 +601,13 @@ function setupInstall() {
     return;
   }
 
-  if (!document.querySelector('link[rel="manifest"]')) {
+  // WHICH COPY IS THIS. The installable kit ships with a manifest LINKED in its
+  // markup and a sw.js beside it; every other copy — the single file, the
+  // fragment, a page saved to disk — has neither, and builds its manifest here
+  // out of a blob so the browser has something to read. So the presence of a
+  // linked manifest at load time is what says a worker exists to register.
+  const shipped = Boolean(document.querySelector('link[rel="manifest"]'));
+  if (!shipped) {
     const blob = new Blob([JSON.stringify(manifestFor())], { type: 'application/manifest+json' });
     const link = document.createElement('link');
     link.rel = 'manifest';
@@ -609,11 +615,17 @@ function setupInstall() {
     document.head.appendChild(link);
   }
 
-  // A service worker only exists where one CAN exist. Registering it from a
-  // page with no sw.js beside it fails, which is fine and silent — the app is
-  // one file and needs no cache to work offline; the worker is there so the
-  // browser will offer to install it.
-  if ('serviceWorker' in navigator && window.isSecureContext && location.protocol.startsWith('http')) {
+  // A service worker is registered only where one exists to register.
+  //
+  // THIS USED TO REGISTER EVERYWHERE and lean on a `.catch()`, with a comment
+  // saying the failure was "fine and silent". It was fine. It was not silent:
+  // a registration that 404s is logged by the browser itself, before any
+  // promise of ours can catch it, so every load of the single-file copy served
+  // over http printed two console errors that nothing in the page could
+  // suppress — and a console with permanent errors in it is a console nobody
+  // reads the real errors out of. tests/every-screen.cjs fails on any console
+  // error, which is what found this.
+  if (shipped && 'serviceWorker' in navigator && window.isSecureContext && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('sw.js', { scope: './' }).catch(() => {});
   }
 

@@ -184,7 +184,15 @@ function ensureWatchMove(ply) {
 function goToWatchPly(ply) {
   ply = Math.max(0, Math.min(ply, Watch.sans.length));
   const board = new Board();
-  for (let i = 0; i < ply; i++) board.make(sanToMove(board, Watch.sans[i]));
+  for (let i = 0; i < ply; i++) {
+    // A move that will not parse should stop the walk rather than throw. Both
+    // sources of these are checked — toSan wrote them, or famous.test.mjs
+    // replayed them — so this cannot happen today; if it ever does, the screen
+    // stops where it stopped instead of the page going blank.
+    const move = sanToMove(board, Watch.sans[i]);
+    if (!move) { ply = i; break; }
+    board.make(move);
+  }
   Watch.board = board;
   Watch.ply = ply;
   Watch.view.setFen(board.fen());
@@ -274,7 +282,11 @@ function explainWatchPly(ply) {
   if (Watch.notes[ply]) { paintWatchNote(Watch.notes[ply]); return; }
 
   const before = new Board();
-  for (let i = 0; i < ply - 1; i++) before.make(sanToMove(before, Watch.sans[i]));
+  for (let i = 0; i < ply - 1; i++) {
+    const move = sanToMove(before, Watch.sans[i]);
+    if (!move) return;
+    before.make(move);
+  }
   const played = Watch.sans[ply - 1];
   const mover = before.turn === WHITE ? 'White' : 'Black';
   const moverName = before.turn === WHITE ? Watch.whiteName : Watch.blackName;

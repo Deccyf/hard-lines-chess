@@ -145,14 +145,36 @@ const PHONE = { width: 390, height: 844 };
     return point.x - radius >= box.left - 0.5 && point.x + radius <= box.right + 0.5;
   }), true);
 
-  // ── the tab strip says there is more of it ────────────────────────────────
+  // ── the tab strip, and the fade that has to tell the truth about it ───────
+  //
+  // THIS CHECK USED TO ASSERT THE OPPOSITE. It read "the strip overflows a
+  // phone" — true when there were fourteen tabs in one row, and the fade at the
+  // right-hand edge existed to say so. The strip is six now and does not
+  // overflow, so the old check was holding the app to the fault the fade was
+  // built to cope with. What is actually worth enforcing is that the fade
+  // AGREES WITH THE STRIP: shown when there is more off the end, absent when
+  // there is not. A fade that lies is worse than no fade, whichever way it lies.
   await page.evaluate(() => { show('today'); window.scrollTo(0, 0); });
   await page.waitForTimeout(200);
-  check('tabs: the strip overflows a phone', await page.evaluate(() => {
+  const strip = await page.evaluate(() => {
     const nav = document.getElementById('tabs');
-    return nav.scrollWidth > nav.clientWidth + 4;
-  }), true);
-  check('tabs: and the fade says so', await page.$eval('#tabsWrap', (e) => e.classList.contains('more')), true);
+    return { overflows: nav.scrollWidth > nav.clientWidth + 4, fade: document.getElementById('tabsWrap').classList.contains('more') };
+  });
+  say('tabs: the top row overflows', String(strip.overflows));
+  check('tabs: six tabs fit a phone', strip.overflows, false);
+  check('tabs: and the fade agrees', strip.fade, strip.overflows);
+
+  // The second row is where a group with five screens lives, so it is the one
+  // that can still run off the edge — and the same rule applies to it.
+  await page.evaluate(() => show('openings'));
+  await page.waitForTimeout(200);
+  const sub = await page.evaluate(() => {
+    const nav = document.getElementById('subtabs');
+    return { shown: !document.getElementById('subtabsWrap').hidden, overflows: nav.scrollWidth > nav.clientWidth + 4,
+      fade: document.getElementById('subtabsWrap').classList.contains('more') };
+  });
+  say('tabs: the second row overflows', String(sub.overflows));
+  check('tabs: the second row is there', sub.shown, true);
   // Selecting a far tab scrolls it into view rather than leaving it off the side.
   await page.evaluate(() => show('settings'));
   await page.waitForTimeout(300);
