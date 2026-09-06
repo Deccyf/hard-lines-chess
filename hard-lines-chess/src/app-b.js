@@ -1,0 +1,1145 @@
+// ── openings ───────────────────────────────────────────────────────────────
+//
+// Two modes, and the order matters. LEARN walks the line and says what each
+// move is FOR — an opening you cannot explain is one you will abandon the
+// first time somebody deviates. DRILL then asks you to play it from memory,
+// spaced out, because recognising a move when you see it is not the same as
+// finding it when the clock is running.
+//
+// A line has BRANCHES: the places the opponent usually leaves it. Each is a
+// full line from move one that shares the first `at` plies with the main line,
+// so the same walker runs both — one set of code, one way of being wrong.
+const Openings = {
+  view: null,
+  current: null,
+  branch: null,        // index into current.variations, or null for the main line
+  line: [],            // the active branch's moves
+  ideas: [],           // one per move of `line`
+  mode: 'learn',
+  ply: 0,
+  wrong: 0,
+  timer: null,         // the pending opponent reply in drill mode
+};
+
+const tipBox = (() => {
+  let box = null;
+  return {
+    show(anchor, title, text) {
+      if (!box) { box = document.createElement('div'); box.className = 'tip'; document.body.appendChild(box); }
+      box.innerHTML = `<b>${esc(title)}</b>${esc(text)}`;
+      box.hidden = false;
+      const r = anchor.getBoundingClientRect();
+      const width = Math.min(320, window.innerWidth * 0.92);
+      let left = r.left + window.scrollX;
+      if (left + width > window.scrollX + window.innerWidth - 8) left = window.scrollX + window.innerWidth - width - 8;
+      box.style.left = `${Math.max(8, left)}px`;
+      box.style.top = `${r.bottom + window.scrollY + 6}px`;
+      box.style.width = `${width}px`;
+    },
+    hide() { if (box) box.hidden = true; },
+  };
+})();
+
+/**
+ * Where an opening's card lives. ONE CARD PER LINE, not per opening: a clean
+ * run of a four-move branch used to schedule the whole opening six days out.
+ * The main line keeps the opening's own id, because the Today page and every
+ * card written before branches had their own read exactly that key.
+ */
+function openingCardKey(opening, branch = null) {
+  return branch === null ? opening.id : `${opening.id}:${branch}`;
+}
+
+/** Midnight today, the stamp a card carries for the day it was last set. */
+function dayStamp(at = Date.now()) {
+  const day = new Date(at);
+  day.setHours(0, 0, 0, 0);
+  return day.getTime();
+}
+
+function openingCardState(opening) {
+  const card = App.openings.cards[openingCardKey(opening)] ?? SRS.fresh();
+  const due = SRS.isDue(card);
+  let state;
+  if (card.seen === 0) state = card.learned ? 'Walked through · not yet tested' : 'Not started';
+  else if (due) state = 'Due now';
+  else state = `Next review in ${Math.max(1, Math.ceil((card.due - Date.now()) / 86400000))} days`;
+  return { card, due, state };
+}
+
+function renderOpenings() {
+  if (Openings.current) return;
+
+  const box = $('openingList');
+  box.innerHTML = '';
+
+  const groups = [
+    ['As White', OPENINGS.filter((o) => o.side === 'white')],
+    ['As Black', OPENINGS.filter((o) => o.side === 'black')],
+  ];
+
+  for (const [title, list] of groups) {
+    if (!list.length) continue;
+    box.appendChild(el('h3', 'group', title));
+    const grid = el('div', 'opening-grid');
+
+    for (const opening of list) {
+      const { card, due, state } = openingCardState(opening);
+      const item = el('div', 'opening' + (due && card.seen > 0 ? ' due' : ''));
+      const branches = opening.variations?.length ?? 0;
+
+      item.innerHTML = `
+        <div class="opening-head">
+          <span class="opening-name">${esc(opening.name)}</span>
+          <span class="opening-eco">${esc(opening.eco)}</span>
+        </div>
+        <p class="opening-plan">${esc(opening.plan)}</p>
+        <p class="opening-state">${esc(state)} · ${opening.line.length} moves${branches ? ` · ${branches} ${branches === 1 ? 'branch' : 'branches'}` : ''} · seen ${card.seen} ${card.seen === 1 ? 'time' : 'times'}</p>`;
+
+      const row = el('div', 'row');
+      const learn = el('button', 'btn', 'Learn it');
+      learn.addEventListener('click', () => startOpening(opening, 'learn'));
+      const drill = el('button', 'btn' + (due ? ' primary' : ''), 'Test me');
+      drill.addEventListener('click', () => startOpening(opening, 'drill'));
+      row.appendChild(learn);
+      row.appendChild(drill);
+      item.appendChild(row);
+      grid.appendChild(item);
+    }
+
+    box.appendChild(grid);
+  }
+}
+
+function openingBranchLine(opening, branch) {
+  if (branch === null) return { line: opening.line, ideas: opening.ideas };
+  const v = opening.variations[branch];
+  return { line: v.line, ideas: [...opening.ideas.slice(0, v.at), ...v.ideas] };
+}
+
+function startOpening(opening, mode, { branch = null, fromPly = 0 } = {}) {
+  clearTimeout(Openings.timer);
+  Openings.current = opening;
+  Openings.branch = branch;
+  Object.assign(Openings, openingBranchLine(opening, branch));
+  Openings.mode = mode;
+  Openings.ply = 0;
+  Openings.wrong = 0;
+
+  $('openingBrowse').hidden = true;
+  $('openingStudy').hidden = false;
+  $('openingTitle').textContent = opening.name;
+  $('openingMode').textContent = mode === 'learn' ? 'Walking through it' : 'From memory';
+  $('openingResult').textContent = '';
+  $('openingTestNow').hidden = true;
+
+  const studentIsWhite = opening.side === 'white';
+  Openings.view.orientation = studentIsWhite ? WHITE : BLACK;
+  Openings.view.setFen(new Board().fen());
+  Openings.view.interactive = mode === 'drill';
+  Openings.view.onMove = onOpeningMove;
+
+  // Jumping straight to where a branch begins replays the shared moves silently.
+  for (let i = 0; i < fromPly && i < Openings.line.length; i++) {
+    const move = sanToMove(Openings.view.board, Openings.line[i]);
+    if (!move) break;
+    Openings.view.apply(move, { animate: false });
+    Openings.ply = i + 1;
+  }
+
+  renderBranches();
+  stepOpening();
+}
+
+/**
+ * ONE pending step at a time, and the board is locked while it is pending.
+ * Two timers were alive once: the opponent's reply schedules the next step
+ * 420ms out and the board was already tappable, so a student who answered
+ * inside that window scheduled a second one — and the line then stepped
+ * twice, playing the opponent's next move on top of its own and finishing the
+ * drill twice, which scored it twice.
+ */
+function scheduleStep(ms) {
+  clearTimeout(Openings.timer);
+  Openings.view.locked = true;
+  Openings.timer = setTimeout(() => { Openings.timer = null; stepOpening(); }, ms);
+}
+
+function openingStudentToMove() {
+  const studentIsWhite = Openings.current.side === 'white';
+  return (Openings.ply % 2 === 0) === studentIsWhite;
+}
+
+function stepOpening() {
+  const opening = Openings.current;
+  if (!opening) return;
+
+  if (Openings.ply >= Openings.line.length) { finishOpening(); return; }
+
+  // In drill mode the opponent's moves play themselves; only the student's are
+  // asked for. Making him play both sides would be testing his memory of a
+  // script rather than of his own repertoire.
+  if (Openings.mode === 'drill' && !openingStudentToMove()) {
+    const move = sanToMove(Openings.view.board, Openings.line[Openings.ply]);
+    if (move) { Openings.view.apply(move); Openings.ply++; }
+    renderOpeningStep();
+    // Kept, so Back can cancel it. A reply that lands after the screen has
+    // gone would step a lesson that no longer exists.
+    scheduleStep(420);
+    return;
+  }
+
+  Openings.view.locked = false;
+  renderOpeningStep();
+}
+
+function renderOpeningStep() {
+  const opening = Openings.current;
+  const line = Openings.line;
+  const ply = Openings.ply;
+  const done = ply >= line.length;
+  const view = Openings.view;
+  const wasInteractive = view.interactive;
+
+  $('openingProgress').textContent = done
+    ? `${line.length} of ${line.length}`
+    : `Move ${Math.ceil((ply + 1) / 2)} · ${ply + 1} of ${line.length}`;
+
+  if (Openings.mode === 'learn') {
+    view.interactive = false;
+    $('openingIdea').textContent = done ? opening.plan : Openings.ideas[ply];
+    $('openingWho').textContent = done
+      ? 'That is the line.'
+      : ((ply % 2 === 0 ? 'White' : 'Black') + ' plays ' + line[ply]
+         + ((ply % 2 === 0) === (opening.side === 'white') ? ' — your move' : ''));
+    $('openingNext').hidden = done;
+    $('openingPrompt').hidden = true;
+    // The move about to be explained is drawn on, so the reader looks at the
+    // board while reading why — not at the text, then hunts for the square.
+    const next = done ? null : sanToMove(view.board, line[ply]);
+    view.arrows = next ? [{ from: moveFrom(next), to: moveTo(next), kind: 'best' }] : [];
+  } else {
+    view.interactive = !done;
+    view.arrows = [];
+    $('openingIdea').textContent = done ? opening.plan : '';
+    $('openingWho').textContent = done ? 'Line complete.' : (openingStudentToMove() ? 'Your move' : 'Their move');
+    $('openingNext').hidden = true;
+    $('openingPrompt').hidden = done;
+    if (!done && openingStudentToMove()) $('openingPromptText').textContent = 'Play your move.';
+  }
+
+  const traps = done && opening.traps?.length
+    ? '<h4>When it goes wrong</h4>' + opening.traps.map((t) => `<p><strong>${esc(t.when)}.</strong> ${esc(t.answer)}</p>`).join('')
+    : '';
+  $('openingTraps').innerHTML = traps;
+  $('openingTraps').hidden = !traps;
+
+  $('openingFinish').hidden = !done;
+  renderOpeningChips();
+
+  // A redraw only when something the board shows has changed. apply() has
+  // already drawn the move and started its slide, and drawing again here is
+  // what made every opening move teleport.
+  if (view.interactive !== wasInteractive || Openings.mode === 'learn') {
+    if (view.interactive !== wasInteractive) view.refresh();
+    else view.redrawArrows();
+  }
+}
+
+/**
+ * The line as a row of chips, one per move, each carrying its idea as a
+ * tooltip and jumping the board there when tapped. In drill mode only the
+ * moves already played are shown — the rest is what is being tested.
+ */
+function renderOpeningChips() {
+  const box = $('openingChips');
+  box.innerHTML = '';
+  const studentIsWhite = Openings.current.side === 'white';
+  const shown = Openings.mode === 'learn' ? Openings.line.length : Openings.ply;
+
+  for (let i = 0; i < shown; i++) {
+    const mine = (i % 2 === 0) === studentIsWhite;
+    const chip = el('button', 'chip' + (mine ? ' mine' : '') + (i === Openings.ply ? ' on' : '') + (i > Openings.ply ? ' todo' : ''));
+    chip.type = 'button';
+    chip.innerHTML = (i % 2 === 0 ? `<span class="mn">${i / 2 + 1}.</span>` : '') + esc(Openings.line[i]);
+    chip.setAttribute('aria-label', `${Openings.line[i]}: ${Openings.ideas[i]}`);
+    const title = `${i % 2 === 0 ? 'White' : 'Black'} · ${Openings.line[i]}`;
+    chip.addEventListener('mouseenter', () => tipBox.show(chip, title, Openings.ideas[i]));
+    chip.addEventListener('mouseleave', tipBox.hide);
+    chip.addEventListener('focus', () => tipBox.show(chip, title, Openings.ideas[i]));
+    chip.addEventListener('blur', tipBox.hide);
+    if (Openings.mode === 'learn') {
+      chip.addEventListener('click', () => { tipBox.hide(); jumpOpening(i); });
+    } else {
+      chip.disabled = true;
+    }
+    box.appendChild(chip);
+  }
+}
+
+function jumpOpening(ply) {
+  clearTimeout(Openings.timer);
+  const view = Openings.view;
+  view.setFen(new Board().fen());
+  for (let i = 0; i < ply; i++) {
+    const move = sanToMove(view.board, Openings.line[i]);
+    if (!move) break;
+    view.apply(move, { animate: false });
+  }
+  Openings.ply = ply;
+  renderOpeningStep();
+}
+
+function renderBranches() {
+  const box = $('openingBranches');
+  const opening = Openings.current;
+  const variations = opening.variations ?? [];
+  box.innerHTML = '';
+  if (!variations.length) { box.hidden = true; return; }
+  box.hidden = false;
+
+  // NO MOVES WHILE IT IS A TEST. The chips withhold the line in drill mode,
+  // and these buttons used to print the first six plies of the main line and
+  // every branch's first five — his own replies included — beside them.
+  const drill = Openings.mode === 'drill';
+  box.appendChild(el('h4', null, 'When they leave the line'));
+  box.appendChild(el('p', 'note', drill
+    ? 'Each branch is a different reply you will actually meet. Pick one and the test continues from where it departs; the moves stay hidden until you play them.'
+    : 'Each branch is a different reply you will actually meet. Pick one and the walk-through continues from where it departs.'));
+  const list = el('div', 'branches');
+
+  const main = el('button', 'branch' + (Openings.branch === null ? ' on' : ''));
+  main.type = 'button';
+  main.innerHTML = `<b>Main line</b>${drill ? `<small>${opening.line.length} moves</small>` : `<span>${esc(opening.line.slice(0, 6).join(' '))}${opening.line.length > 6 ? ' …' : ''}</span>`}`;
+  main.addEventListener('click', () => startOpening(opening, Openings.mode, { branch: null }));
+  list.appendChild(main);
+
+  variations.forEach((v, index) => {
+    const btn = el('button', 'branch' + (Openings.branch === index ? ' on' : ''));
+    btn.type = 'button';
+    const moveNumber = Math.floor(v.at / 2) + 1;
+    const who = v.at % 2 === 0 ? 'White' : 'Black';
+    btn.innerHTML = `<b>${esc(v.name)}</b>
+      ${drill ? '' : `<span>${esc(v.line.slice(v.at, v.at + 5).join(' '))}${v.line.length > v.at + 5 ? ' …' : ''}</span>`}
+      <small>${who} departs at move ${moveNumber} · ${v.line.length - v.at} moves</small>`;
+    btn.addEventListener('click', () => startOpening(opening, Openings.mode, { branch: index, fromPly: v.at }));
+    list.appendChild(btn);
+  });
+  box.appendChild(list);
+}
+
+function advanceOpening() {
+  const move = sanToMove(Openings.view.board, Openings.line[Openings.ply]);
+  if (move) Openings.view.apply(move);
+  Openings.ply++;
+  // Through stepOpening, not straight to the renderer: the end of the line is
+  // finishOpening's to handle, and going round it left Learn mode with no
+  // result and a card that still said "not started".
+  stepOpening();
+}
+
+function onOpeningMove({ move, san }) {
+  const wanted = Openings.line[Openings.ply];
+
+  if (san.replace(/[+#]$/, '') !== wanted.replace(/[+#]$/, '')) {
+    Openings.wrong++;
+    Openings.view.selected = -1;
+    Openings.view.refresh();
+    $('openingPromptText').textContent = Openings.wrong === 1
+      ? `Not that one. ${Openings.ideas[Openings.ply]}`
+      : `The move is ${wanted}. ${Openings.ideas[Openings.ply]}`;
+    return;
+  }
+
+  Openings.view.apply(move);
+  Openings.ply++;
+  $('openingPromptText').textContent = 'Right.';
+  renderOpeningChips();
+  scheduleStep(260);
+}
+
+async function finishOpening() {
+  Openings.view.locked = false;
+  renderOpeningStep();
+  const opening = Openings.current;
+  const key = openingCardKey(opening, Openings.branch);
+  const card = App.openings.cards[key] ?? SRS.fresh();
+  const what = Openings.branch === null ? 'This line' : 'This branch';
+
+  if (Openings.mode === 'drill') {
+    // Any prompt needed is a failure for scheduling: recalling it after being
+    // told is recognition, not recall, and scheduling it as a success is how a
+    // review queue fills with lines you cannot actually play.
+    //
+    // AND ONCE A DAY. "Test me" is always offered, and three clean runs in a
+    // minute used to take a card from tomorrow to a fortnight out. A clean
+    // run on a day the card was already set CONFIRMS it and moves nothing; a
+    // failed run always counts, whatever day it is.
+    const today = dayStamp();
+    const clean = Openings.wrong === 0;
+    if (clean && card.set_on === today) {
+      $('openingResult').textContent = `Clean again. ${what} was already scheduled today, so this run confirms it rather than pushing it further out.`;
+    } else {
+      App.openings.cards[key] = { ...SRS.review(card, clean), set_on: today };
+      await Store.set('openings', App.openings);
+      $('openingResult').textContent = clean
+        ? `Clean run. ${what} comes back later rather than sooner.`
+        : `${Openings.wrong} prompt${Openings.wrong === 1 ? '' : 's'} needed, so ${what.toLowerCase()} comes back tomorrow.`;
+    }
+  } else {
+    // A walk-through is recorded as exactly that. It does not schedule
+    // anything — only a test can — but the card stops saying "not started".
+    card.learned = Date.now();
+    App.openings.cards[key] = card;
+    await Store.set('openings', App.openings);
+    $('openingResult').textContent = 'That is the whole line. Now try it from memory — the test plays the other side.';
+    $('openingTestNow').hidden = false;
+  }
+}
+
+function closeOpening() {
+  clearTimeout(Openings.timer);
+  tipBox.hide();
+  const opening = Openings.current;
+  Openings.current = null;
+  $('openingStudy').hidden = true;
+  $('openingBrowse').hidden = false;
+  $('openingResult').textContent = '';
+  renderOpenings();
+  return opening;
+}
+
+// ── review ─────────────────────────────────────────────────────────────────
+const Review = {
+  parsed: null,
+  result: null,
+  side: 'white',
+  view: null,
+  bar: null,
+  index: 0,
+  running: false,
+};
+
+const REVIEW_BUDGET = {
+  // Three settings that are actually different. The old ones shared a
+  // movetime, so Quick and Normal reached the same depth in the same time and
+  // only the label changed.
+  7: { movetime: 120 },
+  9: { movetime: 280 },
+  12: { movetime: 650 },
+};
+
+async function runReview() {
+  if (Review.running) return;
+  const text = $('pgnInput').value.trim();
+  const status = $('reviewStatus');
+  if (!text) { status.textContent = 'Paste a game first.'; return; }
+
+  let parsed;
+  try {
+    parsed = parsePgn(text);
+  } catch (e) {
+    status.textContent = e?.message?.startsWith('FEN')
+      ? 'The game starts from a set-up position and its FEN header could not be read. The moves were not the problem.'
+      : 'That does not read as a game. Copy the PGN, including the moves.';
+    return;
+  }
+
+  if (!parsed.plies.length) {
+    status.textContent = parsed.stoppedAt
+      ? `No legal moves were found. The first token, "${parsed.stoppedAt}", is not a legal move from the starting position.`
+      : 'No moves were found in that text. Make sure you copied the moves and not just the header.';
+    return;
+  }
+
+  const name = $('reviewName').value.trim();
+  const named = sideOf(parsed.headers, name);
+  Review.side = named ?? ($('reviewSide').value === 'black' ? 'black' : 'white');
+  Review.parsed = parsed;
+
+  const notes = [];
+  if (name && !named && (parsed.headers.White || parsed.headers.Black)) {
+    notes.push(`"${name}" is neither ${parsed.headers.White ?? '?'} nor ${parsed.headers.Black ?? '?'}, so the drop-down decided: you were ${Review.side}.`);
+  }
+  if (parsed.truncated) {
+    notes.push(`Read ${parsed.plies.length} of ${parsed.tokens} moves. It stopped at "${parsed.stoppedAt}", which is not a legal move in that position — the rest was left out.`);
+  }
+
+  Review.running = true;
+  $('reviewRun').disabled = true;
+  status.textContent = 'Walking the game…';
+  $('reviewBar').hidden = false;
+  $('reviewOut').hidden = true;
+  $('reviewBoardWrap').hidden = true;
+
+  const depth = Number($('reviewDepth').value);
+  const budget = REVIEW_BUDGET[depth] ?? REVIEW_BUDGET[9];
+  let result;
+  try {
+    result = await reviewGame(parsed, Review.side, {
+      movetime: budget.movetime,
+      depth,
+      onProgress: (done, total, phase) => {
+        $('reviewFill').style.width = `${Math.round((done / total) * 100)}%`;
+        status.textContent = phase === 'tactics'
+          ? `Checking what was on offer… ${done} of ${total}`
+          : `Walking the game… ${done} of ${total} positions`;
+      },
+    });
+  } catch (e) {
+    Review.running = false;
+    $('reviewRun').disabled = false;
+    $('reviewBar').hidden = true;
+    status.textContent = `The walk failed part-way: ${e?.message ?? e}. Nothing was saved.`;
+    return;
+  }
+
+  Review.result = result;
+  Review.running = false;
+  $('reviewRun').disabled = false;
+  $('reviewBar').hidden = true;
+
+  // Kept, so the mistakes can become drills and the progress page has
+  // something to count.
+  const at = Date.now();
+  const label = `${parsed.headers.White ?? '?'} vs ${parsed.headers.Black ?? '?'}`;
+  App.reviews.games.push({
+    at,
+    white: parsed.headers.White ?? '?',
+    black: parsed.headers.Black ?? '?',
+    result: parsed.headers.Result ?? '*',
+    side: Review.side,
+    // NULL when fewer than `minJudged` of his moves were judged — never a
+    // 100% that an empty sample would earn.
+    accuracy: result.accuracy,
+    plies: parsed.plies.length,
+    mistakes: result.mistakes,
+    // KEPT so the game can be walked again later. Without it a review is a
+    // one-way door: anything a future version of this page wants to work out
+    // about the game is lost, which is exactly what happened to the tactics.
+    pgn: text,
+    tactics: result.tactics.length,
+    meanLoss: result.meanLoss,
+    depth,
+    estimate: result.meanLoss === null ? null : estimateRating(result.meanLoss, depth),
+  });
+  await Store.set('reviews', App.reviews);
+  // The book is built from stored games, and one was just stored.
+  refreshBook();
+
+  const filed = await addTactics(result.tactics, { source: 'review', label, at, against: 'elsewhere' });
+
+  notes.unshift(`Done: ${result.mistakes.length} ${result.mistakes.length === 1 ? 'mistake' : 'mistakes'} found in your ${result.counted} moves.`);
+  if (result.accuracy === null) {
+    notes.push(`Too few of your moves to estimate from: ${result.counted} judged, ${result.minJudged} needed for an accuracy or a strength figure.`);
+  }
+  if (filed) {
+    const missed = result.tactics.filter((t) => t.found === false).length;
+    notes.push(`${filed} ${filed === 1 ? 'tactic' : 'tactics'} added to Puzzles — moments your opponent went wrong${missed ? `, ${missed} of which went past you` : ''}.`);
+  }
+  const passedOver = passedOverSentence(result.tacticsPassed);
+  if (passedOver) notes.push(passedOver);
+  status.textContent = notes.join(' ');
+  renderReviewResult();
+}
+
+/**
+ * The moments the opponent went wrong that were NOT filed as puzzles, said
+ * by reason. One figure used to cover all three and was worded as the middle
+ * one, which was false for the other two.
+ */
+function passedOverSentence(passed) {
+  if (!passed) return '';
+  const n = (count, one, many) => `${count} ${count === 1 ? one : many}`;
+  const parts = [];
+  if (passed.notUnique) parts.push(`${n(passed.notUnique, 'moment was', 'moments were')} passed over because more than one move punished ${passed.notUnique === 1 ? 'it' : 'them'}, so there was no single answer to ask for`);
+  if (passed.capped) parts.push(`${n(passed.capped, 'more was', 'more were')} left unchecked beyond the ${TACTIC.perGame} biggest a game is limited to`);
+  if (passed.singleReply) parts.push(`${n(passed.singleReply, 'was', 'were')} skipped because you had only one legal move there, so there was nothing to find`);
+  return parts.length ? parts.join('; ').replace(/^./, (c) => c.toUpperCase()) + '.' : '';
+}
+
+function moveLabel(m) {
+  return `${m.moveNumber}${m.colour === 'white' || m.side === 'white' ? '.' : '...'} ${m.san}`;
+}
+
+/**
+ * How the game stood after every ply, drawn as WIN CHANCE rather than pawns.
+ *
+ * A pawn axis has to scale to the largest lead in the game, so a game that
+ * ends nine pawns apart squashes every earlier swing flat along the middle —
+ * a chart drawn to show where the game turned would show nothing but the
+ * collapse at the end. Chance is monotone in the score, so it reorders
+ * nothing; all it changes is the spacing, which is the whole point.
+ *
+ * Drawn from EVERY position, both colours, not just from his mistakes. A line
+ * drawn from his errors alone would fall at each of them and sit flat in
+ * between, as though his opponent never gave anything back — which is a
+ * straightforwardly false story about a game he sat through.
+ */
+function renderCurve(box) {
+  const { whiteCp, judged } = Review.result;
+  if (!whiteCp || whiteCp.length < 3) return;
+
+  const mine = Review.side === 'white';
+  const chance = whiteCp.map((cp) => {
+    const share = Math.abs(cp) > 29000 ? (cp > 0 ? 1 : 0) : winChance(cp);
+    return mine ? share : 1 - share;
+  });
+
+  const panel = el('div', 'panel');
+  panel.appendChild(el('h3', null, 'How the game went'));
+  panel.appendChild(el('p', 'note', `Your chance of winning after every move, yours and theirs. Above the middle line you were better. This is the engine's own figure turned into a chance, not a prediction about you.`));
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'curve');
+  svg.setAttribute('viewBox', `0 0 ${Math.max(2, chance.length - 1)} 100`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', 'Win chance through the game');
+
+  // FILLED TO THE FLOOR, not to the middle. Filling the band between the line
+  // and the halfway mark reads as two different shapes depending on which side
+  // of it you are on, and where the line crosses, the region it encloses is
+  // genuinely ambiguous. Filled from the bottom, the HEIGHT of the shading is
+  // the number: there is nothing to interpret.
+  const y = (c) => 100 - c * 100;
+  const area = document.createElementNS(NS, 'path');
+  area.setAttribute('d', `M0,100 ${chance.map((c, i) => `L${i},${y(c)}`).join(' ')} L${chance.length - 1},100 Z`);
+  area.setAttribute('class', 'curve-fill');
+  svg.appendChild(area);
+
+  const line = document.createElementNS(NS, 'polyline');
+  line.setAttribute('points', chance.map((c, i) => `${i},${y(c)}`).join(' '));
+  line.setAttribute('class', 'curve-line');
+  svg.appendChild(line);
+
+  const mid = document.createElementNS(NS, 'line');
+  mid.setAttribute('x1', 0); mid.setAttribute('x2', chance.length - 1);
+  mid.setAttribute('y1', 50); mid.setAttribute('y2', 50);
+  mid.setAttribute('class', 'curve-mid');
+  svg.appendChild(mid);
+
+  // A mark on each of HIS mistakes, because the question the chart is being
+  // read to answer is "where did it go wrong, and was it me".
+  for (const m of judged) {
+    if (!m.mine || m.cls === 'best' || m.cls === 'good') continue;
+    const dot = document.createElementNS(NS, 'circle');
+    dot.setAttribute('cx', m.ply);
+    dot.setAttribute('cy', y(chance[m.ply] ?? 0.5));
+    dot.setAttribute('r', 1.6);
+    dot.setAttribute('class', 'curve-dot');
+    svg.appendChild(dot);
+  }
+
+  const frame = el('div', 'curve-frame');
+  frame.appendChild(svg);
+
+  // Tapping the chart goes to that move. "Where did it go wrong" is the
+  // question the chart is read to answer, and a chart that answers it and then
+  // makes you find the move in a list has stopped half way.
+  frame.addEventListener('click', (event) => {
+    const box = frame.getBoundingClientRect();
+    const ply = Math.round(((event.clientX - box.left) / box.width) * (chance.length - 1));
+    const at = judged.find((m) => m.ply === ply) ?? judged.find((m) => m.ply === ply - 1);
+    if (at) showJudged(at);
+  });
+  frame.title = 'Tap the chart to see that move';
+  panel.appendChild(frame);
+
+  const worst = judged.filter((m) => m.mine).reduce((a, b) => ((b.loss ?? 0) > (a?.loss ?? -1) ? b : a), null);
+  if (worst && (worst.loss ?? 0) > 0) {
+    panel.appendChild(el('p', 'note', `The biggest single drop of yours was ${moveLabel(worst)}.`));
+  }
+  box.appendChild(panel);
+}
+
+function renderReviewResult() {
+  const { mistakes, accuracy, judged, capped } = Review.result;
+  const box = $('reviewOut');
+  box.hidden = false;
+  box.innerHTML = '';
+  const h = Review.parsed.headers;
+
+  const summary = el('div', 'panel');
+  const blunders = mistakes.filter((m) => m.severity === 'blunder').length;
+  summary.innerHTML = `<h3>${esc(h.White ?? '?')} vs ${esc(h.Black ?? '?')}</h3>
+    <p class="note">You played ${esc(Review.side)}. ${Review.parsed.plies.length} plies, ${Review.result.counted} of your moves judged.</p>
+    <div class="readout">
+      <div><span class="k">Rough accuracy</span><span class="v">${accuracy === null ? '—' : `${accuracy}%`}</span></div>
+      <div><span class="k">Mistakes found</span><span class="v">${mistakes.length}</span></div>
+    </div>
+    <p class="note">${blunders} of them ${blunders === 1 ? 'was' : 'were'} a blunder. ${accuracy === null
+      ? `No accuracy: only ${Review.result.counted} of your moves were judged and ${Review.result.minJudged} are needed before an average means anything.`
+      : `Accuracy here is average
+    centipawn loss turned into a percentage — it is this engine's own figure and is not comparable with
+    the number Chess.com or Lichess shows you.`}</p>`;
+  box.appendChild(summary);
+
+  // The estimate, with what it is and is not, every time. A number on its
+  // own would be read as a rating; it is a comparison with the app's ladder.
+  const est = Review.result.meanLoss === null ? null : estimateRating(Review.result.meanLoss, Review.result.depth);
+  if (est) {
+    const panel = el('div', 'panel');
+    panel.innerHTML = `<h3>How strong this game looked</h3>
+      <div class="readout">
+        <div><span class="k">Estimated strength</span><span class="v">${est.ceilingHit ? `${est.ceiling} or above` : (est.floorHit ? `under ${measuredBands()[0] + est.step}` : `about ${est.elo}`)}</span></div>
+        <div><span class="k">Played like the band</span><span class="v">${est.ceilingHit ? `${est.ceiling}+` : esc(est.band)}</span></div>
+      </div>
+      ${est.ceilingHit ? `<p class="note"><strong>Why not a number:</strong> above ${est.ceiling} this app's own opponents all look the same to its reviewer — they play the moves it would play, and lose next to nothing — so the measurement cannot separate them, and a figure up there would be invented. Use a slower review setting for a little more range.</p>` : ''}
+      <p class="note">Worked out from your average loss per move (${(Review.result.meanLoss / 100).toFixed(2)} pawns)
+      by comparing it with games this app's own opponents played against each other, walked by the same reviewer at
+      the same setting. <strong>It is a comparison with this app's ladder, not a rating.</strong> The ladder's numbers
+      are targets rather than measured strengths, so treat this as "which band you played like today", not as your
+      Chess.com or Lichess figure. The band named is one the calibration actually played — it was measured at
+      ${est.step}-point steps, so the nearest rung to play is the ${esc(est.play.label)} band. Measured ${esc(est.measured)}.</p>`;
+    box.appendChild(panel);
+  } else if (Review.result.meanLoss === null) {
+    box.appendChild(el('p', 'note', `No strength estimate: too few of your moves to estimate from (${Review.result.counted} judged, ${Review.result.minJudged} needed).`));
+  } else {
+    box.appendChild(el('p', 'note', 'No strength estimate: the calibration for this setting has not been made, and a figure without one would be a guess with a number on it.'));
+  }
+
+  // COUNTED AND STATED, never dropped quietly. A mate moment is capped at one
+  // of each kind so it cannot take every slot, and a page that knows how many
+  // it left out and does not say is this project's most repeated fault.
+  const extra = [];
+  if (capped?.allowed_mate) extra.push(`${capped.allowed_mate} other ${capped.allowed_mate === 1 ? 'move' : 'moves'} also allowed a forced checkmate`);
+  if (capped?.missed_mate) extra.push(`${capped.missed_mate} other ${capped.missed_mate === 1 ? 'move' : 'moves'} also missed one`);
+  if (extra.length) {
+    summary.appendChild(el('p', 'note', `${extra.join(', and ')}. Only the first of each is listed: a forced mate scores at the top of the scale, so left uncapped they take every slot and the list becomes one collapse reported over and over.`));
+  }
+
+  renderCurve(box);
+
+  // Every move, both sides, with a glyph — the chess.com move list. Tapping
+  // one puts the position on the board with both arrows and the eval bar.
+  const all = el('div', 'panel');
+  all.appendChild(el('h3', null, 'Every move'));
+  all.appendChild(el('p', 'note', 'Your moves are bold. ★ is the engine’s own choice, ?! lost half a pawn, ? a pawn and a half, ?? three or more, #? a mate missed or allowed. Tap a move to see it.'));
+  const list = el('div', 'movelist');
+  list.id = 'reviewMoves';
+  for (const j of judged) {
+    if (j.colour === 'white') list.appendChild(el('span', 'mn', `${j.moveNumber}.`));
+    const btn = el('button', 'mv' + (j.mine ? ' mine' : ''), j.san);
+    btn.type = 'button';
+    btn.dataset.class = j.cls;
+    btn.dataset.ply = j.ply;
+    btn.title = describeJudged(j);
+    btn.addEventListener('click', () => showJudged(j));
+    list.appendChild(btn);
+  }
+  all.appendChild(list);
+  box.appendChild(all);
+
+  if (!mistakes.length) {
+    box.appendChild(el('p', 'note', 'Nothing crossed the threshold. At this search depth that means no move of yours lost half a pawn or more.'));
+    return;
+  }
+
+  const panel = el('div', 'panel');
+  panel.appendChild(el('h3', null, 'What went wrong'));
+
+  for (const m of mistakes) {
+    const row = el('button', 'mistake ' + m.severity);
+    const cost = m.loss === null ? m.label : `lost ${(m.loss / 100).toFixed(1)} pawns`;
+    row.innerHTML = `<span class="mistake-move">${esc(moveLabel(m))}</span>
+      <span class="mistake-sev">${esc(m.severity)}</span>
+      <span class="mistake-note">${esc(cost)}${m.best ? ` · the engine wanted ${esc(m.best.san)}` : ''}</span>
+      ${m.reason ? `<span class="mistake-why">${esc(m.reason)}</span>` : ''}`;
+    row.addEventListener('click', () => showMistake(m));
+    panel.appendChild(row);
+  }
+
+  const row = el('div', 'row');
+  row.style.marginTop = '12px';
+  const add = el('button', 'btn primary', `Add ${mistakes.length} to drills`);
+  const said = el('span', 'note');
+  said.style.margin = '0';
+  said.style.alignSelf = 'center';
+  add.addEventListener('click', async () => {
+    add.disabled = true;
+    // The confirmation lands NEXT TO THE BUTTON. It used to go to the status
+    // line at the top of the page, which on a phone was two screens away.
+    said.textContent = await addMistakesToDrills(mistakes);
+  });
+  row.appendChild(add);
+  row.appendChild(said);
+  panel.appendChild(row);
+  box.appendChild(panel);
+}
+
+function describeJudged(j) {
+  const who = j.mine ? 'You' : 'They';
+  if (j.mates) return `${moveLabel(j)} — checkmate.`;
+  if (j.cls === 'best') return `${moveLabel(j)} — the engine's own move.`;
+  if (j.kind !== 'material') return `${moveLabel(j)} — ${j.label} The engine wanted ${j.best?.san ?? 'something else'}.`;
+  if (j.cls === 'good') return `${moveLabel(j)} — fine. ${who} lost ${(j.loss / 100).toFixed(2)} pawns against ${j.best?.san ?? 'the engine’s move'}.`;
+  return `${moveLabel(j)} — ${j.cls}: lost ${(j.loss / 100).toFixed(1)} pawns. The engine wanted ${j.best?.san ?? 'something else'}.`;
+}
+
+function showJudged(j) {
+  $('reviewBoardWrap').hidden = false;
+  Review.view.orientation = Review.side === 'white' ? WHITE : BLACK;
+  Review.view.interactive = false;
+  Review.view.setFen(j.fen, { arrows: arrowsFor(j.uci, j.best?.uci) });
+  Review.bar.orient(Review.view.orientation);
+  showReviewBar(j.whiteCpAfter);
+  $('reviewBoardNote').textContent = describeJudged(j);
+  $('reviewBoardEval').textContent = `After the move: ${plainEval(j.whiteCpAfter, 'White')}.`;
+  const found = Review.result.mistakes.find((m) => m.ply === j.ply);
+  $('reviewBoardWhy').textContent = found?.reason ?? '';
+  $('reviewBoardWhy').hidden = !found?.reason;
+  for (const btn of document.querySelectorAll('#reviewMoves .mv')) btn.classList.toggle('on', Number(btn.dataset.ply) === j.ply);
+  const arrows = arrowsFor(j.uci, j.best?.uci);
+  $('reviewExplore').onclick = () => openPractice(j.fen, { arrows });
+  // NAMES BOTH MOVES, because the question is the comparison. The coach
+  // searches every move a question names, so asking about two costs one extra
+  // search and answers the thing actually being asked.
+  $('reviewAskWhy').hidden = !Coach.ready || !j.best;
+  $('reviewAskWhy').onclick = () => askCoachAbout(j.fen,
+    j.cls === 'best'
+      ? `Why is ${j.san} the best move here?`
+      : `Why is ${j.best.san} better than my ${j.san}?`, { arrows });
+  $('reviewBoardWrap').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+/**
+ * The eval bar, with the one case it does not know about. The bar labels a
+ * mate by its distance, and a mate that has been DELIVERED is nought plies
+ * away — which it prints as "M0" and titles "mates in 0". The bar lives in
+ * board-view.js and is shared by three screens; until it learns the sentinel
+ * itself, the review corrects the label here.
+ */
+function showReviewBar(whiteCp) {
+  Review.bar.set(whiteCp);
+  if (whiteCp === null || whiteCp === undefined || Math.abs(whiteCp) < CHECKMATE_SCORE) return;
+  const host = $('reviewEval');
+  for (const label of host.querySelectorAll('.evalbar-label')) if (label.textContent === 'M0') label.textContent = '#';
+  host.title = `Checkmate — ${whiteCp > 0 ? 'Black' : 'White'} is checkmated`;
+}
+
+function showMistake(m) {
+  const j = Review.result.judged.find((x) => x.ply === m.ply);
+  if (j) { showJudged(j); return; }
+  $('reviewBoardWrap').hidden = false;
+  Review.view.orientation = m.side === 'white' ? WHITE : BLACK;
+  Review.view.interactive = false;
+  Review.view.setFen(m.fen, { arrows: arrowsFor(m.uci, m.best?.uci) });
+  $('reviewBoardNote').textContent = m.loss === null
+    ? `${moveLabel(m)} — ${m.label} The engine wanted ${m.best?.san ?? 'something else'}.`
+    : `${moveLabel(m)} lost ${(m.loss / 100).toFixed(1)} pawns. The engine wanted ${m.best?.san ?? 'something else'}.`;
+  $('reviewBoardWrap').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+/**
+ * Red for the move that was played, green for the move the engine wanted.
+ * One helper so the two screens cannot drift into different colours for the
+ * same two ideas.
+ */
+function arrowsFor(playedUci, bestUci) {
+  const arrows = [];
+  const square = (uci, at) => nameToSquare(uci.slice(at, at + 2));
+
+  if (playedUci) arrows.push({ from: square(playedUci, 0), to: square(playedUci, 2), kind: 'played' });
+  // Nothing is drawn twice: when the move played WAS the engine's, one green
+  // arrow is the honest picture and a red one on top of it would invent a
+  // disagreement.
+  if (bestUci && bestUci !== playedUci) {
+    arrows.push({ from: square(bestUci, 0), to: square(bestUci, 2), kind: 'best' });
+  }
+  return arrows;
+}
+
+async function addMistakesToDrills(mistakes) {
+  let added = 0;
+  for (const m of mistakes) {
+    if (!m.best) continue;
+    if (App.drills.items.some((d) => d.fen === m.fen)) continue;
+    App.drills.items.push({
+      id: `${Date.now()}-${added}`,
+      fen: m.fen,
+      side: m.side,
+      played: m.san,
+      playedUci: m.uci,
+      best: m.best,
+      severity: m.severity,
+      label: m.label,
+      loss: m.loss,
+      card: SRS.fresh(),
+    });
+    added++;
+  }
+  await Store.set('drills', App.drills);
+  return added
+    ? `${added} added to your drills. They are due now.`
+    : 'Those are already in your drills.';
+}
+
+// ── drills ─────────────────────────────────────────────────────────────────
+const Drill = { current: null, view: null, answered: false };
+
+function renderDrills() {
+  if (Drill.current) return;
+  const due = dueDrills();
+  $('drillEmpty').hidden = App.drills.items.length > 0;
+  $('drillStart').hidden = due.length === 0;
+  $('drillCount').textContent = App.drills.items.length === 0
+    ? ''
+    : (due.length === 0
+      ? `Nothing due. ${App.drills.items.length} stored; the next comes back ${nextDrillDue()}.`
+      : `${due.length} due of ${App.drills.items.length} stored.`);
+  $('drillBoardWrap').hidden = true;
+}
+
+function nextDrillDue() {
+  const soonest = Math.min(...App.drills.items.map((d) => d.card?.due ?? 0));
+  if (!Number.isFinite(soonest)) return 'later';
+  const days = Math.max(0, Math.ceil((soonest - Date.now()) / 86400000));
+  return days <= 0 ? 'today' : (days === 1 ? 'tomorrow' : `in ${days} days`);
+}
+
+function startDrill() {
+  const due = dueDrills();
+  if (!due.length) { Drill.current = null; renderDrills(); return; }
+
+  Drill.current = due[0];
+  Drill.answered = false;
+  $('drillBoardWrap').hidden = false;
+  $('drillStart').hidden = true;
+  $('drillCount').textContent = `${due.length} to go.`;
+
+  Drill.view.orientation = Drill.current.side === 'white' ? WHITE : BLACK;
+  Drill.view.interactive = true;
+  Drill.view.onMove = onDrillMove;
+  // NO ARROWS WHILE IT IS STILL A QUESTION. Drawing the engine's move here
+  // would answer the thing being asked, and drawing only the played move would
+  // point at the square to avoid, which is most of the answer.
+  Drill.view.setFen(Drill.current.fen);
+  $('drillLegend').hidden = true;
+  $('drillPrompt').textContent = 'You played ' + Drill.current.played + ' here. Find something better.';
+  $('drillAnswer').textContent = '';
+  $('drillNext').hidden = true;
+  $('drillExplore').hidden = true;
+  $('drillAskWhy').hidden = true;
+}
+
+async function onDrillMove({ move, san }) {
+  if (Drill.answered) return;
+  const correct = san.replace(/[+#]$/, '') === Drill.current.best.san.replace(/[+#]$/, '');
+  Drill.answered = true;
+  Drill.view.interactive = false;
+  Drill.view.apply(move);
+
+  // Back to the position being asked about, with both moves drawn on it. The
+  // board after your move shows the consequence; the board before it, with two
+  // arrows, shows the choice — and the choice is the thing being learned.
+  const arrows = arrowsFor(correct ? null : moveToUci(move), Drill.current.best.uci);
+  Drill.view.setFen(Drill.current.fen, { arrows });
+  $('drillLegend').hidden = false;
+
+  $('drillAnswer').textContent = correct
+    ? `Yes — ${Drill.current.best.san} is what the engine wanted.`
+    : `Not quite. The engine wanted ${Drill.current.best.san}; you played ${san}.`;
+  $('drillNext').hidden = false;
+  $('drillExplore').hidden = false;
+  $('drillExplore').onclick = () => openPractice(Drill.current.fen, { arrows });
+  $('drillAskWhy').hidden = !Coach.ready;
+  $('drillAskWhy').onclick = () => askCoachAbout(Drill.current.fen,
+    `Why is ${Drill.current.best.san} better than ${Drill.current.played}?`, { arrows });
+
+  Drill.current.card = SRS.review(Drill.current.card, correct);
+  await Store.set('drills', App.drills);
+}
+
+function nextDrill() { Drill.current = null; startDrill(); if (!Drill.current) renderDrills(); }
+
+/**
+ * What each theme is called on screen.
+ *
+ * WORDED FROM THE DEFENDING SIDE, always. A puzzle theme describes what the
+ * solver does; a game-mistake theme describes what was done TO the player, and
+ * the inversion is total rather than per-theme. Showing one label for both is
+ * what put fifteen mate-in-one puzzles under the heading "leaving pieces
+ * unprotected" in the app this came from.
+ */
+const THEME_LABEL = {
+  hangingPiece: 'Leaving a piece loose',
+  fork: 'Allowing a fork',
+  pin: 'Getting pinned',
+  skewer: 'Getting skewered',
+  discoveredAttack: 'Walking into a discovery',
+  backRankMate: 'Back rank',
+  trappedPiece: 'Letting a piece get trapped',
+  exposedKing: 'Opening up your own king',
+  mateIn1: 'Allowing mate in one',
+  mateIn2: 'Allowing mate in two',
+  mateIn3: 'Allowing mate in three',
+  missedMate: 'Missing a forced mate',
+  lostMaterial: 'Losing material with no trick behind it',
+};
+
+// ── progress ───────────────────────────────────────────────────────────────
+function renderProgress() {
+  const box = $('progressOut');
+  box.innerHTML = '';
+
+  const games = App.reviews.games;
+  const allMistakes = games.flatMap((g) => g.mistakes ?? []);
+
+  if (!games.length) {
+    box.innerHTML = '<p class="note">Review a game and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.</p>';
+    return;
+  }
+
+  const bySeverity = { blunder: 0, mistake: 0, inaccuracy: 0 };
+  // A row without a severity is a row written before there was one, and it
+  // is skipped rather than shown as a bar called "undefined".
+  for (const m of allMistakes) if (m.severity) bySeverity[m.severity] = (bySeverity[m.severity] ?? 0) + 1;
+
+  const byKind = {};
+  for (const m of allMistakes) byKind[m.kind] = (byKind[m.kind] ?? 0) + 1;
+
+  const perGame = (allMistakes.length / games.length).toFixed(1);
+  // Games too short to have an accuracy are left OUT of the mean, not counted
+  // as nought — and not as a hundred, which is what they used to be.
+  const scored = games.filter((g) => Number.isFinite(g.accuracy));
+  const accuracy = scored.length ? Math.round(scored.reduce((sum, g) => sum + g.accuracy, 0) / scored.length) : null;
+
+  const summary = el('div', 'panel');
+  summary.innerHTML = `<h3>Across ${games.length} reviewed ${games.length === 1 ? 'game' : 'games'}</h3>
+    <div class="readout">
+      <div><span class="k">Mistakes a game</span><span class="v">${perGame}</span></div>
+      <div><span class="k">Mean accuracy</span><span class="v">${accuracy === null ? '—' : `${accuracy}%`}</span></div>
+    </div>${scored.length < games.length ? `<p class="note">${games.length - scored.length} of these ${games.length - scored.length === 1 ? 'was' : 'were'} too short to score and ${games.length - scored.length === 1 ? 'is' : 'are'} left out of the mean.</p>` : ''}`;
+  box.appendChild(summary);
+
+  // A rolling estimate over recent reviewed games — the MEDIAN, so one
+  // collapse or one lucky game does not drag it — and the band it points at.
+  // `Number.isFinite`, not truthiness: an estimate pinned at the floor is
+  // elo 0, and a truthy test dropped exactly the worst games from the median.
+  const rated = games.filter((g) => Number.isFinite(g.estimate?.elo)).slice(-8);
+  if (rated.length) {
+    const elos = rated.map((g) => g.estimate.elo).sort((a, b) => a - b);
+    const median = elos[Math.floor(elos.length / 2)];
+    const measured = measuredBands();
+    const step = measuredStep(measured);
+    const measuredIndex = Math.max(0, measured.findIndex((b, i) => median < (measured[i + 1] ?? Infinity)));
+    const play = nearestPlayableBand(median);
+    const spread = elos.length > 1 ? `${elos[0]}–${elos[elos.length - 1]}` : String(median);
+    const atCeiling = rated.filter((g) => g.estimate.ceilingHit).length;
+    const panel = el('div', 'panel');
+    panel.innerHTML = `<h3>How strong your games look</h3>
+      <div class="readout">
+        <div><span class="k">Middle of your last ${rated.length}</span><span class="v">${atCeiling > rated.length / 2 ? `${median} or above` : median}</span></div>
+        <div><span class="k">Played like the band</span><span class="v">${esc(measuredBandLabel(measuredIndex, measured))}</span></div>
+      </div>
+      <p class="note">The middle value of the per-game estimates from your last ${rated.length} reviewed ${rated.length === 1 ? 'game' : 'games'} (they ranged ${spread}). Each one compares your average loss per move with this app's own ladder, whose numbers are targets rather than measured ratings — so this says which band your recent games resemble, and nothing about your rating anywhere else. The band named is one the calibration actually played, measured at ${step}-point steps; the button below picks the nearest rung the ladder offers, the ${esc(play.label)} band.</p>`;
+    const go = el('button', 'btn', `Play the ${play.label} band`);
+    go.addEventListener('click', () => { Play.band = BANDS[play.index]; renderBandPicker(); show('play'); newPlayGame(); });
+    panel.appendChild(go);
+    box.appendChild(panel);
+  }
+
+  const breakdown = el('div', 'panel');
+  breakdown.appendChild(el('h3', null, 'By severity'));
+  const bars = el('div', 'bars');
+  const worst = Math.max(1, ...Object.values(bySeverity));
+  for (const [name, count] of Object.entries(bySeverity)) {
+    const row = el('div', 'bar-row');
+    row.innerHTML = `<span class="bar-label">${esc(name)}</span>
+      <span class="bar"><span class="bar-fill ${esc(name)}" style="width:${Math.round((count / worst) * 100)}%"></span></span>
+      <span class="bar-count">${count}</span>`;
+    bars.appendChild(row);
+  }
+  breakdown.appendChild(bars);
+
+  // WHAT THEY HAVE IN COMMON, which is the question this page exists to
+  // answer and which severity alone cannot: "twelve blunders" says how bad,
+  // never what kind. Every theme here was measured on the board.
+  const byTheme = {};
+  let classified = 0;
+  for (const m of allMistakes) {
+    if (!m.themes?.length) continue;
+    classified++;
+    for (const theme of m.themes) byTheme[theme] = (byTheme[theme] ?? 0) + 1;
+  }
+  const themes = Object.entries(byTheme).sort((a, b) => b[1] - a[1]);
+  if (themes.length) {
+    const panel = el('div', 'panel');
+    panel.appendChild(el('h3', null, 'What your mistakes have in common'));
+    panel.appendChild(el('p', 'note', 'Every one of these was demonstrated on the board by replaying the moves that punished you, not guessed from how much the move cost. They describe what was done TO you.'));
+    const bars = el('div', 'bars');
+    const worst = Math.max(...themes.map(([, n]) => n));
+    for (const [theme, count] of themes) {
+      const row = el('div', 'bar-row');
+      row.innerHTML = `<span class="bar-label">${esc(THEME_LABEL[theme] ?? theme)}</span>
+        <span class="bar"><span class="bar-fill" style="width:${Math.round((count / worst) * 100)}%"></span></span>
+        <span class="bar-count">${count}</span>`;
+      bars.appendChild(row);
+    }
+    panel.appendChild(bars);
+    // COUNTED AND STATED. A mistake the classifier could not name is not a
+    // mistake without a cause, and reporting only what it could name would
+    // make the list look more complete than it is.
+    const unnamed = allMistakes.length - classified;
+    if (unnamed) {
+      panel.appendChild(el('p', 'note', `${unnamed} of your ${allMistakes.length} mistakes could not be given a name: the moves that punished them showed no motif this app is able to demonstrate. They were positional, or the loss came from a sequence rather than a trick.`));
+    }
+    box.appendChild(panel);
+  }
+
+  const mates = (byKind.allowed_mate ?? 0) + (byKind.missed_mate ?? 0);
+  if (mates > 0) {
+    breakdown.appendChild(el('p', 'note',
+      `${byKind.allowed_mate ?? 0} of your moves allowed a forced mate and ${byKind.missed_mate ?? 0} missed one. `
+      + 'Those are counted separately because a mate is not a number of pawns and cannot be averaged with one.'));
+  }
+  box.appendChild(breakdown);
+
+  // Whether it is getting rarer: the first half of the reviewed games against
+  // the second. Two numbers, or nothing — a trend line through three games
+  // would be decoration.
+  if (games.length >= 4) {
+    const half = Math.floor(games.length / 2);
+    const rate = (list) => (list.reduce((s, g) => s + (g.mistakes?.length ?? 0), 0) / list.length).toFixed(1);
+    const earlier = rate(games.slice(0, half)), later = rate(games.slice(half));
+    const trend = el('div', 'panel');
+    trend.innerHTML = `<h3>Is it getting rarer?</h3>
+      <div class="readout">
+        <div><span class="k">Earlier ${half} games</span><span class="v">${earlier}</span></div>
+        <div><span class="k">Latest ${games.length - half} games</span><span class="v">${later}</span></div>
+      </div>
+      <p class="note">Mistakes a game, first half of your reviewed games against the second. The same search setting has to be used for the two to be comparable.</p>`;
+    box.appendChild(trend);
+  }
+
+  const recent = el('div', 'panel');
+  recent.appendChild(el('h3', null, 'Games reviewed'));
+  const list = el('div', 'record');
+  for (const g of [...games].reverse().slice(0, 12)) {
+    const row = el('div', 'record-row');
+    row.innerHTML = `<span class="record-band">${esc(g.white)} vs ${esc(g.black)}</span>
+      <span class="record-score">${(g.mistakes ?? []).length} found · ${Number.isFinite(g.accuracy) ? `${g.accuracy}%` : 'too short to score'}${Number.isFinite(g.estimate?.elo) ? ` · looked like ${g.estimate.ceilingHit ? g.estimate.elo + '+' : g.estimate.elo}` : ''}</span>`;
+    list.appendChild(row);
+  }
+  recent.appendChild(list);
+  box.appendChild(recent);
+
+  // Games against the ladder, so the record on Today has somewhere to go into
+  // detail.
+  if (App.history.games.length) {
+    const played = el('div', 'panel');
+    played.appendChild(el('h3', null, 'Games against the ladder'));
+    const rows = el('div', 'record');
+    for (const g of [...App.history.games].reverse().slice(0, 12)) {
+      const row = el('div', 'record-row');
+      const when = new Date(g.at).toLocaleDateString();
+      row.innerHTML = `<span class="record-band">${esc(when)} · ${esc(bandLabelFor(g.band))} · as ${esc(g.colour)}${g.from ? ' · from a set-up position' : ''}</span>
+        <span class="record-score">${{ w: 'Won', d: 'Drew', l: 'Lost' }[g.result]} · ${Math.ceil(g.plies / 2)} moves</span>`;
+      rows.appendChild(row);
+    }
+    played.appendChild(rows);
+    box.appendChild(played);
+  }
+}

@@ -1,0 +1,32 @@
+const { launch, app, serve, DIST } = require('./browser.cjs');
+const REAL = JSON.parse(require('fs').readFileSync('selfplay.json', 'utf8')).pgn;
+(async () => {
+  const browser = await launch();
+  const page = await browser.newPage({ viewport: { width: 1100, height: 1200 } });
+  const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(app());
+  await page.waitForSelector('#tab-review'); await page.click('#tab-review');
+  await page.fill('#pgnInput', '[White "Me"] [Black "Them"]\n' + REAL); await page.fill('#reviewName', 'Me');
+  await page.selectOption('#reviewDepth', '7'); await page.click('#reviewRun');
+  await page.waitForFunction(() => document.getElementById('reviewStatus').textContent.startsWith('Done'), null, { timeout: 300000 });
+  const say = (k, v) => console.log(String(k).padEnd(26), v);
+  const panel = page.locator('#reviewOut .panel').filter({ hasText: 'How strong this game looked' });
+  say('estimate panel', await panel.count());
+  say('readout', (await panel.locator('.readout').innerText()).replace(/\s+/g, ' '));
+  say('caveat present', (await panel.innerText()).includes('not a rating') && (await panel.innerText()).includes('targets'));
+  say('stored on record', await page.evaluate(() => JSON.stringify(App.reviews.games.at(-1).estimate)));
+  say('meanLoss stored', await page.evaluate(() => App.reviews.games.at(-1).meanLoss?.toFixed(1)));
+  await page.click('#tab-progress'); await page.waitForTimeout(200);
+  const prog = page.locator('#progressOut .panel').filter({ hasText: 'How strong your games look' });
+  say('progress panel', await prog.count());
+  say('progress readout', (await prog.locator('.readout').innerText()).replace(/\s+/g, ' '));
+  say('band button', await prog.locator('button').innerText());
+  await prog.locator('button').click(); await page.waitForTimeout(300);
+  say('band picked on Play', await page.locator('#bandSelect').inputValue() + ' (' + await page.locator('#tab-play').getAttribute('aria-current') + ')');
+  say('list shows estimate', (await page.locator('#progressOut .record-row').first().innerText()).replace(/\s+/g, ' '));
+  // And with NO fit, nothing is claimed.
+  await page.evaluate(() => { window.RATING_FIT_BACKUP = RATING_FIT; });
+  say('no-fit estimate', await page.evaluate(() => { const r = estimateRating(50, 7); return r ? 'gave ' + r.elo : 'null'; }));
+  console.log(errors.length ? 'ERRORS ' + errors.slice(0, 3).join(' | ') : 'no page errors');
+  await browser.close();
+})().catch((e) => { console.error('FAILED', e.message); process.exit(1); });

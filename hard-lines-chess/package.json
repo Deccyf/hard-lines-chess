@@ -1,0 +1,17 @@
+{
+  "name": "hard-lines-chess",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A single-file browser chess trainer with its own engine, opponent ladder, coach and review.",
+  "scripts": {
+    "build": "python3 build.py",
+    "test": "node tests/perft.mjs && node tests/motifs.test.mjs && node tests/traps.test.mjs && node tests/cap-test.mjs && node tests/test-lines.mjs && node tests/rv-assert.mjs",
+    "test:browser": "node tests/run-browser.cjs",
+    "verify:openings": "node tests/verify-openings.mjs",
+    "calibrate": "node tools/calibrate-rating.mjs 2"
+  },
+  "devDependencies": {
+    "playwright": "^1.50.0"
+  }
+}

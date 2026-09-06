@@ -1,0 +1,650 @@
+<title>Hard Lines Chess</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Chess">
+<meta name="theme-color" content="#14110d">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap">
+<style>
+  /* Hard Lines — the identity of the Chess Coach app this belongs to.
+     Ink-black 2px rules, hard 4px offset shadows, nothing rounded, Archivo
+     Black numerals over a Space Mono body, bone-white cards on a warm
+     off-white ground, and vermilion carrying the accent AND the board's dark
+     squares. */
+  :root {
+    /* Native controls — the selects, the scrollbars, the text cursor — follow
+       THIS, not the operating system. Without it a select on the dark theme
+       renders as white-on-white in some browsers, and picking "Light" while
+       the phone is dark left the drop-downs black. */
+    color-scheme: light;
+    --page: #f2efe6;
+    --panel: #ffffff;
+    --sunk: #e7e2d5;
+    --line: #14110d;
+    --ink: #14110d;
+    --ink-soft: #4d463c;
+    --ink-faint: #6f665a;
+    --accent: #e8412a;
+    --accent-deep: #c22f1c;
+    --accent-tint: #fdeae6;
+    --on-accent: #ffffff;
+    --good: #0d7d4d;
+    --mark: #ffd23f;
+    --board-light: #ffffff;
+    --board-dark: #e8412a;
+    /* Blue: a move played AT you. Distinct from the accent and from green, and
+       it survives every colour-vision deficiency against both of them because
+       it differs in luminance as well as hue. */
+    --threat: #1d6fd0;
+    /* White in daylight, ink at night — the inverse of the arrow colours. */
+    --arrow-halo: #ffffff;
+    /* A PIECE'S COLOURS DO NOT FOLLOW THE THEME, and that is the whole fix.
+       These were --line and the board tokens, which flip at night — so in dark
+       mode a white piece was #efeae0 on an #efeae0 square with an #efeae0
+       outline, and half the board simply was not there. A white piece needs a
+       dark edge and a dark piece needs a light edge on EVERY square of EVERY
+       theme, so both pairs are fixed values. */
+    --piece-light: #fbfaf7;
+    --piece-dark: #14110d;
+    --piece-edge-on-light: #14110d;
+    --piece-edge-on-dark: #fbfaf7;
+    --shadow: 4px 4px 0 0 var(--line);
+    --shadow-sm: 2px 2px 0 0 var(--line);
+    --display: "Archivo Black", "Arial Black", Impact, sans-serif;
+    --mono: "Space Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  /* Night. The structure is unchanged — same 2px rules, same hard shadows,
+     same vermilion dark square — because that IS the identity. Only the
+     ground and the ink swap roles. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page: #15120e;
+      --panel: #201c17;
+      --sunk: #2b261f;
+      --line: #efeae0;
+      --ink: #efeae0;
+      --ink-soft: #cfc7b8;
+      --ink-faint: #a49b8b;
+      --accent: #ff5a41;
+      --accent-deep: #e8412a;
+      --accent-tint: #3a1a14;
+      --on-accent: #15120e;
+      --good: #4fd08f;
+      /* The light square darkens a little so a white piece still reads as a
+         piece rather than as a hole; the piece colours themselves are
+         deliberately absent here — see the note in :root. */
+      --board-light: #d9d3c6;
+      --board-dark: #c22f1c;
+      --threat: #5aa9ff;
+      --arrow-halo: #14110d;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #15120e; --panel: #201c17; --sunk: #2b261f; --line: #efeae0;
+    --ink: #efeae0; --ink-soft: #cfc7b8; --ink-faint: #a49b8b;
+    --accent: #ff5a41; --accent-deep: #e8412a; --accent-tint: #3a1a14;
+    --on-accent: #15120e; --good: #4fd08f;
+    --board-light: #d9d3c6; --board-dark: #c22f1c; --threat: #5aa9ff; --arrow-halo: #14110d;
+  }
+
+  :root[data-theme="light"] { color-scheme: light; }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-text-size-adjust: 100%;
+  }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 3px solid var(--mark); outline-offset: 2px; }
+
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 20px 16px 64px; }
+
+  header { border-bottom: 2px solid var(--line); padding-bottom: 14px; margin-bottom: 20px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .mark { display: grid; grid-template-columns: 1fr 1fr; width: 28px; height: 28px; border: 2px solid var(--line); flex: none; }
+  .mark i { display: block; }
+  .mark i:nth-child(1), .mark i:nth-child(4) { background: var(--panel); }
+  .mark i:nth-child(2), .mark i:nth-child(3) { background: var(--accent); }
+  h1 { font-family: var(--display); font-weight: 400; font-size: 20px; letter-spacing: -0.01em; margin: 0; text-transform: uppercase; }
+  .sub { margin: 8px 0 0; font-size: 13px; color: var(--ink-soft); max-width: 62ch; }
+
+  .layout { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr) 20rem; align-items: start; } }
+
+  /* Board. The checker is a gradient rather than a sprite, exactly as the app
+     does it, because a saturated dark square cannot be a tint of the light one. */
+  /* `container-type: inline-size` makes the board's own width available to the
+     pieces as cqw, so a glyph is a fraction of a SQUARE rather than of the
+     viewport. Sized off vw, a board in a narrow column gets viewport-sized
+     pieces and a board on a wide screen gets pieces that do not grow with it. */
+  /* `position: relative` is what makes this the box the arrow overlay measures
+     itself against. Without it the overlay's `inset: 0` resolves against the
+     page instead, and the arrows are drawn full-screen — pointing at squares
+     that are nowhere near where they land. */
+  .board-frame {
+    position: relative;
+    border: 2px solid var(--line); box-shadow: var(--shadow);
+    width: 100%; max-width: 520px; container-type: inline-size;
+  }
+
+  /* BOTH axes are declared. With only the columns set, the rows fall back to
+     auto — they size to the tallest thing in them, which is the piece glyph —
+     so every square came out 44 wide by 63 tall and the board overflowed its
+     own frame. A square board is not enough to make square squares. */
+  .board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    aspect-ratio: 1;
+    width: 100%; touch-action: manipulation; user-select: none;
+  }
+  .sq {
+    position: relative; display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    /* A grid item's automatic minimum size is its content, which would let a
+       tall glyph push its row open again and undo the line above. NOT
+       overflow:hidden — that clipped a sliding piece for most of its journey,
+       so it vanished from its square and popped into existence part-way. */
+    min-width: 0; min-height: 0;
+  }
+  /* The square a piece is sliding out of, or into, paints above its
+     neighbours for the duration — otherwise the sibling squares drawn later
+     in the DOM cover the moving piece. */
+  .sq:has(.sliding) { z-index: 3; }
+  .sq.light { background: var(--board-light); }
+  .sq.dark { background: var(--board-dark); }
+  /* SOLID GLYPHS FOR BOTH SIDES, coloured — not Unicode's outline set for
+     White and its solid set for Black. Two different shapes for the same piece
+     is what made a knight read as a different kind of thing depending on whose
+     it was, and an outline glyph has no fill to carry a colour at this size. */
+  .piece {
+    /* A square is 12.5cqw, so this is about three-quarters of one and scales
+       with the board at any size. The vw value is the fallback for browsers
+       without container queries. */
+    font-size: min(9.5vw, 46px);
+    font-size: 9.2cqw;
+    line-height: 1; pointer-events: none;
+    /* The moving piece is lifted above its neighbours while it slides. */
+    position: relative; z-index: 1;
+  }
+
+  /* Sliding, not teleporting. A piece that appears on its new square gives no
+     sense of what moved — especially the opponent's, which you did not watch
+     happen. The transform is set to where the piece CAME FROM and then removed,
+     so the browser animates the difference. */
+  .piece.sliding { transition: transform 190ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+  @media (prefers-reduced-motion: reduce) {
+    .piece.sliding { transition: none; }
+  }
+  :root[data-animate="off"] .piece.sliding { transition: none; }
+
+  /* The promotion picker holds real pieces, which must not inherit the board's
+     container-relative size — there is no board container above them. */
+  /* pointer-events is turned back ON: the board's pieces are inert so taps
+     fall through to the square, but these ARE the buttons. Without this the
+     promotion picker could not be dismissed on a phone at all. */
+  .promo .piece { font-size: 30px; position: static; pointer-events: auto; }
+
+  /* Arrows sit over the squares and under nothing — they are the point of the
+     screen they appear on. `pointer-events: none` so the board underneath is
+     still tappable through them. */
+  .arrows {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 2;
+  }
+  .arrow { stroke-linecap: round; fill: none; }
+  /* The halo is the opposite lightness to the arrow colours in each theme, so
+     between the two of them every square is covered. See drawArrows(). */
+  .arrow-halo { stroke: var(--arrow-halo); }
+  /* The halo under a dashed arrow stays solid, so the shape reads as one arrow
+     rather than as a row of separate marks. */
+  .arrow-halo { stroke-dasharray: none; }
+  .arrow-halo-head { fill: var(--arrow-halo); stroke: var(--arrow-halo); stroke-linejoin: round; }
+  /* ONE MEANING EVERYWHERE. Red is the move you played, green is the move the
+     engine wanted, blue is a move played at you. The same three colours the
+     training app uses, so there is one vocabulary rather than two. */
+  /* DASHED, not just red. Red and green sit 1.29:1 apart in luminance, so to a
+     red-green colour-blind reader they are the same arrow twice — and this
+     app's own rule is that a difference carried only by hue does not survive.
+     The dash says "yours" without needing colour at all. */
+  .arrow-played { stroke: var(--accent); stroke-dasharray: 0.3 0.17; }
+  .arrow-played.arrow-head { fill: var(--accent); stroke: none; }
+  .arrow-best { stroke: var(--good); }
+  .arrow-best.arrow-head { fill: var(--good); stroke: none; }
+  .arrow-threat { stroke: var(--threat); }
+  .arrow-threat.arrow-head { fill: var(--threat); stroke: none; }
+  /* An ink edge, because a green arrow crosses both a white square and a
+     vermilion one and needs to read on both. */
+  .arrow, .arrow-head { paint-order: stroke fill; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 11px; color: var(--ink-soft); }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend i { width: 18px; height: 3px; display: inline-block; border-radius: 0; }
+  /* The key shows the dash too, or it explains only half of what is on screen. */
+  .legend .k-played {
+    background: repeating-linear-gradient(to right, var(--accent) 0 5px, transparent 5px 8px);
+  }
+  .legend .k-best { background: var(--good); }
+  .piece.w {
+    color: var(--piece-light);
+    text-shadow:
+      1px 1px 0 var(--piece-edge-on-light), -1px -1px 0 var(--piece-edge-on-light),
+      1px -1px 0 var(--piece-edge-on-light), -1px 1px 0 var(--piece-edge-on-light),
+      0 1px 0 var(--piece-edge-on-light), 0 -1px 0 var(--piece-edge-on-light),
+      1px 0 0 var(--piece-edge-on-light), -1px 0 0 var(--piece-edge-on-light);
+  }
+  .piece.b {
+    color: var(--piece-dark);
+    text-shadow:
+      1px 1px 0 var(--piece-edge-on-dark), -1px -1px 0 var(--piece-edge-on-dark),
+      1px -1px 0 var(--piece-edge-on-dark), -1px 1px 0 var(--piece-edge-on-dark),
+      0 1px 0 var(--piece-edge-on-dark), 0 -1px 0 var(--piece-edge-on-dark),
+      1px 0 0 var(--piece-edge-on-dark), -1px 0 0 var(--piece-edge-on-dark);
+  }
+  /* EVERY MARK IS DRAWN ON TOP OF A THEME-INDEPENDENT SOURCE: the yellow
+     `--mark` for selection and the last move, an ink ring plus a white ring
+     for check, and a two-tone dot for legal moves. A single colour at low
+     opacity was measured at 1.2:1 against the dark theme's light square — a
+     mark nobody could see on half the board. */
+  .sq.sel::after { content: ""; position: absolute; inset: 0; border: 3px solid var(--mark); box-shadow: inset 0 0 0 1px rgba(0,0,0,.45); z-index: 2; pointer-events: none; }
+  .sq.last { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--mark) 55%, transparent); }
+  .sq.check::after {
+    content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+    border: 4px solid #14110d; box-shadow: inset 0 0 0 2px #ffffff, 0 0 0 1px #ffffff;
+  }
+  .sq.mark::after { content: ""; position: absolute; inset: 0; border: 3px solid var(--good); box-shadow: inset 0 0 0 1px #ffffff; z-index: 2; pointer-events: none; }
+  .dot {
+    position: absolute; width: 28%; height: 28%; border-radius: 50%; pointer-events: none; z-index: 2;
+    background: rgba(20,17,13,.55); box-shadow: 0 0 0 2px rgba(255,255,255,.75);
+  }
+  .sq.cap .dot { width: 84%; height: 84%; background: transparent; border: 4px solid rgba(20,17,13,.55); box-shadow: 0 0 0 2px rgba(255,255,255,.7), inset 0 0 0 2px rgba(255,255,255,.7); }
+  /* User highlights, chess.com style: long-press (or right-click) a square.
+     A RING WITH A WHITE INNER EDGE plus a light wash, not a fill: red on the
+     vermilion square is the same colour twice, and a fill there simply did
+     not exist. The white edge is what makes every ring read on every square. */
+  .sq.hl-1 { box-shadow: inset 0 0 0 5px #e8412a, inset 0 0 0 7px #ffffff, inset 0 0 0 100vmax color-mix(in srgb, #e8412a 40%, transparent); }
+  .sq.hl-2 { box-shadow: inset 0 0 0 5px #0d7d4d, inset 0 0 0 7px #ffffff, inset 0 0 0 100vmax color-mix(in srgb, #0d7d4d 40%, transparent); }
+  .sq.hl-3 { box-shadow: inset 0 0 0 5px #1d6fd0, inset 0 0 0 7px #ffffff, inset 0 0 0 100vmax color-mix(in srgb, #1d6fd0 40%, transparent); }
+  .sq.hl-4 { box-shadow: inset 0 0 0 5px #ffd23f, inset 0 0 0 7px #14110d, inset 0 0 0 100vmax color-mix(in srgb, #ffd23f 45%, transparent); }
+  /* One column per file, so a letter sits under its own file rather than
+     roughly near it. space-between gets the ends right and everything
+     between them wrong. */
+  .coords { display: grid; grid-template-columns: repeat(8, 1fr); max-width: 520px; padding: 3px 0 0; font-size: 10px; color: var(--ink-faint); letter-spacing: .1em; }
+  .coords span { text-align: center; }
+
+  .panel { border: 2px solid var(--line); background: var(--panel); box-shadow: var(--shadow); padding: 14px; }
+  .panel + .panel { margin-top: 16px; }
+  .panel h2 { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin: 0 0 10px; font-weight: 700; }
+
+  .btn {
+    border: 2px solid var(--line); background: var(--panel); color: var(--ink);
+    padding: 8px 12px; font-size: 12px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; cursor: pointer; box-shadow: var(--shadow-sm);
+    transition: transform .08s, box-shadow .08s;
+  }
+  .btn:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0 0 var(--line); }
+  .btn:active { transform: translate(2px, 2px); box-shadow: none; }
+  .btn[disabled] { opacity: .4; cursor: not-allowed; transform: none; box-shadow: var(--shadow-sm); }
+  .btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--line); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .rungs { display: grid; gap: 8px; }
+  .rung { display: flex; gap: 10px; border: 2px solid var(--line); background: var(--panel); padding: 10px; cursor: pointer; text-align: left; }
+  .rung.on { background: var(--accent-tint); }
+  .rung input { margin: 3px 0 0; accent-color: var(--accent); flex: none; }
+  .rung b { display: block; font-size: 13px; }
+  .rung span { display: block; font-size: 12px; color: var(--ink-soft); line-height: 1.45; }
+
+  .status { border: 2px solid var(--line); background: var(--sunk); padding: 10px 12px; font-size: 13px; }
+  .status.over { background: var(--accent-tint); }
+  /* The coach's own voice: a mark-yellow rule, the colour that means "pending"
+     here and is never a fill behind text. */
+  .status.teach { border-left: 6px solid var(--mark); }
+  .status b { font-family: var(--display); font-weight: 400; text-transform: uppercase; display: block; font-size: 15px; }
+
+  .moves { max-height: 220px; overflow-y: auto; font-size: 13px; }
+  .moves ol { margin: 0; padding: 0; list-style: none; }
+  .moves li { display: grid; grid-template-columns: 2.4rem 1fr 1fr; gap: 8px; padding: 3px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 15%, transparent); font-variant-numeric: tabular-nums; }
+  .moves li:last-child { border-bottom: 0; }
+  /* The empty-state sentence is one cell, not three: as a grid row it split
+     "No moves yet" one word per column. */
+  .moves li.empty { display: block; }
+  .moves .n { color: var(--ink-faint); }
+
+  .readout { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 12px; }
+  .readout div { border: 2px solid var(--line); background: var(--sunk); padding: 8px; }
+  .readout .k { display: block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); }
+  .readout .v { font-family: var(--display); font-size: 18px; font-variant-numeric: tabular-nums; }
+
+  .note { font-size: 12px; color: var(--ink-faint); line-height: 1.5; margin: 10px 0 0; }
+  .note strong { color: var(--ink-soft); }
+
+  .promo { position: fixed; inset: 0; background: color-mix(in srgb, var(--page) 88%, transparent); display: flex; align-items: center; justify-content: center; z-index: 40; }
+  .promo div { border: 2px solid var(--line); background: var(--panel); box-shadow: var(--shadow); padding: 10px; display: flex; gap: 6px; }
+  .promo button { border: 2px solid var(--line); background: var(--sunk); font-size: 30px; padding: 6px 12px; cursor: pointer; line-height: 1; }
+  .promo button:hover { background: var(--accent); }
+
+  footer { margin-top: 28px; border-top: 2px solid var(--line); padding-top: 12px; font-size: 11px; color: var(--ink-faint); }
+
+  /* ── the app shell ─────────────────────────────────────────────────── */
+  .tabs { display: flex; gap: 6px; overflow-x: auto; margin-top: 14px; padding-bottom: 2px; }
+  .tab {
+    flex: none; border: 2px solid var(--line); background: var(--panel); color: var(--ink-soft);
+    padding: 6px 11px; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    cursor: pointer;
+  }
+  .tab.on { background: var(--accent); color: var(--on-accent); }
+
+  .lede { color: var(--ink-soft); max-width: 62ch; margin: 0 0 16px; }
+  section { animation: none; }
+  h2 { font-family: var(--display); font-weight: 400; font-size: 15px; text-transform: uppercase; letter-spacing: .02em; margin: 0 0 10px; }
+  h3 { font-size: 13px; font-weight: 700; margin: 0 0 8px; }
+  h4 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); margin: 12px 0 6px; }
+
+  /* ── today ─────────────────────────────────────────────────────────── */
+  .tasks { display: grid; gap: 12px; margin-bottom: 16px; }
+  .task {
+    display: grid; gap: 3px; text-align: left; width: 100%;
+    border: 2px solid var(--line); background: var(--panel); box-shadow: var(--shadow);
+    padding: 14px; cursor: pointer; color: var(--ink);
+    transition: transform .08s, box-shadow .08s;
+  }
+  .task:hover { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--line); }
+  .task-kind { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+  .task-title { font-size: 15px; font-weight: 700; }
+  .task-note { font-size: 12px; color: var(--ink-soft); line-height: 1.45; }
+  .task-go { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-top: 4px; }
+
+  .record { display: grid; gap: 0; }
+  .record-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 15%, transparent); font-size: 13px; }
+  .record-row:last-child { border-bottom: 0; }
+  .record-band { color: var(--ink-soft); }
+  .record-score { font-variant-numeric: tabular-nums; font-weight: 700; }
+
+  /* ── forms ─────────────────────────────────────────────────────────── */
+  .field { display: grid; gap: 4px; margin-bottom: 10px; }
+  .field > span { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
+  select, input[type="text"], textarea {
+    border: 2px solid var(--line); background: var(--panel); color: var(--ink);
+    padding: 8px 10px; font: inherit; font-size: 14px; width: 100%;
+  }
+  textarea { resize: vertical; font-size: 13px; line-height: 1.5; }
+  .fields { display: grid; gap: 10px; margin-top: 12px; }
+  @media (min-width: 620px) { .fields { grid-template-columns: repeat(3, 1fr); } }
+
+  .caution { border-left: 6px solid var(--accent); background: var(--accent-tint); padding: 8px 10px; }
+
+  /* ── openings ──────────────────────────────────────────────────────── */
+  .method summary { cursor: pointer; list-style: none; }
+  .method summary::-webkit-details-marker { display: none; }
+  .method summary h2 { display: inline; }
+  .method summary::after { content: " ▾"; color: var(--accent); }
+  .method[open] summary::after { content: " ▴"; }
+  .method p { max-width: 66ch; }
+  .method-steps { max-width: 66ch; padding-left: 20px; }
+  .method-steps li { margin-bottom: 9px; line-height: 1.55; }
+  .method-steps li::marker { color: var(--accent); font-weight: 700; }
+
+  .group { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin: 16px 0 8px; }
+  .opening-grid { display: grid; gap: 12px; }
+  @media (min-width: 720px) { .opening-grid { grid-template-columns: 1fr 1fr; } }
+  .opening { border: 2px solid var(--line); background: var(--panel); box-shadow: var(--shadow); padding: 13px; display: grid; gap: 7px; align-content: start; }
+  .opening.due { border-color: var(--accent); }
+  .opening-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .opening-name { font-weight: 700; font-size: 15px; }
+  .opening-eco { font-size: 11px; color: var(--ink-faint); letter-spacing: .08em; }
+  .opening-plan { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; margin: 0; }
+  .opening-state { font-size: 11px; color: var(--ink-faint); margin: 0; }
+
+  .idea-who { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin: 10px 0 4px; }
+  .idea { font-size: 14px; line-height: 1.6; margin: 0; }
+  .prompt { border: 2px solid var(--line); background: var(--sunk); padding: 9px 11px; font-size: 13.5px; margin: 10px 0 0; }
+
+  /* ── review ────────────────────────────────────────────────────────── */
+  .how { margin: 8px 0 12px; font-size: 12.5px; color: var(--ink-soft); }
+  .how summary { cursor: pointer; font-weight: 700; color: var(--ink); }
+  .how p { margin: 8px 0; max-width: 64ch; }
+  .progress { border: 2px solid var(--line); height: 14px; margin-top: 8px; background: var(--sunk); }
+  .progress span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .12s linear; }
+
+  .mistake {
+    display: grid; grid-template-columns: 6.5rem auto; gap: 2px 10px; width: 100%; text-align: left;
+    border: 0; border-bottom: 2px solid var(--line); background: transparent; color: var(--ink);
+    padding: 9px 0; cursor: pointer;
+  }
+  .mistake:hover { background: var(--sunk); }
+  .mistake-move { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .mistake-sev { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; }
+  /* Three tiers, tellable apart without colour too: the glyph carries it. */
+  .mistake.blunder .mistake-sev { color: var(--accent); font-weight: 800; }
+  .mistake.blunder .mistake-sev::before { content: "?? "; }
+  .mistake.mistake .mistake-sev { color: var(--accent); font-weight: 600; }
+  .mistake.mistake .mistake-sev::before { content: "? "; }
+  .mistake.inaccuracy .mistake-sev { color: var(--ink-faint); }
+  .mistake.inaccuracy .mistake-sev::before { content: "?! "; }
+  .mistake-note { grid-column: 2; font-size: 12px; color: var(--ink-soft); }
+  /* What kind of mistake it was, under what it cost. Two adjacent rows must be
+     tellable apart by what they SAY, and the cost alone does not do that. */
+  .mistake-why { grid-column: 2; font-size: 12px; color: var(--ink); }
+
+  /* ── progress ──────────────────────────────────────────────────────── */
+  .bars { display: grid; gap: 7px; }
+  .bar-row { display: grid; grid-template-columns: 5.5rem 1fr 2rem; gap: 9px; align-items: center; font-size: 12px; }
+  .bar-label { text-transform: capitalize; color: var(--ink-soft); }
+  .bar { border: 2px solid var(--line); height: 15px; background: var(--sunk); }
+  .bar-fill { display: block; height: 100%; background: var(--accent); }
+  .bar-fill.inaccuracy { background: var(--ink-faint); }
+  .bar-count { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+
+  .after { border-top: 2px solid var(--line); margin-top: 12px; padding-top: 10px; }
+  .empty { color: var(--ink-faint); }
+
+
+  /* ── board themes ──────────────────────────────────────────────────── */
+  /* Declared AFTER the theme blocks so they outrank them at equal
+     specificity: a chosen board is the same in daylight and at night, which
+     is the point of choosing one. Vermilion (no attribute) is the identity
+     and still follows the theme. */
+  :root[data-board="walnut"] { --board-light: #f0d9b5; --board-dark: #b58863; }
+  :root[data-board="green"]  { --board-light: #eeeed2; --board-dark: #769656; }
+  :root[data-board="slate"]  { --board-light: #dee3e6; --board-dark: #8ca2ad; }
+  :root[data-board="ink"]    { --board-light: #e7e2d5; --board-dark: #4d463c; }
+  :root[data-board="sand"]   { --board-light: #f5f0dc; --board-dark: #c9a86a; }
+
+  /* ── piece styles ──────────────────────────────────────────────────── */
+  /* CLASSIC: Unicode's own two sets — outline for White, solid for Black —
+     drawn in ink with a light halo so the outline survives a dark square. */
+  :root[data-pieces="classic"] .piece.w,
+  :root[data-pieces="classic"] .piece.b {
+    color: var(--piece-dark);
+    -webkit-text-stroke: 0.045em var(--piece-dark);
+    paint-order: stroke fill;
+    text-shadow: 0 0 2px var(--piece-edge-on-dark), 0 0 2px var(--piece-edge-on-dark), 0 0 1px var(--piece-edge-on-dark);
+  }
+  /* LETTERS: a tile with the piece's letter — the style that reads at the
+     smallest size, and the one a beginner can name without knowing the
+     glyphs. Square, like everything else here. */
+  :root[data-pieces="letters"] .piece {
+    font-family: var(--display); font-size: 5.6cqw; width: 66%; height: 66%;
+    display: flex; align-items: center; justify-content: center;
+    text-shadow: none; border: 2px solid #14110d; box-shadow: 2px 2px 0 0 rgba(20,17,13,.55);
+  }
+  :root[data-pieces="letters"] .piece.w { background: #fbfaf7; color: #14110d; }
+  :root[data-pieces="letters"] .piece.b { background: #14110d; color: #fbfaf7; border-color: #fbfaf7; }
+  .promo :root[data-pieces="letters"] .piece, :root[data-pieces="letters"] .promo .piece { font-size: 20px; width: 44px; height: 44px; }
+
+  :root[data-coords="off"] .coords { visibility: hidden; }
+
+  /* Pieces marked as hanging (attacked and undefended). A ring, not a fill,
+     so the piece under it stays legible — and INK DASHES WITH A WHITE INSET,
+     not the accent: the accent IS the vermilion dark square, so an accent ring
+     measured 1.00:1 against it in daylight and 1.83:1 at night, and only its
+     1px white edge was ever visible. Ink on the vermilion square is 4.7:1 and
+     on the night board's 3.3:1; the white inset carries it on the ink board.
+     The dash is what tells it from the check ring, which is solid. */
+  .sq.hang::after {
+    content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+    border: 4px dashed #14110d; box-shadow: inset 0 0 0 2px #ffffff, 0 0 0 1px #ffffff;
+  }
+  /* A user's own arrow: chess.com's orange-ish, distinct from the three that
+     carry a meaning, so a note he drew is never mistaken for a verdict. */
+  .arrow-user { stroke: #f0a020; }
+  .arrow-user.arrow-head { fill: #f0a020; stroke: none; }
+  .legend .k-threat { background: var(--threat); }
+  .legend .k-user { background: #f0a020; }
+
+  /* ── eval bar ──────────────────────────────────────────────────────── */
+  /* Vertical, chess.com style: the white share grows from the bottom when
+     White is on the near side. Ink and bone, not a colour, so it cannot be
+     confused with any mark on the board. */
+  .board-with-bar { display: flex; gap: 10px; align-items: flex-start; }
+  .board-with-bar > .board-host { flex: 1 1 auto; min-width: 0; }
+  .evalbar {
+    flex: none; width: 18px; align-self: stretch; border: 2px solid var(--line); box-shadow: var(--shadow-sm);
+    background: #14110d; position: relative; overflow: hidden; margin-bottom: 18.5px;
+  }
+  .evalbar-white { position: absolute; left: 0; right: 0; bottom: 0; background: #fbfaf7; height: 50%; transition: height .3s ease; }
+  .evalbar.flipped .evalbar-white { bottom: auto; top: 0; }
+  .evalbar-label {
+    position: absolute; left: 0; right: 0; text-align: center; font-size: 9px; font-weight: 700;
+    letter-spacing: 0; line-height: 1; padding: 2px 0; font-variant-numeric: tabular-nums; writing-mode: vertical-rl; transform: rotate(180deg);
+  }
+  .evalbar-label.top { top: 4px; color: #fbfaf7; }
+  .evalbar-label.bottom { bottom: 4px; color: #14110d; }
+  .evalbar.flipped .evalbar-label.top { color: #14110d; }
+  .evalbar.flipped .evalbar-label.bottom { color: #fbfaf7; }
+
+  /* ── practice board ─────────────────────────────────────────────────── */
+  .lines { display: grid; gap: 6px; font-size: 12.5px; }
+  .line-row { display: grid; grid-template-columns: 3.6rem 1fr; gap: 8px; border: 2px solid var(--line); background: var(--sunk); padding: 6px 8px; text-align: left; cursor: pointer; color: var(--ink); }
+  .line-row:hover { background: var(--accent-tint); }
+  .line-score { font-family: var(--display); font-variant-numeric: tabular-nums; }
+  .line-moves { color: var(--ink-soft); overflow-wrap: anywhere; }
+  .line-row.top .line-score { color: var(--good); }
+  .toggles { display: grid; gap: 6px; margin-top: 10px; }
+  .toggle { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; cursor: pointer; }
+  .toggle input { margin: 3px 0 0; accent-color: var(--accent); flex: none; }
+  .toggle small { display: block; color: var(--ink-faint); font-size: 11px; }
+  .fen { font-family: var(--mono); font-size: 11px; }
+  .movelist { display: flex; flex-wrap: wrap; gap: 4px; font-size: 12.5px; max-height: 240px; overflow-y: auto; }
+  .movelist .mn { color: var(--ink-faint); padding: 3px 2px 3px 6px; font-variant-numeric: tabular-nums; }
+  .movelist .mv { border: 2px solid transparent; background: transparent; padding: 3px 6px; cursor: pointer; color: var(--ink); font: inherit; font-variant-numeric: tabular-nums; }
+  .movelist .mv:hover { border-color: var(--line); }
+  .movelist .mv.on { background: var(--accent); color: var(--on-accent); border-color: var(--line); }
+  .movelist .mv.mine { font-weight: 700; }
+  /* Classification glyphs, chess.com style but with this app's three tiers
+     plus "best" and "mate" — carried by a glyph, so no colour is needed. */
+  .movelist .mv[data-class="best"]::after { content: " ★"; color: var(--good); font-size: 10px; }
+  .movelist .mv[data-class="inaccuracy"]::after { content: " ?!"; color: var(--ink-faint); font-weight: 700; }
+  .movelist .mv[data-class="mistake"]::after { content: " ?"; color: var(--accent); font-weight: 700; }
+  .movelist .mv[data-class="blunder"]::after { content: " ??"; color: var(--accent); font-weight: 800; }
+  .movelist .mv[data-class="missed_mate"]::after,
+  .movelist .mv[data-class="allowed_mate"]::after { content: " #?"; color: var(--accent); font-weight: 800; }
+  .movelist .mv.on::after { color: var(--on-accent); }
+
+  /* ── opening move chips and tooltips ──────────────────────────────── */
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0 0; }
+  .chip {
+    position: relative; border: 2px solid var(--line); background: var(--panel); color: var(--ink);
+    padding: 4px 8px; font: inherit; font-size: 12.5px; cursor: pointer; font-variant-numeric: tabular-nums;
+  }
+  .chip.mine { font-weight: 700; }
+  .chip.on { background: var(--accent); color: var(--on-accent); }
+  .chip.todo { opacity: .45; }
+  .chip .mn { color: inherit; opacity: .6; margin-right: 3px; font-size: 11px; }
+  /* The popover is one element, moved under whichever chip is hovered or
+     focused — a tooltip per chip would be forty hidden boxes. */
+  .tip {
+    position: absolute; z-index: 30; max-width: min(320px, 92vw); border: 2px solid var(--line);
+    background: var(--panel); color: var(--ink); box-shadow: var(--shadow); padding: 8px 10px; font-size: 12.5px; line-height: 1.5;
+  }
+  .tip b { display: block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-bottom: 2px; }
+  .branches { display: grid; gap: 6px; margin-top: 8px; }
+  .branch { display: grid; gap: 2px; border: 2px solid var(--line); background: var(--panel); padding: 8px 10px; text-align: left; cursor: pointer; color: var(--ink); font: inherit; }
+  .branch.on { background: var(--accent-tint); border-color: var(--accent); }
+  .branch b { font-size: 12.5px; }
+  .branch span { font-size: 11.5px; color: var(--ink-soft); }
+  .branch small { font-size: 10.5px; color: var(--ink-faint); letter-spacing: .06em; text-transform: uppercase; }
+
+  /* ── clocks ─────────────────────────────────────────────────────────── */
+  .clocks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; max-width: 520px; }
+  .clock { border: 2px solid var(--line); background: var(--panel); box-shadow: var(--shadow-sm); padding: 6px 10px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .clock .k { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
+  .clock b { font-family: var(--display); font-size: 20px; font-variant-numeric: tabular-nums; }
+  /* Whose clock is running is carried by the FILL, not by a colour alone — the
+     running side is the one that looks pressed in. */
+  .clock.running { background: var(--sunk); border-color: var(--accent); }
+  .clock.low b { color: var(--accent); }
+
+  /* ── the game's curve ───────────────────────────────────────────────── */
+  .curve-frame { border: 2px solid var(--line); background: var(--sunk); box-shadow: var(--shadow-sm); }
+  .curve { display: block; width: 100%; height: 120px; }
+  /* Ink against the ground, not a colour: this is one series, and a hue here
+     would collide with the arrows' vocabulary for no gain. */
+  .curve-fill { fill: color-mix(in srgb, var(--ink) 16%, transparent); stroke: none; }
+  .curve-line { fill: none; stroke: var(--ink); stroke-width: 1.4; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+  .curve-mid { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 4 4; opacity: .5; }
+  .curve-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 0.5; vector-effect: non-scaling-stroke; }
+
+  /* ── the coach ──────────────────────────────────────────────────────── */
+  .coach-log { max-height: 320px; overflow-y: auto; display: grid; gap: 10px; }
+  .coach-you {
+    border-left: 6px solid var(--accent); background: var(--accent-tint); padding: 7px 10px;
+    margin: 0; font-size: 13px; font-weight: 700;
+  }
+  .coach-answer { font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; }
+  /* A playable line is a button; a line that would not replay is marked as
+     text, never quietly dropped and never a button that plays something else. */
+  .coach-line {
+    border: 2px solid var(--line); background: var(--sunk); color: var(--ink);
+    font: inherit; font-size: 12.5px; font-weight: 700; padding: 1px 6px; cursor: pointer;
+    box-shadow: var(--shadow-sm); margin: 0 1px;
+  }
+  .coach-line:hover { background: var(--accent); color: var(--on-accent); }
+  .coach-bad { text-decoration: underline wavy var(--accent); }
+
+  /* ── puzzles ───────────────────────────────────────────────────────── */
+  .puzzle-row {
+    display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; width: 100%; text-align: left;
+    border: 0; border-bottom: 2px solid var(--line); background: transparent; color: var(--ink);
+    padding: 9px 0; cursor: pointer; font: inherit;
+  }
+  .puzzle-row:hover { background: var(--sunk); }
+  .puzzle-when { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .puzzle-note { grid-column: 1 / -1; font-size: 12px; color: var(--ink-soft); }
+  .puzzle-flag { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: var(--ink-faint); }
+  /* Told apart by the word, not by the colour — the colour is a second copy
+     of the same fact for whoever can see it. */
+  .puzzle-flag.found { color: var(--good); }
+  .puzzle-flag.missed { color: var(--accent); }
+  .btn.danger { background: var(--accent); color: var(--on-accent); }
+
+  /* ── settings ──────────────────────────────────────────────────────── */
+  .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+  .swatch { display: grid; gap: 4px; border: 2px solid var(--line); background: var(--panel); padding: 6px; cursor: pointer; color: var(--ink); font: inherit; font-size: 11px; text-align: center; box-shadow: var(--shadow-sm); }
+  .swatch.on { outline: 3px solid var(--mark); outline-offset: 1px; }
+  .swatch i { display: grid; grid-template-columns: 1fr 1fr; width: 44px; height: 44px; }
+  .swatch i b { display: block; }
+  .swatch i b:nth-child(1), .swatch i b:nth-child(4) { background: var(--sw-light); }
+  .swatch i b:nth-child(2), .swatch i b:nth-child(3) { background: var(--sw-dark); }
+  .style-pick { display: grid; gap: 8px; }
+  @media (min-width: 620px) { .style-pick { grid-template-columns: repeat(3, 1fr); } }
+  .style-card { border: 2px solid var(--line); background: var(--panel); padding: 8px; cursor: pointer; color: var(--ink); font: inherit; text-align: left; display: grid; gap: 6px; box-shadow: var(--shadow-sm); }
+  .style-card.on { background: var(--accent-tint); border-color: var(--accent); }
+  .style-card b { font-size: 12.5px; }
+  .style-card .mini { width: 100%; max-width: 160px; }
+  .style-card .mini .board-frame { box-shadow: none; }
+  .install { display: grid; gap: 6px; font-size: 12.5px; }
+  .install p { margin: 0; }
+  .kbd { border: 1px solid var(--line); padding: 0 4px; font-size: 11px; }
+  .gear { margin-left: auto; }
+
+  [hidden] { display: none !important; }
+</style>

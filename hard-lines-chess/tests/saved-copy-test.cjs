@@ -1,0 +1,24 @@
+const { launch, app, serve, DIST } = require('./browser.cjs');
+(async () => {
+  const browser = await launch();
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
+  const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('file://' + require('path').join(__dirname, 'output', 'downloaded-copy.html'));
+  await page.waitForSelector('#tab-today', { timeout: 15000 });
+  console.log('tabs            ', (await page.locator('.tab').allInnerTexts()).join('|'));
+  console.log('download row    ', await page.locator('#downloadRow').isHidden() ? 'hidden (correct)' : 'VISIBLE');
+  console.log('note            ', await page.locator('#downloadNote').innerText());
+  console.log('panel visible   ', await page.locator('#downloadWrap').isVisible());
+  await page.click('#tab-play'); await page.waitForTimeout(200);
+  await page.click('#playBoard .sq[aria-label="e2"]'); await page.click('#playBoard .sq[aria-label="e4"]');
+  await page.waitForTimeout(1800);
+  console.log('plays a game    ', (await page.locator('#playMoves').innerText()).replace(/\s+/g, ' '));
+  await page.click('#tab-openings');
+  console.log('openings        ', await page.locator('.opening').count());
+  await page.click('#tab-puzzles');
+  console.log('puzzles tab     ', (await page.locator('#puzzleEmpty').innerText()).slice(0, 60));
+  const charset = await page.evaluate(() => document.characterSet + ' | ' + (document.querySelector('.note')?.textContent.includes('â') ? 'MOJIBAKE' : 'clean text'));
+  console.log('encoding        ', charset);
+  console.log(errors.length ? 'ERRORS ' + errors.join('|') : 'no page errors');
+  await browser.close();
+})();

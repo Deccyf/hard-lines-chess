@@ -1,0 +1,30 @@
+const { launch, app, serve, DIST } = require('./browser.cjs');
+(async () => {
+  const srv8211 = serve(DIST, 8211); await srv8211.ready;
+  const browser = await launch();
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  const say = (k, v) => console.log(String(k).padEnd(28), v);
+  const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('http://127.0.0.1:8211/hard-lines-chess-app.html');
+  await page.waitForSelector('#tab-today', { timeout: 20000 });
+  await page.waitForTimeout(600);
+  say('link injected', await page.evaluate(() => document.querySelector('link[rel=manifest]')?.href.slice(0, 12) ?? 'NONE'));
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send('Page.enable');
+  const m = await cdp.send('Page.getAppManifest');
+  say('manifest fetched', m.url ? m.url.slice(0, 20) + '…' : 'NONE');
+  say('manifest errors', JSON.stringify(m.errors));
+  const parsed = m.data ? JSON.parse(m.data) : null;
+  say('name / display', parsed ? `${parsed.name} / ${parsed.display}` : 'NOT PARSED');
+  say('icons', parsed ? parsed.icons.length + ' (' + parsed.icons[0].src.slice(0, 22) + '…)' : '-');
+  say('start_url absolute', parsed ? parsed.start_url : '-');
+  try { say('installability', JSON.stringify((await cdp.send('Page.getInstallabilityErrors')).installabilityErrors)); } catch (e) { say('installability', 'n/a'); }
+  say('sw registered', await page.evaluate(async () => { const r = await navigator.serviceWorker.getRegistration(); return r ? 'yes' : 'no (expected: no sw.js beside a single file)'; }));
+  say('install row shown', await page.locator('#installRow').isHidden() ? 'hidden' : 'visible');
+  say('install note', (await page.locator('#installNote').innerText()) || '(empty)');
+  say('download row', await page.locator('#downloadRow').isHidden() ? 'hidden' : 'visible');
+  console.log(errors.length ? 'ERRORS ' + errors.join(' | ') : 'no page errors');
+  srv8211.stop();
+  await browser.close();
+})().catch((e) => { console.error('FAILED', e.message); process.exit(1); });

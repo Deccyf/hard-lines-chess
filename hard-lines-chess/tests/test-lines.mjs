@@ -1,0 +1,12 @@
+import { Board, moveToUci } from '../src/engine/core.js';
+import { Engine } from '../src/engine/search.js';
+const e = new Engine();
+const b = new Board('r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3');
+const r = e.search(b, { movetime: 400, maxDepth: 8, lines: 3 });
+console.log('best', moveToUci(r.move), r.score, 'depth', r.depth);
+console.log(r.lines.map(l => moveToUci(l.move) + ':' + l.score).join('  '));
+if (r.lines.length !== 3 || r.lines[0].move !== r.move) throw new Error('lines wrong');
+if (!(r.lines[0].score >= r.lines[1].score && r.lines[1].score >= r.lines[2].score)) throw new Error('not sorted');
+const r1 = e.search(b, { movetime: 400, maxDepth: 8 });
+console.log('single', moveToUci(r1.move), r1.score, r1.lines.length);
+console.log('ok');

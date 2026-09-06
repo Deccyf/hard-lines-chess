@@ -1,0 +1,507 @@
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      <h1>Hard Lines Chess</h1>
+    </div>
+    <nav class="tabs" id="tabs" aria-label="Sections"></nav>
+  </header>
+
+  <!-- TODAY -->
+  <section id="section-today">
+    <p class="lede">What is worth doing right now. A row only appears when there is something to act on.</p>
+    <div id="todayList" class="tasks"></div>
+    <div id="todayRecord" class="panel"></div>
+    <div class="panel">
+      <h3>Where your progress is kept</h3>
+      <p class="note" id="storeNote">Checking…</p>
+    </div>
+    <div class="panel" id="downloadWrap">
+      <h3 id="downloadTitle">Take it with you</h3>
+      <p class="note" style="margin:0" id="downloadBlurb">The whole app is one file, and it works with no connection once
+        it has loaded. Save a copy and it opens from your Files app, a USB stick or a desktop, with no server at all.
+        Your progress in that copy is kept by the browser you open it in.</p>
+      <div class="row" style="margin-top:10px" id="installRow" hidden><button class="btn primary" id="installApp" type="button">Install as an app</button></div>
+      <p class="note" id="installNote"></p>
+      <div class="row" style="margin-top:10px" id="downloadRow"><button class="btn" id="downloadApp" type="button">Save a copy of the app</button></div>
+      <p class="note" id="downloadNote"></p>
+    </div>
+  </section>
+
+  <!-- PLAY -->
+  <section id="section-play" hidden>
+    <div class="layout">
+      <div>
+        <div class="clocks" id="playClocks" hidden>
+          <div class="clock" id="clockTheirsBox"><span class="k">Them</span><b id="clockTheirs">—</b></div>
+          <div class="clock" id="clockMineBox"><span class="k">You</span><b id="clockMine">—</b></div>
+        </div>
+        <div id="playBoard"></div>
+
+        <div class="panel">
+          <div class="status" id="playStatus"><b id="playHead">Your move</b><span id="playBody"></span></div>
+          <div class="row" style="margin-top:12px">
+            <button class="btn" id="playTakeback">Take back</button>
+            <button class="btn" id="playFlip">Flip</button>
+            <button class="btn" id="playResign">Resign</button>
+            <button class="btn primary" id="playNew">New game</button>
+          </div>
+          <div id="teachBox" hidden class="after">
+            <div class="status teach" id="teachStatus"><b id="teachHead">Nothing set</b><span id="teachBody"></span></div>
+            <div id="teachListWrap" hidden style="margin-top:8px"><h4>This game's problems</h4><div class="record" id="teachList"></div></div>
+          </div>
+          <p class="note" id="playFrom" hidden>Playing from a set-up position. This game will be saved but not counted in your record against the band.</p>
+          <div id="playAfter" hidden class="after">
+            <p class="note" id="playAfterText">The game is saved. Its moves are in your record on the Today page.</p>
+            <div class="row" style="margin-top:8px"><button class="btn" id="playAnalyse" type="button">Look at the final position</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="panel">
+          <h2>Opponent</h2>
+          <label class="field">
+            <span>Strength band</span>
+            <select id="bandSelect"></select>
+          </label>
+          <p class="note" id="bandNote"></p>
+          <label class="field" style="margin-top:10px"><span>Clock</span>
+            <select id="timeControl"></select>
+          </label>
+          <label class="toggle" style="margin-top:6px"><input type="checkbox" id="bookToggle" checked><span>Open with moves from your own games<small id="bookNote"></small></span></label>
+          <label class="toggle" style="margin-top:6px"><input type="checkbox" id="teachToggle"><span>Coach sets problems<small>Before your move the coach checks for a trap and warns you if there is one, then says how it went. Two to four a game. These games are not counted in your record.</small></span></label>
+          <p class="note caution">
+            <strong>These numbers are targets, not ratings.</strong> Nothing here has been played against
+            rated humans, so a band is where a setting is aimed, not a strength anyone measured. The three
+            dials above are what actually changes, and they are shown so you can see what you picked.
+          </p>
+          <details class="how">
+            <summary>What was actually measured</summary>
+            <p>Self-play, six games a pair with colours alternated. Band&nbsp;800 beat band&nbsp;0 six times
+              out of six, and band&nbsp;1600 scored 5½/6 against band&nbsp;800. So the ladder does climb.</p>
+            <p>Two things it does <em>not</em> establish. Neighbouring bands were not separated: a
+              hundred-point gap is about a 64% expected score, and no affordable number of games tells that
+              from a coin — so the step between, say, 900 and 1000 is a design choice, not a finding. And the
+              top two bands came out level in that run, because the test capped thinking time at 70ms, which
+              is the very thing that separates them; in ordinary play they get 1800ms and 2400ms.</p>
+            <p>If a band feels wrong for you, it is: move up or down until the games are close, and ignore
+              the number.</p>
+            <p><strong>The strength estimate on a reviewed game</strong> comes from a second measurement
+              (5 September 2026): eight bands from 0 to 2100 each played two games against themselves, and every
+              game was walked by the reviewer at each of its three settings — 96 reviews. Average loss per move
+              falls with the band's number closely enough to fit a line through the logarithm (R² 0.75 to 0.81),
+              up to about 1200. Above that every band looks the same to the reviewer, because they play the moves
+              it would play, so the estimate stops there and says "or above".</p>
+          </details>
+        </div>
+
+        <div class="panel">
+          <h2>Play as</h2>
+          <div class="row">
+            <button class="btn primary" id="asWhite">White</button>
+            <button class="btn" id="asBlack">Black</button>
+          </div>
+          <p class="note">Changing side starts a new game.</p>
+        </div>
+
+        <div class="panel">
+          <h2>Its evaluation</h2>
+          <div class="readout">
+            <div><span class="k">In pawns, from your side</span><span class="v" id="playEval">—</span></div>
+          </div>
+          <p class="note">The engine's own opinion, not a fact about the position. A positive number means it thinks you are better.</p>
+        </div>
+
+        <div class="panel">
+          <h2>Moves</h2>
+          <div class="moves"><ol id="playMoves"></ol></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BOARD -->
+  <section id="section-board" hidden>
+    <div class="layout">
+      <div>
+        <div class="board-with-bar">
+          <div id="practiceEval" aria-label="Evaluation"></div>
+          <div class="board-host"><div id="practiceBoard"></div></div>
+        </div>
+        <div class="legend">
+          <span><i class="k-best"></i> engine's first choice</span>
+          <span><i class="k-user"></i> its other lines · your own arrows</span>
+          <span><i class="k-threat"></i> what they threaten</span>
+        </div>
+        <div class="panel">
+          <div class="status"><b id="practiceTurn">White to move.</b><span>Move either side. Right-click or long-press a square to mark it; right-drag to draw an arrow.</span></div>
+          <div class="row" style="margin-top:12px">
+            <button class="btn primary" id="practiceSuggest" type="button">Suggest a move</button>
+            <button class="btn" id="practiceUndo" type="button">Undo</button>
+            <button class="btn" id="practiceFlip" type="button">Flip</button>
+            <button class="btn" id="practiceReset" type="button">Reset</button>
+            <button class="btn" id="practiceClearMarks" type="button">Clear marks</button>
+          </div>
+          <p class="idea" id="practiceVerdict" style="margin-top:10px"></p>
+          <div class="lines" id="practiceLines"></div>
+        </div>
+      </div>
+      <div>
+        <div class="panel">
+          <h2>Insight</h2>
+          <div class="toggles">
+            <label class="toggle"><input type="checkbox" id="practiceAuto"><span>Analyse after every move<small>The top three lines and the bar, updated as you go. Uses the thinking time set in Settings.</small></span></label>
+            <label class="toggle"><input type="checkbox" id="practiceThreats"><span>Show the threat<small>What the other side would play if it were their move, in blue.</small></span></label>
+            <label class="toggle"><input type="checkbox" id="practiceHanging"><span>Show hanging pieces<small>Anything attacked and not defended at all, ringed with a dashed line.</small></span></label>
+          </div>
+          <p class="note" id="practiceThreatNote"></p>
+          <p class="note" id="practiceHangNote"></p>
+        </div>
+        <div class="panel" id="coachPanel" hidden>
+          <h2>Ask the coach</h2>
+          <p class="note" style="margin:0 0 8px">Answers are written from what the engine found in <em>this</em> position — the
+            pieces, the evaluation, the top lines, and any move you name, searched on its own. It is not allowed to
+            tell you anything the engine did not find, and it is allowed to say there is no clear reason.</p>
+          <div class="chips" id="coachSuggestions"></div>
+          <div class="coach-log" id="coachLog"></div>
+          <label class="field" style="margin-top:10px"><span>Your question</span>
+            <input id="coachQuestion" type="text" placeholder="why not Qh5? · what is he threatening?">
+          </label>
+          <div class="row">
+            <button class="btn primary" id="coachAsk" type="button">Ask</button>
+            <button class="btn danger" id="coachStop" type="button" hidden>Stop</button>
+            <button class="btn" id="coachBack" type="button" hidden>Back to the position you asked about</button>
+          </div>
+          <p class="note" id="coachStatus"></p>
+        </div>
+        <div class="panel" id="coachAbsent" hidden>
+          <h2>Ask the coach</h2>
+          <p class="note" style="margin:0">The coach needs to reach Claude, and this view cannot. Everything else on this
+            page works without it — the engine, the analysis and the training are all local.</p>
+        </div>
+
+        <div class="panel">
+          <h2>Play it out</h2>
+          <p class="note" style="margin:0 0 10px">Hand this position to the opponent on the Play tab, at the band chosen there. You take the side to move.</p>
+          <button class="btn" id="practicePlay" type="button">Play from here</button>
+        </div>
+        <div class="panel">
+          <h2>Moves</h2>
+          <div class="movelist" id="practiceMoves"></div>
+        </div>
+        <div class="panel">
+          <h2>Position</h2>
+          <label class="field"><span>This position, as FEN</span><input class="fen" id="practiceFen" type="text" readonly></label>
+          <label class="field"><span>Set up a position from FEN</span><input class="fen" id="practiceFenIn" type="text" placeholder="paste a FEN from Chess.com or Lichess"></label>
+          <button class="btn" id="practiceLoad" type="button">Load it</button>
+          <p class="note" id="practiceFenNote"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- OPENINGS -->
+  <section id="section-openings" hidden>
+    <div id="openingBrowse">
+      <details class="panel method" open>
+        <summary><h2>How to actually learn an opening</h2></summary>
+        <p>Most opening study fails the same way: you memorise ten moves, your opponent plays the eleventh
+          differently on move three, and you are on your own with no idea what the position wanted. The fix
+          is not more moves. It is fewer moves and more reasons.</p>
+
+        <ol class="method-steps">
+          <li><strong>Learn one answer to each first move, not five.</strong> You will meet 1.e4 and 1.d4 most
+            of the time. One reply to each, played every game, teaches you the resulting positions faster
+            than a broad repertoire ever will — because you keep landing in them.</li>
+          <li><strong>Know the point of every move before you memorise the order.</strong> If you can say what
+            a move does — takes a square, opens a line, stops an idea — you can find it again when the move
+            order changes. If you only know the sequence, you cannot.</li>
+          <li><strong>Stop at the first position you understand.</strong> Six to ten moves is plenty. Past
+            that you are memorising someone else's preparation for positions you will not reach.</li>
+          <li><strong>Have an answer for the cheap attacks.</strong> Below about 1200 most games are decided
+            by an early raid on f7 or f2, not by theory. Each line here lists what actually goes wrong and
+            what to do about it. That section is worth more than the moves.</li>
+          <li><strong>Test yourself with the board, not the page.</strong> Recognising a move when you see it
+            is not the same as finding it. "Test me" plays the other side and makes you produce the move
+            yourself, then spaces the line out over days so it sticks.</li>
+          <li><strong>Review your own games against it.</strong> When you leave the line, that is the
+            interesting moment. Paste the game into Review and see what the engine wanted at the move where
+            you were on your own.</li>
+        </ol>
+
+        <p class="note">Every line below, and every branch, has been checked move by move against this app's own
+          engine, and none of them leaves you worse than about half a pawn. Where the text counts something —
+          attackers on a square, a piece with one move — the count was made on the board, not from memory.</p>
+      </details>
+
+      <div id="openingList"></div>
+    </div>
+
+    <div id="openingStudy" hidden>
+      <div class="layout">
+        <div>
+          <div id="openingBoard"></div>
+        </div>
+        <div>
+          <div class="panel">
+            <div class="opening-head">
+              <h2 id="openingTitle"></h2>
+              <span class="opening-eco" id="openingMode"></span>
+            </div>
+            <p class="note" id="openingProgress"></p>
+            <div class="chips" id="openingChips" aria-label="The line"></div>
+            <p class="note" style="margin-top:6px">Hover or tap a move to see what it is for.</p>
+            <p class="idea-who" id="openingWho"></p>
+            <p class="idea" id="openingIdea"></p>
+
+            <div id="openingPrompt" hidden>
+              <p class="prompt" id="openingPromptText"></p>
+            </div>
+
+            <div class="row" style="margin-top:12px">
+              <button class="btn primary" id="openingNext" type="button">Next move</button>
+              <button class="btn primary" id="openingTestNow" type="button" hidden>Test me now</button>
+              <button class="btn" id="openingFinish" type="button" hidden>Done</button>
+              <button class="btn" id="openingClose" type="button">Back</button>
+            </div>
+
+            <p class="note" id="openingResult"></p>
+          </div>
+          <div class="panel" id="openingBranches" hidden></div>
+          <div class="panel" id="openingTraps"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REVIEW -->
+  <section id="section-review" hidden>
+    <div class="panel">
+      <h2>Review a game you played</h2>
+      <p class="note">
+        This page cannot reach Chess.com or Lichess directly — it is not allowed to make requests to
+        other sites, so there is no account to connect. Copying the game across takes one tap.
+      </p>
+      <details class="how">
+        <summary>Where to find the PGN</summary>
+        <p><strong>Chess.com:</strong> open the game, then Share, then the PGN tab, then Copy.
+          On the app it is the share icon at the bottom of the board.</p>
+        <p><strong>Lichess:</strong> open the game, scroll to the bottom of the move list, and use the
+          download or clipboard icon under FEN &amp; PGN.</p>
+        <p>Either way, paste the whole thing below, headers and all. If you only have the moves, that works too.</p>
+      </details>
+
+      <textarea id="pgnInput" rows="7" placeholder="Paste the PGN here — headers and moves, or just the moves."></textarea>
+
+      <div class="fields">
+        <label class="field">
+          <span>Your username in that game</span>
+          <input id="reviewName" type="text" placeholder="optional — decides which side is yours">
+        </label>
+        <label class="field">
+          <span>If it cannot tell, you were</span>
+          <select id="reviewSide">
+            <option value="white">White</option>
+            <option value="black">Black</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>How hard to look</span>
+          <select id="reviewDepth">
+            <option value="7">Quick — about 0.1s a move</option>
+            <option value="9" selected>Normal — about 0.3s a move</option>
+            <option value="12">Careful — about 0.7s a move, catches more</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="row">
+        <button class="btn primary" id="reviewRun">Walk the game</button>
+      </div>
+      <p class="note" id="reviewStatus"></p>
+      <div class="progress" id="reviewBar" hidden><span id="reviewFill"></span></div>
+    </div>
+
+    <div id="reviewOut" hidden></div>
+
+    <div class="panel" id="reviewBoardWrap" hidden>
+      <h3>The position</h3>
+      <div class="board-with-bar">
+        <div id="reviewEval" aria-label="Evaluation after the move"></div>
+        <div class="board-host"><div id="reviewBoard"></div></div>
+      </div>
+      <div class="legend">
+        <span><i class="k-played"></i> what was played</span>
+        <span><i class="k-best"></i> what the engine wanted</span>
+      </div>
+      <p class="note" id="reviewBoardNote"></p>
+      <p class="note" id="reviewBoardEval"></p>
+      <p class="idea" id="reviewBoardWhy" hidden></p>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="reviewExplore" type="button">Explore on the board</button>
+        <button class="btn primary" id="reviewAskWhy" type="button" hidden>Ask the coach why</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- PUZZLES -->
+  <section id="section-puzzles" hidden>
+    <div class="panel">
+      <h2>Tactics from your own games</h2>
+      <p class="note" style="margin:0 0 10px">Every one of these is a moment your opponent went wrong in a game you
+        actually played, and exactly one move took it. The engine walks the game, finds where they gave something
+        away, then checks with a second, deeper search that one move is clearly best — a position where two moves
+        win equally is thrown away rather than asked as a puzzle.</p>
+      <p class="note" style="margin:0 0 12px"><strong>Not the same as Drills.</strong> A drill is a position where
+        <em>you</em> went wrong. A puzzle is a chance that was on the board for you.</p>
+      <div id="puzzleHead" hidden></div>
+      <p class="note" id="puzzleCount"></p>
+      <p class="note" id="puzzleEmpty">
+        Nothing here yet. Play a game on the Play tab, or paste one into Review, and the engine will search it for
+        the moments your opponent went wrong.
+      </p>
+      <p class="note" id="puzzleOlder" hidden></p>
+      <div class="row">
+        <button class="btn primary" id="puzzleStart" type="button" hidden>Start</button>
+        <button class="btn" id="puzzleScan" type="button" hidden>Scan games for tactics</button>
+        <button class="btn danger" id="puzzleStop" type="button" hidden>Stop</button>
+      </div>
+      <p class="note" id="puzzleScanNote"></p>
+      <div class="progress" id="puzzleBar" hidden><span id="puzzleFill"></span></div>
+    </div>
+
+    <div id="puzzleBoardWrap" hidden>
+      <div class="layout">
+        <div>
+          <div id="puzzleBoard"></div>
+          <div class="legend" id="puzzleLegend" hidden>
+            <span><i class="k-played"></i> what you tried</span>
+            <span><i class="k-best"></i> the move that wins</span>
+          </div>
+        </div>
+        <div>
+          <div class="panel">
+            <h3>Take it</h3>
+            <p class="prompt" id="puzzlePrompt"></p>
+            <p class="note" id="puzzleWhere"></p>
+            <p class="idea" id="puzzleAnswer"></p>
+            <div class="row">
+              <button class="btn primary" id="puzzleNext" type="button" hidden>Next</button>
+              <button class="btn" id="puzzleExplore" type="button" hidden>Explore on the board</button>
+              <button class="btn" id="puzzleAskWhy" type="button" hidden>Ask the coach why</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="puzzleList"></div>
+  </section>
+
+  <!-- DRILLS -->
+  <section id="section-drills" hidden>
+    <div class="panel">
+      <h2>Your own mistakes, again later</h2>
+      <p class="note" style="margin:0 0 10px">Positions where <em>you</em> went wrong, from games you reviewed. The
+        chances your opponent handed you are on the Puzzles tab instead.</p>
+      <p class="note" id="drillCount"></p>
+      <p class="note" id="drillEmpty">
+        Nothing here yet. Review a game and add its mistakes — then the positions you got wrong come back
+        after a day, then a week, then longer, for as long as you keep getting them right.
+      </p>
+      <div class="row"><button class="btn primary" id="drillStart" hidden>Start</button></div>
+    </div>
+
+    <div id="drillBoardWrap" hidden>
+      <div class="layout">
+        <div>
+          <div id="drillBoard"></div>
+          <div class="legend" id="drillLegend" hidden>
+            <span><i class="k-played"></i> what you tried</span>
+            <span><i class="k-best"></i> what the engine wanted</span>
+          </div>
+        </div>
+        <div>
+          <div class="panel">
+            <h3>Find the move</h3>
+            <p class="prompt" id="drillPrompt"></p>
+            <p class="idea" id="drillAnswer"></p>
+            <div class="row">
+              <button class="btn primary" id="drillNext" hidden>Next</button>
+              <button class="btn" id="drillExplore" type="button" hidden>Explore on the board</button>
+              <button class="btn" id="drillAskWhy" type="button" hidden>Ask the coach why</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROGRESS -->
+  <section id="section-progress" hidden>
+    <p class="lede">What your mistakes have in common, across every game you have reviewed.</p>
+    <div id="progressOut"></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="section-settings" hidden>
+    <div class="layout">
+      <div>
+        <div class="panel">
+          <h2>How it looks</h2>
+          <div id="settingSample" style="max-width:360px"></div>
+          <p class="note" id="settingSampleNote"></p>
+        </div>
+        <div class="panel">
+          <h2>Board</h2>
+          <div class="swatches" id="settingBoards"></div>
+        </div>
+        <div class="panel">
+          <h2>Pieces</h2>
+          <div class="style-pick" id="settingPieces"></div>
+        </div>
+      </div>
+      <div>
+        <div class="panel">
+          <h2>Display</h2>
+          <label class="field"><span>Theme</span>
+            <select id="settingTheme"><option value="system">Follow the device</option><option value="light">Light</option><option value="dark">Dark</option></select>
+          </label>
+          <div class="toggles">
+            <label class="toggle"><input type="checkbox" id="settingDots"><span>Show where a piece can go<small>Dots on the legal squares once a piece is selected.</small></span></label>
+            <label class="toggle"><input type="checkbox" id="settingCoords"><span>Show the file letters under the board</span></label>
+            <label class="toggle"><input type="checkbox" id="settingAnimate"><span>Slide pieces<small>Off, and moves appear at once.</small></span></label>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Marking squares</h2>
+          <label class="field"><span>A long-press on a phone marks a square in</span>
+            <select id="settingLongPress"><option value="1">Red</option><option value="2">Green</option><option value="3">Blue</option><option value="4">Yellow</option></select>
+          </label>
+          <p class="note">With a mouse: right-click for red, shift-right-click green, alt blue, ctrl yellow. Right-drag between two squares for an arrow. A tap on an empty square clears them.</p>
+        </div>
+        <div class="panel">
+          <h2>Engine</h2>
+          <label class="field"><span>Thinking time on the practice board</span>
+            <select id="settingThink"><option value="fast">Fast — 0.3s</option><option value="normal">Normal — 0.9s</option><option value="deep">Deep — 2.5s</option></select>
+          </label>
+          <p class="note">The opponents on the Play tab have their own, fixed by band, and the game review has its own setting on that page.</p>
+        </div>
+        <div class="panel">
+          <button class="btn" id="settingReset" type="button">Back to the defaults</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>Everything on this page runs in your browser: the engine, the analysis, the openings. No account and no
+      server; nothing about your games leaves the device. The only thing fetched from elsewhere is the two
+      fonts, and the page works without them. Companion to the Chess Coach training app.</p>
+  </footer>
+</div>
+
+<div class="promo" id="promo" hidden>
+  <div id="promoChoices"></div>
+</div>
