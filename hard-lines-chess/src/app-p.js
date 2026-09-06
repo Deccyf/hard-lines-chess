@@ -129,8 +129,10 @@ function renderImport() {
   const unreviewed = imported.filter((g) => g.reviewed === false).length;
   const box = $('importState');
   if (!imported.length) { box.textContent = ''; return; }
+  // SAID ONCE. The paragraph below this one already explains what importing is
+  // not; repeating it here put the same sentence on the screen twice.
   box.textContent = `${imported.length} imported ${imported.length === 1 ? 'game' : 'games'} stored`
-    + (unreviewed ? `, ${unreviewed} not yet walked by the engine. Importing is not reviewing: the repertoire report works on them now, and an accuracy needs a review.` : '.');
+    + (unreviewed ? `, ${unreviewed} of them not yet walked by the engine.` : ', all walked.');
 }
 
 // ── walking the imported games ─────────────────────────────────────────────
