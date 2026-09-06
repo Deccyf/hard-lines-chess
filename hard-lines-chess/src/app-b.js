@@ -688,9 +688,10 @@ function renderReviewResult() {
     const panel = el('div', 'panel');
     panel.innerHTML = `<h3>How strong this game looked</h3>
       <div class="readout">
-        <div><span class="k">Estimated strength</span><span class="v">${est.ceilingHit ? `${est.ceiling} or above` : (est.floorHit ? `under ${measuredBands()[0] + est.step}` : `about ${est.elo}`)}</span></div>
+        <div><span class="k">Estimated strength</span><span class="v">${estimateWords(est)}</span></div>
         <div><span class="k">Played like the band</span><span class="v">${est.ceilingHit ? `${est.ceiling}+` : esc(est.band)}</span></div>
       </div>
+      ${est.floorHit && Number.isFinite(est.floorLoss) ? `<p class="note"><strong>Why not a number:</strong> the weakest opponent this app has measured loses about ${(est.floorLoss / 100).toFixed(2)} pawns a move at this setting, and this game lost ${(Review.result.meanLoss / 100).toFixed(2)}. There is nothing below that on the scale — the ladder has no weaker rung to have measured — so this is where the measurement stops, not a statement about how strong you are. The figure gets useful as your loss per move comes down towards ${(est.floorLoss / 100).toFixed(2)}.</p>` : ''}
       ${est.ceilingHit ? `<p class="note"><strong>Why not a number:</strong> above ${est.ceiling} this app's own opponents all look the same to its reviewer — they play the moves it would play, and lose next to nothing — so the measurement cannot separate them, and a figure up there would be invented. Use a slower review setting for a little more range.</p>` : ''}
       <p class="note">Worked out from your average loss per move (${(Review.result.meanLoss / 100).toFixed(2)} pawns)
       by comparing it with games this app's own opponents played against each other, walked by the same reviewer at
@@ -1201,16 +1202,38 @@ function renderProgress() {
     const play = nearestPlayableBand(median);
     const spread = elos.length > 1 ? `${elos[0]}–${elos[elos.length - 1]}` : String(median);
     const atCeiling = rated.filter((g) => g.estimate.ceilingHit).length;
+    // AND THE SAME AT THE OTHER END. A median of 0 is not a strength, it is the
+    // bottom of the measured scale, and printing it bare was the same fault the
+    // per-game rows had.
+    const atFloor = rated.filter((g) => g.estimate.floorHit).length;
+    const floorUnder = measured[0] + step;
+    const middle = atCeiling > rated.length / 2 ? `${median} or above`
+      : (atFloor > rated.length / 2 ? `under ${floorUnder}` : String(median));
+    const say = (elo) => (elo <= measured[0] ? `under ${floorUnder}` : String(elo));
+    // "they ranged under 300 to under 300" is a range of one thing said twice.
+    const low = say(elos[0]), high = say(elos[elos.length - 1]);
+    const range = low === high ? `all ${low}` : `${low} to ${high}`;
     const panel = el('div', 'panel');
     panel.innerHTML = `<h3>How strong your games look</h3>
       <div class="readout">
-        <div><span class="k">Middle of your last ${rated.length}</span><span class="v">${atCeiling > rated.length / 2 ? `${median} or above` : median}</span></div>
+        <div><span class="k">Middle of your last ${rated.length}</span><span class="v">${middle}</span></div>
         <div><span class="k">Played like the band</span><span class="v">${esc(measuredBandLabel(measuredIndex, measured))}</span></div>
       </div>
-      <p class="note">The middle value of the per-game estimates from your last ${rated.length} reviewed ${rated.length === 1 ? 'game' : 'games'} (they ranged ${spread}). Each one compares your average loss per move with this app's own ladder, whose numbers are targets rather than measured ratings — so this says which band your recent games resemble, and nothing about your rating anywhere else. The band named is one the calibration actually played, measured at ${step}-point steps; the button below picks the nearest rung the ladder offers, the ${esc(play.label)} band.</p>`;
-    const go = el('button', 'btn', `Play the ${play.label} band`);
-    go.addEventListener('click', () => { Play.band = BANDS[play.index]; renderBandPicker(); show('play'); newPlayGame(); });
-    panel.appendChild(go);
+      ${atFloor > rated.length / 2 && Number.isFinite(rated[rated.length - 1].estimate?.floorLoss) ? `<p class="note"><strong>The scale has run out below you, which is not the same as a low number.</strong> ${atFloor} of these ${rated.length} games lost more per move than the weakest opponent this app has ever measured — about ${(rated[rated.length - 1].estimate.floorLoss / 100).toFixed(2)} pawns a move. The ladder has no weaker rung, so there is nothing to compare them against and the figure cannot separate them. Mistakes a game, above, is the measure that still works here.</p>` : ''}
+      <p class="note">The middle value of the per-game estimates from your last ${rated.length} reviewed ${rated.length === 1 ? 'game' : 'games'} (they ranged ${range}). Each one compares your average loss per move with this app's own ladder, whose numbers are targets rather than measured ratings — so this says which band your recent games resemble, and nothing about your rating anywhere else. The band named is one the calibration actually played, measured at ${step}-point steps${atFloor > rated.length / 2 ? '' : `; the button below picks the nearest rung the ladder offers, the ${esc(play.label)} band`}.</p>`;
+    // NO BAND BUTTON OFF A FLOORED ESTIMATE. The nearest rung to an estimate
+    // pinned at the bottom is the weakest band there is — an opponent that
+    // plays a random move three times in five — and offering that to somebody
+    // whose games the scale simply could not measure is the app acting on a
+    // number it has just finished explaining it does not have. The record of
+    // what you have actually beaten is a measurement; this is not.
+    if (atFloor > rated.length / 2) {
+      panel.appendChild(el('p', 'note', 'No band is suggested from this. The nearest rung to a floored estimate is the weakest opponent on the ladder, which is not what these games say you should be playing — pick the band by your record against it on the Today page, where the wins and losses are real.'));
+    } else {
+      const go = el('button', 'btn', `Play the ${play.label} band`);
+      go.addEventListener('click', () => { Play.band = BANDS[play.index]; renderBandPicker(); show('play'); newPlayGame(); });
+      panel.appendChild(go);
+    }
     box.appendChild(panel);
   }
 
@@ -1293,7 +1316,7 @@ function renderProgress() {
   for (const g of [...games].reverse().slice(0, 12)) {
     const row = el('div', 'record-row');
     row.innerHTML = `<span class="record-band">${esc(g.white)} vs ${esc(g.black)}</span>
-      <span class="record-score">${(g.mistakes ?? []).length} found · ${Number.isFinite(g.accuracy) ? `${g.accuracy}%` : 'too short to score'}${Number.isFinite(g.estimate?.elo) ? ` · looked like ${g.estimate.ceilingHit ? g.estimate.elo + '+' : g.estimate.elo}` : ''}</span>`;
+      <span class="record-score">${(g.mistakes ?? []).length} found · ${Number.isFinite(g.accuracy) ? `${g.accuracy}%` : 'too short to score'}${estimateWords(g.estimate, { short: true }) ? ` · looked like ${estimateWords(g.estimate, { short: true })}` : ''}</span>`;
     list.appendChild(row);
   }
   recent.appendChild(list);

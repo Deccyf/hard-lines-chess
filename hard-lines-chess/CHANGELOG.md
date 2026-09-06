@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.4.1 — 2026-09-06
+
+### "Looked like 0", and the thing it was hiding
+- **A game below the measured scale said "looked like 0".** estimateRating()
+  clamps to the lowest band the calibration played, which is 0, so a rough game
+  came back as elo 0 and the Progress page printed the number. Read on a phone
+  that is not a strength, it is a missing value. The review panel described the
+  identical estimate correctly as "under 300" — two places turned the same
+  object into words and only one of them knew the floor existed. One function
+  does it now, and all three readouts use it.
+- **And the wording was hiding a real limit.** At the quick setting the weakest
+  opponent this app has ever measured loses about 0.94 pawns a move. A player
+  losing more than that lands below the entire scale, so every one of their
+  games reads the same and the figure separates nothing. That is a fact about
+  the measurement, not about the player, and the panel now says so — quoting
+  the measured figure, which is carried through from the calibration at build
+  time rather than typed into the sentence beside it.
+- **No band is recommended off a floored estimate.** The nearest rung to elo 0
+  is the weakest opponent on the ladder, which plays a random move three times
+  in five. Offering that to somebody whose games the scale could not measure is
+  the app acting on a number it has just finished explaining it does not have.
+  It points at the ladder record instead, where the wins and losses are real.
+- "They ranged under 300 to under 300" is a range of one thing said twice, and
+  now reads "all under 300".
+
 ## 1.4.0 — 2026-09-06
 
 ### Your Chess.com games, brought in

@@ -488,7 +488,35 @@ function estimateRating(meanLoss, depth) {
     play: nearestPlayableBand(elo),
     r2: fit.r2,
     measured: RATING_FIT.measured,
+    // What the weakest and strongest opponents in the calibration actually
+    // lost per move at this setting, so a screen can explain its own limits
+    // with the measurement rather than with an adjective.
+    floorLoss: RATING_FIT.losses?.[String(depth)]?.[String(bands[0])] ?? null,
   };
+}
+
+/**
+ * An estimate as words, because the number on its own is sometimes a lie.
+ *
+ * THE FLOOR OF THE MEASURED SCALE IS ZERO. The calibration played bands from 0
+ * to 2100, so a game worse than anything it measured clamps to elo 0 — and
+ * "looked like 0" on a screen reads as a missing value, not as "below the
+ * weakest opponent this app has measured". It was on the Progress page for
+ * every rough game, next to a review panel that described the identical
+ * estimate correctly as "under 300", because two places turned the same
+ * object into words and only one of them knew about the floor.
+ *
+ * So one place does it now. `short` is for a list row; the long form is for a
+ * readout with room to be a sentence.
+ */
+function estimateWords(estimate, { short = false } = {}) {
+  if (!estimate || !Number.isFinite(estimate.elo)) return null;
+  if (estimate.ceilingHit) return short ? `${estimate.ceiling}+` : `${estimate.ceiling} or above`;
+  if (estimate.floorHit) {
+    const under = measuredBands()[0] + (estimate.step ?? measuredStep(measuredBands()));
+    return `under ${under}`;
+  }
+  return short ? String(estimate.elo) : `about ${estimate.elo}`;
 }
 
 /** The lower bounds of the bands the calibration played, ascending. */
