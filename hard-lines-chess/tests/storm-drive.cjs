@@ -69,11 +69,20 @@ const MATE = { fen: '6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1', uci: 'a1a8', san: 'R
   await page.waitForTimeout(400);
   check('a right move scores', await page.evaluate(() => Storm.solved), 1);
 
-  // Two puzzles, both attempted: the run ends because it runs out.
+  // The queue does not end after the injected two: the starting bank is behind
+  // them, which is the whole point of it. The run is stopped instead.
   await page.waitForTimeout(400);
-  check('the run ends when it runs out', await page.evaluate(() => Storm.running), false);
+  check('the run continues into the bank', await page.evaluate(() => Storm.running), true);
+  check('and the bank is really there', await page.evaluate(() => Storm.queue.length > 2), true);
+  check('the bank position says where it came from',
+    await page.$eval('#stormWhere', (e) => e.textContent).then((t) => t.includes('starting bank')), true);
+
+  await page.evaluate(() => stopStorm());
+  await page.waitForTimeout(300);
+  check('stopping ends the run', await page.evaluate(() => Storm.running), false);
   say('summary', await page.$eval('#stormSummary', (e) => e.textContent));
   check('the best is recorded', await page.evaluate(() => Storm.best?.score), 1);
+  check('the setup comes back', await page.$eval('#stormSetup', (e) => !e.hidden), true);
 
   console.log(errors.length ? 'ERRORS ' + errors.join(' | ') : 'no page errors');
   if (errors.length) failures.push('page errors');

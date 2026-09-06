@@ -91,7 +91,10 @@ function narrateCoach(bundle, question) {
       const after = !reply.length || move.replyLine === '(the game ends here)'
         ? 'the game ends there'
         : `${other} answers ${reply[0]}${coachLine(move.replyLine)}`;
-      parts.push(`${move.san}: ${move.eval}. After it, ${after}.`);
+      // The classified reason first, because "it loses the knight to a fork" is
+      // the answer and "Black is 3.0 pawns ahead" is the evidence for it.
+      const because = move.reason && move.loss >= 80 ? ` ${move.reason}` : '';
+      parts.push(`${move.san}: ${move.eval}.${because} After it, ${after}.`);
     }
     // How the named move compares with the engine's own choice, when it is not
     // already the engine's own choice.
@@ -101,36 +104,52 @@ function narrateCoach(bundle, question) {
     }
   }
 
-  // ── the position, and what to do in it ───────────────────────────────────
+  // ── the answer first, then what it rests on ──────────────────────────────
+  //
+  // ORDER IS THE ANSWER. Asked "what is he threatening?" this used to open
+  // with the material count and the evaluation and reach the threat three
+  // sentences later. The coach's own rules tell the model to open with one
+  // sentence that answers the question before any explanation; the function
+  // has to do the same or it is a worse coach than the one it replaces.
   const depth = bundle.depth ? ` (searched ${bundle.depth} plies deep)` : '';
   const checkNote = bundle.check ? ` ${bundle.mover} is in check, so the only moves are the ones that answer it.` : '';
+  const best = bundle.lines[0];
+
+  if (intent === 'threat') {
+    // THE THREAT IS MEASURED. Found by passing the turn and asking the engine
+    // what the other side would play — the same thing the board's Insight mode
+    // draws in blue. This used to answer with the second move of the engine's
+    // own best line, which is a reply to a move you have not made.
+    if (bundle.threat?.san) {
+      parts.push(`${other} is threatening ${bundle.threat.san}. If it were their move that is what the engine would play, and after it: ${bundle.threat.eval}.${coachLine(bundle.threat.line)}`);
+    } else {
+      parts.push(`No threat can be measured here — ${bundle.threat?.blocked ?? 'the turn cannot be passed'}.`);
+    }
+  }
+
+  if ((intent === 'best' || intent === 'general' || intent === 'assess') && best) {
+    parts.push(`Best is ${best.san} — ${best.eval}.${coachLine(best.line)}`);
+    const rest = bundle.lines.slice(1, 3);
+    if (rest.length) parts.push(`Also searched: ${rest.map((l) => `${l.san} (${l.eval})`).join(', ')}.`);
+  }
+
+  // Worth saying unprompted on an open question: a threat you have not seen is
+  // the commonest reason a plan is about to stop working.
+  if ((intent === 'best' || intent === 'general') && bundle.threat?.san) {
+    parts.push(`Watch ${bundle.threat.san}: that is what ${other} plays if given the move.`);
+  }
 
   if (intent === 'assess' || intent === 'general' || !bundle.moves.length) {
     parts.push(`${bundle.positionEval}${depth}.${checkNote} Material: ${bundle.material}.`);
-  }
 
-  if (intent === 'threat') {
-    // WHAT THE OPPONENT IS THREATENING IS NOT IN THE BUNDLE, and this does not
-    // pretend otherwise. What IS there is the line the engine expects, whose
-    // second move is the opponent's reply — that is the threat, named exactly
-    // as far as the search saw it and no further.
-    const best = bundle.lines[0];
-    const sans = coachSans(best?.line);
-    const reply = sans.length > 1 ? sans[1] : null;
-    if (reply) {
-      parts.push(`The engine expects ${best.san}, and ${other}'s answer to it is ${reply}. That is what the search sees coming; it is the line, not a list of every threat on the board.${coachLine(best.line)}`);
-    } else {
-      parts.push(`The search did not return a line here, so there is nothing to name. The threat readout on the board is measured separately and will show a concrete one if there is one.`);
-    }
-  }
-
-  if ((intent === 'best' || intent === 'general' || intent === 'assess') && bundle.lines.length) {
-    const best = bundle.lines[0];
-    parts.push(`Best is ${best.san} — ${best.eval}.${coachLine(best.line)}`);
-    const rest = bundle.lines.slice(1, 3);
-    if (rest.length) {
-      parts.push(`Also searched: ${rest.map((l) => `${l.san} (${l.eval})`).join(', ')}.`);
-    }
+    // Attacked and undefended, from the board rather than from the score.
+    // Yours first: it is the half you can do something about this move.
+    const mine = bundle.mover === 'White' ? bundle.hanging?.white : bundle.hanging?.black;
+    const theirs = bundle.mover === 'White' ? bundle.hanging?.black : bundle.hanging?.white;
+    const hangs = [];
+    if (mine?.length) hangs.push(`Yours: ${mine.join(', ')} — attacked and undefended.`);
+    if (theirs?.length) hangs.push(`${other}'s: ${theirs.join(', ')} — attacked and undefended.`);
+    parts.push(hangs.length ? hangs.join(' ') : 'Nothing on either side is attacked and undefended.');
   }
 
   if (!parts.length) {

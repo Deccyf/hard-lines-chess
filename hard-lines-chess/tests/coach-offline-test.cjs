@@ -59,6 +59,34 @@ const { launch, serve, DIST } = require('./browser.cjs');
   check('an assessment gives material', assess.includes('Material:'), true);
   check('and a best move', assess.includes('Best is'), true);
 
+  // ── the threat is measured, not read off the engine's own line ────────────
+  //
+  // Found by passing the turn — the same thing the board's Insight mode draws
+  // in blue. Before this the coach answered "what is the threat?" with the
+  // second move of its OWN best line, which is a reply to a move you have not
+  // made yet.
+  const threatened = 'rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2';
+  const threat = await ask(threatened, 'what is he threatening?');
+  say('answer to "threatening?"', threat.replace(/\s+/g, ' ').slice(0, 140) + '…');
+  check('a threat is named as a move', /threatening [A-Za-z][a-h1-8#+=x-]+/.test(threat), true);
+  check('and it is not hedged as a line', /it is the line, not a list/.test(threat), false);
+
+  // In check there is nothing to pass the turn on, and it says so rather than
+  // inventing one.
+  const inCheck = await ask('rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3', 'what is the threat?');
+  say('threat while in check', inCheck.replace(/\s+/g, ' ').slice(-90));
+
+  // ── hanging pieces come from the board ────────────────────────────────────
+  const hanging = await ask('rnbqkbnr/ppp2ppp/8/3pp3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 3', 'am I winning?');
+  say('assessment mentions hanging', /attacked and undefended/.test(hanging) ? 'yes' : 'no');
+  check('an assessment reports what hangs', /attacked and undefended/.test(hanging), true);
+
+  // ── a bad move is given a reason with a name ──────────────────────────────
+  const named = await ask(scholars, 'why not Ng5?');
+  const hasReason = /pin|fork|hang|skewer|undefended|loses|trap|back rank/i.test(named);
+  say('a named move gets a reason', hasReason ? 'yes' : 'no');
+  check('the reason is classified, not just scored', hasReason, true);
+
   // ── a finished position is stated, not analysed ───────────────────────────
   const mated = await ask('rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3', 'what should I play?');
   say('answer on a mated board', mated.replace(/\s+/g, ' ').slice(-120));

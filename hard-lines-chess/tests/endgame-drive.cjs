@@ -29,8 +29,13 @@ const { launch, serve, DIST } = require('./browser.cjs');
 
   await page.evaluate(() => show('endgames'));
   await page.waitForTimeout(200);
+  // Every endgame in the data is on the screen. Asserting a fixed number here
+  // meant that removing one — the rook ending the app could not referee — read
+  // as a rendering fault rather than as the deletion it was.
   const listed = await page.$$eval('#endgameList .endgame-row', (els) => els.length);
-  check('endgames listed', listed, 8);
+  const inData = await page.evaluate(() => ENDGAMES.length);
+  check(`all ${inData} endgames are listed`, listed, inData);
+  check('and there are some', inData > 4, true);
 
   // ── the opposition ending, played wrongly on purpose ──────────────────────
   await page.evaluate(() => startEndgame(ENDGAMES.find((e) => e.id === 'opposition-fifth')));

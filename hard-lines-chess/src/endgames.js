@@ -16,8 +16,18 @@
 //              now" the moment it stops being true. Nothing else can say that.
 //
 //   'engine' — a rook or a queen up. Here the search is fine: the advantage is
-//              enormous, the defence is ordinary, and the goal (mate, or a
-//              pawn promoted) is a fact about the board rather than a score.
+//              enormous, the defence is ordinary, and the goal — mate — is a
+//              fact about the board rather than a score.
+//
+// AND WHY THERE IS NO ROOK ENDING HERE. There was one, briefly: the Lucena,
+// which is the rook ending everybody is taught. It came out because the app
+// cannot referee it. Asked to convert it the search gives the pawn away, the
+// bridge the lesson tells you to build costs it two hundred centipawns of its
+// own evaluation, and the goal the exercise set — promote the pawn — is not
+// reached by best play as the engine plays it. A lesson whose method the app
+// disagrees with and whose goal it cannot reach is not a lesson, and shipping
+// it with a hedge would be worse than the gap. Rook endings need either a
+// table this app does not have or an engine it is not.
 //
 // The prose is checked against the board by tests/endgames.test.mjs — the
 // material each one claims, the side to move, the result, and that the budget
@@ -66,7 +76,12 @@ const ENDGAMES = [
     fen: '8/8/8/4k3/8/8/8/R3K3 w - - 0 1',
     side: 'white',
     goal: 'mate',
-    budget: 20,
+    // Thirty, not twenty. Twenty is what good technique needs and it is not
+    // what this app's own best play manages: played out by the search it takes
+    // twenty-one, so an exercise capped at twenty was one the app itself could
+    // not pass. The fifty-move rule is the real limit and this is still well
+    // inside it.
+    budget: 30,
     referee: 'engine',
     idea: 'The rook cuts a line the king may not cross; your king does the pushing. Nothing happens until the two work together.',
     method: [
@@ -145,22 +160,4 @@ const ENDGAMES = [
     ],
   },
 
-  // ── a rook ending worth knowing ──────────────────────────────────────────
-  {
-    id: 'lucena',
-    group: 'Rook endings',
-    name: 'Building the bridge',
-    fen: '2K5/2P1k3/8/8/8/8/r7/3R4 w - - 0 1',
-    side: 'white',
-    goal: 'promote',
-    budget: 12,
-    referee: 'engine',
-    idea: 'Pawn on the seventh, your king in front of it, and the only thing stopping you is a rook checking from behind. The bridge is how you stop the checks for good.',
-    method: [
-      'Put your rook on the fourth rank. It is not doing anything yet — that is the point.',
-      'Bring the king out towards the checks.',
-      'When the check comes, block it with the rook you already put on the fourth rank.',
-      'Trade rooks or shelter behind it, and the pawn goes through.',
-    ],
-  },
 ];

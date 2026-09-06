@@ -140,6 +140,58 @@ function detectMovesInQuestion(board, text) {
   return { named: named.slice(0, 3), notLegal: notLegal.slice(0, 3) };
 }
 
+/**
+ * WHAT THE OPPONENT IS THREATENING, measured rather than read off a line.
+ *
+ * The board's own Insight mode answers this by passing the turn — rewriting
+ * the FEN with the other side to move — and asking the engine what it would
+ * then play. That IS the threat. The coach had none of it and was left
+ * inferring one from the second move of its own best line, which is the reply
+ * to a move you have not made yet, not a threat.
+ *
+ * Null where the question cannot be put: in check the threat is the check, and
+ * a pass that would leave the other side already checking is not a position.
+ */
+function coachThreat(board) {
+  if (board.inCheck()) return { blocked: 'in check', san: null };
+  if (board.outcome()) return { blocked: 'the game is over', san: null };
+  const parts = board.fen().split(' ');
+  parts[1] = parts[1] === 'w' ? 'b' : 'w';
+  parts[3] = '-';
+  let passed;
+  try { passed = new Board(parts.join(' ')); } catch { return { blocked: 'the turn cannot be passed here', san: null }; }
+  if (passed.inCheck()) return { blocked: 'the turn cannot be passed here', san: null };
+  App.engine.reset();
+  const result = App.engine.search(passed, { movetime: 250, maxDepth: 8 });
+  if (!result.move) return { blocked: 'nothing came back', san: null };
+  const them = passed.turn === WHITE ? 'White' : 'Black';
+  return {
+    blocked: null,
+    san: toSan(passed, result.move),
+    eval: plainEval(result.score, them),
+    line: lineToSan(passed, result.line ?? []),
+  };
+}
+
+/**
+ * Attacked and undefended, both sides, named. The board's Insight mode rings
+ * these already; the coach could not see them and had to guess from material.
+ */
+function coachHanging(board) {
+  const NAMES = { [KING]: 'king', [QUEEN]: 'queen', [ROOK]: 'rook', [BISHOP]: 'bishop', [KNIGHT]: 'knight', [PAWN]: 'pawn' };
+  const out = { white: [], black: [] };
+  for (let sq = 0; sq < 128; sq++) {
+    if (sq & 0x88) continue;
+    const piece = board.squares[sq];
+    if (!piece || typeOf(piece) === KING) continue;
+    const own = colourOf(piece), enemy = own === WHITE ? BLACK : WHITE;
+    if (board.attacked(sq, enemy) && !board.attacked(sq, own)) {
+      out[own === WHITE ? 'white' : 'black'].push(`${NAMES[typeOf(piece)]} on ${squareName(sq)}`);
+    }
+  }
+  return out;
+}
+
 /** The bundle: everything the model is allowed to know, and nothing else. */
 function buildCoachBundle(board, question) {
   const budget = THINK[App.prefs.think] ?? THINK.normal;
@@ -160,6 +212,8 @@ function buildCoachBundle(board, question) {
       check: board.inCheck(),
       positionEval: outcomeLine(outcome, mover, other),
       depth: null,
+      threat: { blocked: 'the game is over', san: null },
+      hanging: coachHanging(board),
       lines: [],
       moves: [],
       notLegal,
@@ -182,9 +236,34 @@ function buildCoachBundle(board, question) {
       App.engine.reset();
       reply = App.engine.search(after, { movetime: Math.round(budget.movetime * 0.6), maxDepth: budget.depth - 1 });
     }
+    const scoreAfter = reply ? -reply.score : (after.outcome() === 'checkmate' ? 30000 : 0);
+
+    // WHY IT IS BAD, WITH A NAME. The review already classifies a mistake by
+    // what happened on the board — a fork, a pin, a hanging piece, a back rank
+    // — from the move, the engine's move and the punishing line. The coach was
+    // sending the model those three things and hoping it would work the name
+    // out. It is measured here instead, by the same function the review uses.
+    let motif = null;
+    try {
+      motif = classifyMistake({
+        fenBefore: board.fen(),
+        playedUci: uci,
+        bestUci: top.move ? moveToUci(top.move) : null,
+        replyUci: reply?.move ? moveToUci(reply.move) : null,
+        replyLine: (reply?.line ?? []).map(moveToUci),
+        cpLoss: Math.max(0, top.score - scoreAfter),
+        mate: null,
+      });
+    } catch { motif = null; }
+
     return {
       san, uci,
-      eval: reply ? plainEval(-reply.score, mover) : plainEval(after.outcome() === 'checkmate' ? 30000 : 0, mover),
+      eval: plainEval(scoreAfter, mover),
+      // How much worse than the engine's own move, in centipawns, for the
+      // narrator to decide whether this is a blunder or a matter of taste.
+      loss: Math.max(0, top.score - scoreAfter),
+      themes: motif?.themes ?? [],
+      reason: motif?.reason ?? null,
       replyLine: reply?.move ? lineToSan(after, reply.line) : '(the game ends here)',
     };
   });
@@ -198,6 +277,8 @@ function buildCoachBundle(board, question) {
     check: board.inCheck(),
     positionEval: plainEval(top.score, mover),
     depth: top.depth || null,
+    threat: coachThreat(new Board(board.fen())),
+    hanging: coachHanging(board),
     lines: top.lines.map((l) => ({
       san: toSan(new Board(board.fen()), l.move),
       eval: plainEval(l.score, mover),
@@ -244,12 +325,32 @@ Material: ${bundle.material}`);
 ${turnLine}
 Position: ${bundle.positionEval}${bestMoves}`);
 
+  // MEASURED, NOT INFERRED. Everything in this block is something the model
+  // was previously left to work out from a list of lines: what the opponent is
+  // threatening (found by passing the turn), what is hanging (found by asking
+  // the board), and what kind of mistake a named move is (found by the same
+  // classifier the review uses). It got them wrong often enough to matter.
+  const measured = [];
+  if (bundle.threat?.san) {
+    measured.push(`If ${other} could move now they would play ${bundle.threat.san} — ${bundle.threat.eval}. That is the threat. Line: ${bundle.threat.line}`);
+  } else if (bundle.threat?.blocked) {
+    measured.push(`No threat could be measured here (${bundle.threat.blocked}).`);
+  }
+  const hangs = [
+    bundle.hanging?.white?.length ? `White: ${bundle.hanging.white.join(', ')}` : null,
+    bundle.hanging?.black?.length ? `Black: ${bundle.hanging.black.join(', ')}` : null,
+  ].filter(Boolean);
+  measured.push(hangs.length
+    ? `Attacked and undefended — ${hangs.join('; ')}`
+    : 'Nothing is attacked and undefended.');
+  parts.push(`MEASURED ON THE BOARD (not from the lines above)\n${measured.join('\n')}`);
+
   if (bundle.moves.length) {
     parts.push(bundle.moves.length === 1
       ? `THE MOVE THE QUESTION ASKED ABOUT
-${bundle.moves.map((m) => `${m.san} (a ${bundle.mover} move): ${m.eval}.\n${other}'s best answer to it: ${m.replyLine}`).join('\n\n')}`
+${bundle.moves.map((m) => `${m.san} (a ${bundle.mover} move): ${m.eval}.\n${other}'s best answer to it: ${m.replyLine}${m.reason ? `\nWhat it costs, classified on the board: ${m.reason}` : ''}${m.themes?.length ? `\nThemes: ${m.themes.join(', ')}` : ''}`).join('\n\n')}`
       : `MOVES THE QUESTION NAMED (in the order asked; each searched on its own, none of them is a recommendation)
-${bundle.moves.map((m) => `${m.san} (a ${bundle.mover} move): ${m.eval}.\n${other}'s best answer to it: ${m.replyLine}`).join('\n\n')}`);
+${bundle.moves.map((m) => `${m.san} (a ${bundle.mover} move): ${m.eval}.\n${other}'s best answer to it: ${m.replyLine}${m.reason ? `\nWhat it costs, classified on the board: ${m.reason}` : ''}${m.themes?.length ? `\nThemes: ${m.themes.join(', ')}` : ''}`).join('\n\n')}`);
   }
 
   if (bundle.notLegal.length) {

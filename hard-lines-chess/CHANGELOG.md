@@ -25,6 +25,22 @@ Four new screens, and the coach now works where there is no model to ask.
   position had two legal moves, both drawing — a lesson with no choice in it is
   not a lesson.
 
+### The lessons, checked rather than written
+- **The rook ending came out.** The Lucena was the eighth endgame and the app
+  cannot referee it: asked to convert it the search gives the pawn away, the
+  bridge the lesson taught costs it two hundred centipawns of its own
+  evaluation, and the goal the exercise set — promote the pawn — is not reached
+  by best play. A lesson whose method the app disagrees with and whose goal it
+  cannot reach is not a lesson. Rook endings need either a table this app does
+  not have or an engine it is not, and the file says so where the lesson was.
+- **Every exercise is now played out to its goal in a test.** Everything else
+  checks the starting position — its material, its side to move, its result —
+  and none of it asked whether playing well from there reaches the goal within
+  the moves allowed. That is the check that found the Lucena, and it found a
+  second thing on its first run: the rook mate allowed twenty moves, which is
+  what good technique needs and not what this app's own best play manages. It
+  takes twenty-one, so the exercise was one the app itself could not pass.
+
 ### The clock
 - Three minutes, one position after another. A wrong move costs ten seconds
   rather than ending the run, because the thing that improves is how many
@@ -48,6 +64,25 @@ Four new screens, and the coach now works where there is no model to ask.
 - Thirty seconds of three questions: tap a named square, name a ringed one, and
   say whether a square is light or dark without looking. Either way up, because
   the coordinates people lose are the ones on the other side of the board.
+
+### The coach knows what the board knows
+- The bundle the coach answers from contained the search and nothing else, so
+  three things the app already measures were being inferred instead of read:
+  **what the opponent is threatening** (found by passing the turn, which is
+  what the board's own Insight mode draws in blue), **what is attacked and
+  undefended**, and **what kind of mistake a named move is** (found by the same
+  classifier the review uses). All three are in the bundle now, which means
+  both narrators get them — the model was guessing at forks and pins too.
+- "Why not Ng5?" used to answer with a number. It now answers "their queen on
+  g5 pins your pawn on d2 against your bishop on c1", because that was
+  measured on the board rather than deduced from a line.
+- Asked what the opponent threatened, the on-device coach used to give the
+  second move of its own best line — which is a reply to a move you have not
+  made — and said so, because it was not an answer.
+- And the answer now comes first. A question about a threat was opening with
+  the material count and reaching the threat three sentences later; the rules
+  the model is given say to lead with the answer, and the function has to do
+  the same or it is a worse coach than the one it replaced.
 
 ### The coach, without a model
 - The coach was hidden wherever Claude could not be reached, which is every

@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { Board, WHITE, BLACK, typeOf, colourOf, squareName, moveFrom, moveTo, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING } from '../src/engine/core.js';
 import { Engine } from '../src/engine/search.js';
-import { probePawnEnding, buildPawnTable } from '../src/pawn-tb.js';
+import { probePawnEnding, buildPawnTable, bestPawnMove } from '../src/pawn-tb.js';
 
 const src = readFileSync(new URL('../src/endgames.js', import.meta.url), 'utf8');
 const scope = {};
@@ -71,9 +71,6 @@ for (const eg of ENDGAMES) {
   if (eg.id === 'two-rooks') ok('two-rooks: is two rooks', men.white[ROOK] === 2 && !men.white[QUEEN] && !men.black[ROOK]);
   if (eg.id === 'queen-mate') ok('queen-mate: is one queen', men.white[QUEEN] === 1 && Object.keys(men.black).length === 1);
   if (eg.id === 'rook-mate') ok('rook-mate: is one rook', men.white[ROOK] === 1 && Object.keys(men.black).length === 1);
-  if (eg.id === 'lucena') ok('lucena: a rook each and a pawn on the seventh',
-    men.white[ROOK] === 1 && men.black[ROOK] === 1 && men.white[PAWN] === 1
-    && board.squares[0x60 + 2] !== undefined);
 
   // ── the referee's verdict has to match the goal ─────────────────────────
   if (eg.referee === 'table') {
@@ -164,6 +161,77 @@ const opp = ENDGAMES.find((e) => e.id === 'opposition-fifth');
     return probePawnEnding(after)?.result;
   })();
   ok('opposition-fifth: pushing the pawn draws it away', pushKeepsIt === 'draw', `push gives ${pushKeepsIt}`);
+}
+
+// ── can the exercise actually be passed? ──────────────────────────────────
+//
+// THE CHECK THAT WOULD HAVE CAUGHT THE LUCENA. Everything above verifies the
+// starting position — its material, its side to move, its result. None of it
+// asks the question a player asks, which is whether playing well from here
+// reaches the goal the screen sets within the moves it allows.
+//
+// It did not, for the rook ending that used to be here: the goal was to
+// promote, and best play as this app plays it gave the pawn away and won by
+// mating instead. The exercise could not be passed as written and nothing
+// said so. So each one is now played out by the best mover available to it —
+// the exact table where there is one, the search otherwise — and the goal has
+// to be reached inside the budget.
+function playOutEndgame(eg) {
+  const board = new Board(eg.fen);
+  const mySide = eg.side === 'white' ? WHITE : BLACK;
+  const startingExtras = promoted(board, mySide);
+  let myMoves = 0;
+
+  for (let ply = 0; ply < eg.budget * 2 + 4; ply++) {
+    const outcome = board.outcome();
+    if (outcome === 'checkmate') {
+      return { done: board.turn !== mySide && eg.goal === 'mate', why: `checkmate, ${board.turn === mySide ? 'against you' : 'delivered'}`, moves: myMoves };
+    }
+    if (outcome) {
+      return { done: eg.goal === 'draw', why: outcome, moves: myMoves };
+    }
+    if (eg.goal === 'promote' && promoted(board, mySide) > startingExtras) {
+      return { done: true, why: 'promoted', moves: myMoves };
+    }
+
+    let move = null;
+    const viaTable = bestPawnMove(board);
+    if (viaTable) {
+      move = board.legalMoves().find((m) => moveFrom(m) === viaTable.from && moveTo(m) === viaTable.to);
+    }
+    if (!move) {
+      engine.reset();
+      const result = engine.search(new Board(board.fen()), { movetime: 900, maxDepth: 20 });
+      move = result.move && board.legalMoves().find((m) => m === result.move);
+      if (!move && result.move) move = board.legalMoves()[0];
+    }
+    if (!move) return { done: false, why: 'no move', moves: myMoves };
+    if (board.turn === mySide) myMoves++;
+    board.make(move);
+    if (eg.goal === 'promote' && promoted(board, mySide) > startingExtras) {
+      return { done: true, why: 'promoted', moves: myMoves };
+    }
+    if (myMoves > eg.budget) return { done: eg.goal === 'draw', why: 'out of moves', moves: myMoves };
+  }
+  // Surviving the whole budget IS the exercise when the goal is to hold.
+  return { done: eg.goal === 'draw', why: 'still going', moves: myMoves };
+}
+
+function promoted(board, colour) {
+  let n = 0;
+  for (let sq = 0; sq < 128; sq++) {
+    if (sq & 0x88) continue;
+    const piece = board.squares[sq];
+    if (!piece || colourOf(piece) !== colour) continue;
+    const type = typeOf(piece);
+    if (type === QUEEN || type === ROOK || type === BISHOP || type === KNIGHT) n++;
+  }
+  return n;
+}
+
+for (const eg of ENDGAMES) {
+  const played = playOutEndgame(eg);
+  ok(`${eg.id}: the goal is reachable (${played.why}, ${played.moves} moves)`, played.done);
 }
 
 console.log(`${ENDGAMES.length} endgames, ${pass} checks passed, ${fail} failed`);
