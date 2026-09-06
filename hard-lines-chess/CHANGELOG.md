@@ -61,6 +61,34 @@ Four new screens, and the coach now works where there is no model to ask.
   prose, no network.
 
 ### Wrong on screen
+- **A timed round was mostly below the fold.** Both new clock screens put an
+  explanatory panel and their settings above the board, so the clock, the
+  score, the question and the board itself were all off a phone screen while
+  the clock ran — thirty seconds of a thirty-second round spent scrolling. The
+  setup collapses while a round is running and the live panel comes first.
+- **The clock screen contradicted itself**, still reading "there are no
+  positions to run" in the middle of a run, because nothing asked it to say
+  otherwise once one had started.
+- **Every point on the progress chart was an ellipse.** The chart is stretched
+  to the width of its panel with `preserveAspectRatio="none"`, so with nine
+  games one unit across is about ninety times one unit down, and a `<circle>`
+  drawn in those units came out as a red bar the width of the panel. Points are
+  zero-length lines with round caps and a non-scaling stroke now, which is a
+  circle measured in screen pixels. The review curve's own dots had the same
+  fault for the same reason and are fixed with it.
+- The chart's axis labels read "oldest · 62%" at one end and "86% · newest" at
+  the other, which parses as the oldest game having scored 62%.
+- **The tab strip was cut through the middle of a word.** Twelve sections do
+  not fit across a phone; the strip has always scrolled, but nothing said so,
+  and the selected tab was regularly off the side after any screen sent you
+  somewhere. There is a fade while there is more to the right, and selecting a
+  section scrolls its tab into view.
+- The endgame verdict — the whole point of that screen — sat in a side panel
+  below a full-height board, so on a phone the one thing worth reading was the
+  one thing off screen. The goal is above the board now, and the verdict, the
+  move count and the buttons are directly under it.
+- The endgame verdict counted in plies. Nobody sitting at a board counts in
+  half-moves.
 - Coach lines came out as dead text rather than as buttons that play them.
   `lineToSan()` writes lines the way a human reads them — "4... Qxg5 5. O-O" —
   and the renderer feeds each token to `sanToMove()`, where "4..." is not a
