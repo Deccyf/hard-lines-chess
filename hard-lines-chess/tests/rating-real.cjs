@@ -145,6 +145,11 @@ const { launch, serve, DIST, gotoSection } = require('./browser.cjs');
 
   // An unreviewed game still has a rating, and the rating chart must use it —
   // your rating moved on every game, not only the walked ones.
+  //
+  // Back to the rating measure first: the check above left the screen on
+  // accuracy, and reading the accuracy chart's game count here reported the
+  // reviewed games and looked like this feature was broken.
+  await page.evaluate(() => { Progress.measure = 'rating'; renderProgress(); });
   await page.evaluate(() => {
     for (let i = 0; i < 40; i++) {
       App.reviews.games.push({ at: 5000 + i, white: 'you', black: 'them', result: '1-0',

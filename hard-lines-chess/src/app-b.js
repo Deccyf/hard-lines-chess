@@ -1737,9 +1737,6 @@ function renderProgress() {
   box.appendChild(summary);
   // A measure can ask for a different set of games than the reviewed ones —
   // your rating moved on every game you played, not only the walked ones.
-  const clock = renderTimeTrouble(pool);
-  if (clock) box.appendChild(clock);
-
   const forChart = PROGRESS_MEASURES[Progress.measure]?.pick?.(pool) ?? games;
   box.appendChild(renderProgressChart(forChart));
 
@@ -1752,6 +1749,13 @@ function renderProgress() {
     const yours = renderPersonalEstimate(recent, { heading: 'What your own rating says', from: pool });
     if (yours) box.appendChild(yours);
   }
+
+  // AFTER the chart, not before it. "How am I doing" is the question this
+  // screen is opened with and the chart is the answer; where the time goes is
+  // the follow-up, and a panel this tall in front of the chart pushed the
+  // answer off the bottom of a phone.
+  const clock = renderTimeTrouble(pool);
+  if (clock) box.appendChild(clock);
 
   // A rolling estimate over recent reviewed games — the MEDIAN, so one
   // collapse or one lucky game does not drag it — and the band it points at.

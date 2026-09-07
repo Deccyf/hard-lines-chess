@@ -109,6 +109,16 @@ const PLIES = 33;
     }
   }
   check('and the accuracy is the one it measured', again.accuracy, fresh.accuracy);
+  // The Opera Game ends in mate, and a reopened game has to know that: without
+  // it the last move was described as "the engine's own move", which is true
+  // and is not what anybody wants told about a checkmate.
+  const mate = await page.evaluate(() => {
+    const last = Review.result.judged[Review.result.judged.length - 1];
+    return { san: last.san, mates: last.mates, said: describeJudged(last) };
+  });
+  say('the last move reads', `${mate.san} — ${mate.said}`);
+  check('the mating move is known to be mate', mate.mates, true);
+  check('and is described as one', /checkmate/.test(mate.said), true);
 
   // ── the engine's move is filled in when you ask for it ───────────────────
   const before = await page.evaluate(() => Review.result.judged.filter((j) => j.best).length);

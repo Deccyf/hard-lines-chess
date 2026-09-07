@@ -151,7 +151,11 @@ function judgedFromStore(parsed, curve, marks, side) {
       label: cls === 'missed_mate' ? 'You had a forced mate and let it go.'
         : (cls === 'allowed_mate' ? 'This allowed a forced mate.' : null),
       cls,
-      mates: false,
+      // Read off the notation, where it has been all along: a move that
+      // delivers checkmate is written with a # after it. Without this a
+      // reopened game called its own mating move "the engine's own move",
+      // which is true and is not what anybody wants told about a mate.
+      mates: /#\s*$/.test(ply.san),
       whiteCpAfter: curve[i + 1],
       mine: ply.colour === side,
     });
