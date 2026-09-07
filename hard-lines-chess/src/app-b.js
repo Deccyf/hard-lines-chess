@@ -716,6 +716,12 @@ function renderReviewResult() {
     box.appendChild(el('p', 'note', 'No strength estimate: the calibration for this setting has not been made, and a figure without one would be a guess with a number on it.'));
   }
 
+  // Beside the ladder's answer, the one built out of your own rated games.
+  const yours = Review.result.meanLoss === null
+    ? null
+    : renderPersonalEstimate(Review.result.meanLoss, { heading: 'What your own games say' });
+  if (yours) box.appendChild(yours);
+
   // COUNTED AND STATED, never dropped quietly. A mate moment is capped at one
   // of each kind so it cannot take every slot, and a page that knows how many
   // it left out and does not say is this project's most repeated fault.
@@ -1162,7 +1168,34 @@ const THEME_LABEL = {
 // was ever shown against time. Nothing new is computed here and nothing is
 // smoothed away: the dots are the games, and the line through them is a
 // rolling median, which one collapse cannot drag the way a mean can.
-const Progress = { measure: 'accuracy' };
+const Progress = { measure: 'accuracy', timeClass: 'all' };
+
+/**
+ * Bullet, blitz and rapid are different games and were being averaged.
+ *
+ * A minute of bullet and a half-hour rapid game are not two samples of the
+ * same skill: everybody blunders more with ten seconds left, and pooling them
+ * means a month of bullet drags the rapid line down and neither number
+ * describes anything you actually played. Lichess splits its whole insights
+ * page this way, and it is the first thing to reach for when a figure looks
+ * wrong for no reason.
+ *
+ * The classes offered are the ones the games ACTUALLY HAVE, in a fixed order,
+ * so a filter never offers a category that would come back empty — and games
+ * with no class at all (pasted by hand, or played on this app's ladder) are
+ * their own group rather than being quietly dropped or filed under blitz.
+ */
+const TIME_CLASSES = ['bullet', 'blitz', 'rapid', 'daily'];
+const TIME_CLASS_LABEL = {
+  all: 'All', bullet: 'Bullet', blitz: 'Blitz', rapid: 'Rapid', daily: 'Daily', other: 'Not from Chess.com',
+};
+const classOf = (game) => (TIME_CLASSES.includes(game?.timeClass) ? game.timeClass : 'other');
+
+function timeClassCounts(games) {
+  const counts = new Map();
+  for (const g of games ?? []) counts.set(classOf(g), (counts.get(classOf(g)) ?? 0) + 1);
+  return [...TIME_CLASSES, 'other'].filter((k) => counts.get(k)).map((k) => ({ key: k, n: counts.get(k) }));
+}
 
 const PROGRESS_MEASURES = {
   accuracy: {
@@ -1171,6 +1204,8 @@ const PROGRESS_MEASURES = {
     better: 'up',
     value: (game) => (Number.isFinite(game.accuracy) ? game.accuracy : null),
     format: (v) => `${Math.round(v)}%`,
+    noun: 'an accuracy',
+    caveat: 'Both halves are your own games at whatever setting you reviewed them with, so a change of setting shows up here as a change in you.',
   },
   mistakes: {
     label: 'Mistakes a game',
@@ -1178,6 +1213,8 @@ const PROGRESS_MEASURES = {
     better: 'down',
     value: (game) => (game.mistakes ?? []).length,
     format: (v) => v.toFixed(1),
+    noun: 'a mistake count',
+    caveat: 'Both halves are your own games at whatever setting you reviewed them with, so a change of setting shows up here as a change in you.',
   },
   estimate: {
     label: 'Strength estimate',
@@ -1185,6 +1222,26 @@ const PROGRESS_MEASURES = {
     better: 'up',
     value: (game) => (Number.isFinite(game.estimate?.elo) ? game.estimate.elo : null),
     format: (v) => String(Math.round(v)),
+    noun: 'a strength estimate',
+    caveat: 'Both halves are your own games at whatever setting you reviewed them with, so a change of setting shows up here as a change in you.',
+  },
+  // THE ONLY LINE ON THIS SCREEN THAT IS NOT THIS APP'S OPINION. Everything
+  // else here is something the engine worked out about your moves; this is the
+  // number Chess.com gave you at the time, for that game, and it is the one you
+  // actually want to move.
+  rating: {
+    label: 'Your rating',
+    note: 'Your Chess.com rating after each game, as Chess.com recorded it. Nothing in this app produced these numbers and nothing in it can move them — which is exactly why they are worth plotting beside the ones it did produce.',
+    better: 'up',
+    value: (game) => (Number.isFinite(game.myRating) ? game.myRating : null),
+    format: (v) => String(Math.round(v)),
+    noun: 'a rating',
+    caveat: 'These are Chess.com\u2019s numbers rather than this app\u2019s: nothing you do here moves them, and how you reviewed a game cannot change what this line says.',
+    // EVERY game, not only the walked ones. Your rating moved on all of them,
+    // and plotting it over the handful the engine happened to review would be
+    // a different chart wearing this one's name.
+    pick: (all) => all,
+    unit: 'game',
   },
 };
 
@@ -1240,6 +1297,165 @@ function rollingSpread(values, window) {
  * And it has an axis. "0 to 1400" underneath was the whole vertical scale; now
  * there are gridlines and three labels, and hovering names the game.
  */
+/**
+ * What your own rated games say about a game that lost this much a move.
+ *
+ * Sits beside the ladder estimate rather than replacing it, because the two
+ * answer different questions and only one of them is about you: the ladder
+ * says which of this app's opponents the game resembles, and this says what
+ * you were actually rated in your own games that went about as well.
+ *
+ * Returns null when there is nothing to show at all.
+ */
+function renderPersonalEstimate(meanLoss, { heading = 'What your own games say', from } = {}) {
+  const games = from ?? App.reviews.games;
+  const near = ratingNear(meanLoss, games);
+  if (!near) return null;
+
+  const panel = el('div', 'panel');
+  panel.appendChild(el('h3', null, heading));
+
+  if (near.short) {
+    panel.appendChild(el('p', 'note',
+      `Not yet. This compares a game with your own rated games, and needs ${near.need} that have both a Chess.com rating and a review — there ${near.have === 1 ? 'is' : 'are'} ${near.have}. Import your games, then walk some of them, and this fills in with the one number on this screen that is not this app's opinion.`));
+    return panel;
+  }
+
+  const points = (cp) => `${(cp / 100).toFixed(2)}`;
+  const readout = el('div', 'readout');
+  readout.innerHTML = `
+    <div><span class="k">You were rated about</span><span class="v">${Math.round(near.elo)}</span></div>
+    <div><span class="k">Across those games</span><span class="v">${Math.round(near.lo)}–${Math.round(near.hi)}</span></div>`;
+  panel.appendChild(readout);
+
+  panel.appendChild(el('p', 'note',
+    `Of your ${near.pool} reviewed games that carry a Chess.com rating, the ${near.n} that lost closest to ${points(meanLoss)} points a move were rated between ${Math.round(near.lo)} and ${Math.round(near.hi)}, with ${Math.round(near.elo)} in the middle. No ladder and no curve: those are games you played, and that is what you were rated in them.`));
+
+  // A GAME UNLIKE ANYTHING YOU HAVE PLAYED gets an answer built out of games
+  // that are not like it, and saying the number without saying that is how a
+  // reader ends up trusting it most where it is weakest.
+  if (near.faint) {
+    panel.appendChild(el('p', 'note',
+      `Read this one loosely. Nothing in your history lost anything like ${points(meanLoss)} points a move — the closest was ${points(near.gap)} away — so the games behind this figure are the nearest available rather than comparable ones.`));
+  }
+
+  const agree = lossRatingAgreement(games);
+  if (agree) {
+    // How much a correlation is worth depends on how many games made it — see
+    // agreementVerdict, which is where that judgement lives.
+    const verdict = agreementVerdict(agree.rho, agree.n);
+    panel.appendChild(el('p', 'note', verdict === 'trust'
+      ? `Worth trusting: across ${agree.n} of your games, the ones where you lost less per move really are the ones where you were rated higher, so loss per move is measuring something about you.`
+      : (verdict === 'loose'
+        ? `Read it loosely: across ${agree.n} of your games the link between losing less per move and being rated higher is there but weak, so a single game's figure will bounce around.`
+        : `A warning rather than a figure: across ${agree.n} of your games there is no clear link between losing less per move and being rated higher. Until there is, treat every strength number in this app — this one and the ladder's — as describing the moves, not you.`)));
+  }
+  return panel;
+}
+
+/**
+ * Where your time goes, and what it costs you.
+ *
+ * MEMOISED, because it is the only thing on this screen that has to parse and
+ * replay every game it looks at — a couple of hundred games is a few hundred
+ * milliseconds, and this screen repaints on every click of a filter. The key
+ * is what the answer depends on, so a changed filter recomputes and a repaint
+ * does not.
+ */
+const timeTroubleMemo = { key: null, value: null };
+function timeTroubleFor(games) {
+  // THE KEY HAS TO NOTICE A GAME BEING WALKED. Counting the games and looking
+  // at the first and last dates does not: walking one changes nothing about
+  // the length of the list or its ends, so the panel went on showing the
+  // answer from before the walk. What changes is how many of them carry a
+  // judgement and how long those judgements are, so that is what is counted.
+  let walked = 0, plies = 0;
+  for (const g of games) if (typeof g?.marks === 'string') { walked++; plies += g.marks.length; }
+  const key = `${games.length}|${walked}|${plies}|${games[0]?.at ?? 0}|${games[games.length - 1]?.at ?? 0}|${Progress.timeClass}`;
+  if (timeTroubleMemo.key !== key) {
+    timeTroubleMemo.key = key;
+    timeTroubleMemo.value = timeTrouble(games);
+  }
+  return timeTroubleMemo.value;
+}
+
+/** A row of bars, one per bucket, with what each cost. */
+function renderTimeTrouble(games) {
+  const found = timeTroubleFor(games);
+  if (!found.moves) {
+    // Only worth saying anything at all once there are games it COULD have
+    // used; before that it is a feature announcement, not a finding.
+    if (!found.skipped) return null;
+    const panel = el('div', 'panel');
+    panel.appendChild(el('h3', null, 'Where your time goes'));
+    panel.appendChild(el('p', 'note', `Nothing to show yet. This needs games that carry a clock on every move — which the ones imported from Chess.com do — AND that the engine has walked, and none of your ${found.skipped} stored ${found.skipped === 1 ? 'game has' : 'games have'} both yet. Import, then walk some of them, and this fills in.`));
+    return panel;
+  }
+
+  const panel = el('div', 'panel');
+  panel.appendChild(el('h3', null, 'Where your time goes'));
+  panel.appendChild(el('p', 'note', `${found.moves} of your moves across ${found.used} ${found.used === 1 ? 'game' : 'games'}, grouped by how long you spent on them. The bar is what the average move in that group cost you.${found.skipped ? ` ${found.skipped} other ${found.skipped === 1 ? 'game was' : 'games were'} left out: no clock in the moves, or not walked by the engine yet.` : ''}`));
+
+  const worst = Math.max(...found.spent.map((r) => r.meanLoss ?? 0), ...found.left.map((r) => r.meanLoss ?? 0), 1);
+  const bars = (rows, title) => {
+    // A HEADING OVER ONE ROW IS NOT A COMPARISON. When every move falls in the
+    // same group — a long game nobody ever got short of time in — the cut has
+    // nothing to say and is left out rather than drawn as a single bar under a
+    // title promising a breakdown.
+    if (rows.filter((r) => r.n).length < 2) return null;
+    const wrap = el('div');
+    wrap.appendChild(el('h4', null, title));
+    for (const row of rows) {
+      if (!row.n) continue;
+      const line = el('div', 'timebar');
+      line.innerHTML = `<span class="timebar-k">${esc(row.label)}</span>
+        <span class="timebar-track"><span class="timebar-fill" style="width:${Math.round((row.meanLoss / worst) * 100)}%"></span></span>
+        <span class="timebar-v">${(row.meanLoss / 100).toFixed(2)}</span>
+        <span class="timebar-n">${row.n}</span>`;
+      wrap.appendChild(line);
+    }
+    return wrap;
+  };
+  let drawn = 0;
+  for (const [rows, title] of [[found.spent, 'By how long you thought'], [found.left, 'By what was left on the clock']]) {
+    const block = bars(rows, title);
+    if (block) { panel.appendChild(block); drawn++; }
+  }
+  if (!drawn) {
+    panel.appendChild(el('p', 'note', 'Every one of those moves took about the same time and left about the same on the clock, so there is nothing here to compare yet.'));
+    return panel;
+  }
+  panel.appendChild(el('p', 'note', 'Points lost on the average move, then how many moves are behind each figure. A group of six moves is not a finding.'));
+
+  // THE SENTENCE IS THE POINT. A table of numbers is something to read; the
+  // comparison is something to act on — and it is only drawn where both groups
+  // have enough moves in them to be worth comparing.
+  const enough = (r) => r && r.n >= 20;
+  const fast = found.spent.slice(0, 2).filter(enough);
+  const slow = found.spent.slice(3).filter(enough);
+  if (fast.length && slow.length) {
+    const fastLoss = fast.reduce((s, r) => s + r.meanLoss * r.n, 0) / fast.reduce((s, r) => s + r.n, 0);
+    const slowLoss = slow.reduce((s, r) => s + r.meanLoss * r.n, 0) / slow.reduce((s, r) => s + r.n, 0);
+    // THE DIFFERENCE DECIDES IT, NOT THE RATIO. A ratio needs a denominator,
+    // and the strongest finding this can make — quick moves throwing away
+    // material while the slow ones cost nothing at all — is exactly the case
+    // where there isn't one. Guarding the division by falling back to a ratio
+    // of 1 reported that case as "about the same", which is the opposite of
+    // what it is. Points a move is what the bars are drawn in anyway.
+    const gap = fastLoss - slowLoss;
+    const worthSaying = 10;
+    const points = (cp) => `${(cp / 100).toFixed(2)}`;
+    // Only quoted where it means something: "three times nothing" does not.
+    const times = slowLoss >= 5 ? ` — ${(fastLoss / slowLoss).toFixed(1)} times as much` : '';
+    panel.appendChild(el('p', 'note', gap >= worthSaying
+      ? `Your quick moves cost you ${points(fastLoss)} points each against ${points(slowLoss)} for your slow ones${times}. That is the cheapest thing on this page to fix: it is not calculation, it is the moves you played without stopping.`
+      : (gap <= -worthSaying
+        ? `Your quick moves cost you LESS than your slow ones: ${points(fastLoss)} points each against ${points(slowLoss)}. That usually means the long thinks are the hard positions rather than the wasted ones, so the time is going where it should.`
+        : `Your quick moves and your slow ones cost about the same (${points(fastLoss)} against ${points(slowLoss)}). Whatever is losing you points here, thinking longer is not what stops it.`)));
+  }
+  return panel;
+}
+
 function renderProgressChart(games) {
   const measure = PROGRESS_MEASURES[Progress.measure];
   const panel = el('div', 'panel');
@@ -1261,8 +1477,9 @@ function renderProgressChart(games) {
   // games always slopes, and the slope is noise; saying so is more use than
   // a chart that implies otherwise.
   if (scored.length < 3) {
+    const unit = measure.unit ?? 'reviewed game';
     panel.appendChild(el('p', 'note',
-      `${scored.length} of your ${games.length} reviewed ${games.length === 1 ? 'game has' : 'games have'} a ${measure.label.toLowerCase()} to plot. Three are needed before a line through them means anything.`));
+      `${scored.length} of your ${games.length} ${unit}${games.length === 1 ? '' : 's'} ${games.length === 1 ? 'has' : 'have'} ${measure.noun} to plot. Three are needed before a line through them means anything.`));
     return panel;
   }
 
@@ -1436,7 +1653,7 @@ function renderProgressChart(games) {
     ? `${halves} With ${scored.length} scored games that is a difference, not a trend — it takes many more before one bad afternoon stops moving the line.`
     : !meaningful
       ? `${halves} That is flat: the two halves are close enough that the order of the games would change which was higher.`
-      : `${halves} Going ${improving ? 'the right way' : 'the wrong way'}. Both halves are your own games at whatever setting you reviewed them with, so a change of setting shows up here as a change in you.`;
+      : `${halves} Going ${improving ? 'the right way' : 'the wrong way'}. ${measure.caveat}`;
   panel.appendChild(verdict);
   panel.appendChild(el('p', 'note', measure.note));
   return panel;
@@ -1455,18 +1672,45 @@ function renderProgress() {
   //
   // A row with no `reviewed` field at all was stored before importing existed,
   // and every one of those WAS a review, so absent means reviewed.
-  const games = App.reviews.games.filter((g) => g.reviewed !== false);
-  const waiting = App.reviews.games.length - games.length;
+  // ONE FILTER, APPLIED ONCE, at the top. Every panel below reads from `pool`
+  // and `games`, so a screen filtered to rapid is filtered to rapid all the
+  // way down rather than in the places somebody remembered.
+  const kinds = timeClassCounts(App.reviews.games);
+  if (kinds.length < 2 && Progress.timeClass !== 'all') Progress.timeClass = 'all';
+  const pool = Progress.timeClass === 'all'
+    ? App.reviews.games
+    : App.reviews.games.filter((g) => classOf(g) === Progress.timeClass);
+
+  const games = pool.filter((g) => g.reviewed !== false);
+  const waiting = pool.length - games.length;
   const allMistakes = games.flatMap((g) => g.mistakes ?? []);
 
-  if (!games.length) {
-    if (waiting) {
-      box.innerHTML = `<p class="note">${waiting} imported ${waiting === 1 ? 'game is' : 'games are'} stored and none of them has been walked by the engine yet. Review one and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.</p>`;
-      return;
+  // Offered only when there is more than one kind to choose between: a filter
+  // whose every setting shows the same games is furniture.
+  if (kinds.length > 1) {
+    const filter = el('div', 'panel');
+    filter.appendChild(el('h3', null, 'Which games'));
+    const row = el('div', 'row');
+    for (const { key, n } of [{ key: 'all', n: App.reviews.games.length }, ...kinds]) {
+      const button = el('button', key === Progress.timeClass ? 'btn primary' : 'btn',
+        `${TIME_CLASS_LABEL[key]} (${n})`);
+      button.type = 'button';
+      button.dataset.timeClass = key;
+      button.addEventListener('click', () => { Progress.timeClass = key; renderProgress(); });
+      row.appendChild(button);
     }
+    filter.appendChild(row);
+    filter.appendChild(el('p', 'note', 'Bullet, blitz and rapid are different games. Everybody blunders more with ten seconds left, so a month of bullet averaged in with your rapid drags every number on this page and none of them describes what you played.'));
+    box.appendChild(filter);
   }
+
   if (!games.length) {
-    box.innerHTML = '<p class="note">Review a game and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.</p>';
+    // APPENDED, NOT ASSIGNED. Wiping the box here also wiped the filter that
+    // caused the empty screen, leaving no way back to the games.
+    const where = Progress.timeClass === 'all' ? '' : ` in your ${TIME_CLASS_LABEL[Progress.timeClass].toLowerCase()} games`;
+    box.appendChild(el('p', 'note', waiting
+      ? `${waiting} imported ${waiting === 1 ? 'game is' : 'games are'} stored${where} and none of them has been walked by the engine yet. Review one and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.`
+      : `Review a game${where} and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.`));
     return;
   }
 
@@ -1491,7 +1735,23 @@ function renderProgress() {
       <div><span class="k">Mean accuracy</span><span class="v">${accuracy === null ? '—' : `${accuracy}%`}</span></div>
     </div>${scored.length < games.length ? `<p class="note">${games.length - scored.length} of these ${games.length - scored.length === 1 ? 'was' : 'were'} too short to score and ${games.length - scored.length === 1 ? 'is' : 'are'} left out of the mean.</p>` : ''}`;
   box.appendChild(summary);
-  box.appendChild(renderProgressChart(games));
+  // A measure can ask for a different set of games than the reviewed ones —
+  // your rating moved on every game you played, not only the walked ones.
+  const clock = renderTimeTrouble(pool);
+  if (clock) box.appendChild(clock);
+
+  const forChart = PROGRESS_MEASURES[Progress.measure]?.pick?.(pool) ?? games;
+  box.appendChild(renderProgressChart(forChart));
+
+  // What your own rated games say, using the loss per move of your recent
+  // ones. Above the ladder's panel, because it is the better answer of the
+  // two when there is enough to give it.
+  const losses = games.map((g) => g.meanLoss).filter(Number.isFinite).slice(-8);
+  if (losses.length) {
+    const recent = [...losses].sort((a, b) => a - b)[Math.floor(losses.length / 2)];
+    const yours = renderPersonalEstimate(recent, { heading: 'What your own rating says', from: pool });
+    if (yours) box.appendChild(yours);
+  }
 
   // A rolling estimate over recent reviewed games — the MEDIAN, so one
   // collapse or one lucky game does not drag it — and the band it points at.

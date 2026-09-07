@@ -407,6 +407,20 @@
   .record-open:hover, .record-open:focus-visible { background: var(--sunk); }
   .record-open:hover .record-band, .record-open:focus-visible .record-band { color: var(--ink); }
 
+  /* ── where the time goes ───────────────────────────────────────────────
+     A label, a bar, what it cost, and how many moves are behind it. The count
+     is deliberately last and faint: it is the thing that says whether to
+     believe the bar beside it, not a number to read across. */
+  .timebar {
+    display: grid; grid-template-columns: 7.5rem 1fr 3rem 2.5rem; gap: 8px;
+    align-items: center; padding: 3px 0; font-size: 12px;
+  }
+  .timebar-k { color: var(--ink-soft); }
+  .timebar-track { background: var(--sunk); height: 10px; border: 1px solid var(--line); overflow: hidden; }
+  .timebar-fill { display: block; height: 100%; background: var(--accent); }
+  .timebar-v { font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; }
+  .timebar-n { font-variant-numeric: tabular-nums; color: var(--ink-faint); text-align: right; }
+
   /* ── forms ─────────────────────────────────────────────────────────── */
   .field { display: grid; gap: 4px; margin-bottom: 10px; }
   .field > span { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
