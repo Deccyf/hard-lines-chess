@@ -93,6 +93,10 @@ const PHONE = { width: 390, height: 844 };
   check('endgame: it counts in moves, not plies', /plies/.test(verdict), false);
 
   // ── the chart draws round dots ────────────────────────────────────────────
+  //
+  // Nine games is under the cap, so they are drawn individually here. Past the
+  // cap the chart stops drawing them at all and the band carries the spread
+  // instead — that switch is checked in progress-drive.cjs.
   await page.evaluate(() => {
     App.reviews.games = Array.from({ length: 9 }, (_, i) => ({
       at: i, white: 'You', black: 'Them', result: '1-0', side: 'white',
@@ -109,7 +113,7 @@ const PHONE = { width: 390, height: 844 };
   // then that it does not change when the chart is stretched, which is exactly
   // the property the old <circle> lacked.
   const mark = await page.evaluate(() => {
-    const node = document.querySelector('#progressOut .curve-dot');
+    const node = document.querySelector('#progressOut .chart-dot');
     if (!node) return null;
     const style = getComputedStyle(node);
     return { tag: node.tagName.toLowerCase(), cap: style.strokeLinecap, effect: style.vectorEffect, width: style.strokeWidth };
@@ -125,7 +129,7 @@ const PHONE = { width: 390, height: 844 };
   const narrow = mark.width;
   await page.setViewportSize({ width: 900, height: 844 });
   await page.waitForTimeout(250);
-  const wide = await page.$eval('#progressOut .curve-dot', (n) => getComputedStyle(n).strokeWidth);
+  const wide = await page.$eval('#progressOut .chart-dot', (n) => getComputedStyle(n).strokeWidth);
   say('chart: stroke at 390px vs 900px', `${narrow} / ${wide}`);
   check('chart: the mark does not stretch with the panel', narrow === wide, true);
   await page.setViewportSize(PHONE);
@@ -135,7 +139,7 @@ const PHONE = { width: 390, height: 844 };
   // centre is transformed out of the SVG's own coordinates, since the element
   // reports no box of its own.
   check('chart: the first point is not clipped', await page.evaluate(() => {
-    const node = document.querySelector('#progressOut .curve-dot');
+    const node = document.querySelector('#progressOut .chart-dot');
     const frame = document.querySelector('#progressOut .chart-frame');
     if (!node || !frame) return false;
     const point = new DOMPoint(Number(node.getAttribute('x1')), Number(node.getAttribute('y1')))
