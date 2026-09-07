@@ -75,12 +75,12 @@ function plainEval(cp, mover) {
       ? `${mover} forces checkmate in ${moves} ${moves === 1 ? 'move' : 'moves'}`
       : `${other} forces checkmate in ${moves} ${moves === 1 ? 'move' : 'moves'}`;
   }
-  const pawns = Math.abs(cp) / 100;
+  const points = Math.abs(cp) / 100;
   const leader = cp < 0 ? other : mover;
-  if (pawns < 0.5) return 'roughly equal';
-  if (pawns < 1.5) return `${leader} is slightly better (about ${pawns.toFixed(1)} of a point)`;
-  if (pawns < 3.0) return `${leader} is clearly better (about ${pawns.toFixed(1)} points ahead)`;
-  return `${leader} is winning (about ${pawns.toFixed(1)} points ahead)`;
+  if (points < 0.5) return 'roughly equal';
+  if (points < 1.5) return `${leader} is slightly better (about ${points.toFixed(1)} of a point)`;
+  if (points < 3.0) return `${leader} is clearly better (about ${points.toFixed(1)} points ahead)`;
+  return `${leader} is winning (about ${points.toFixed(1)} points ahead)`;
 }
 
 const severityFor = (loss) => SEVERITY.find((s) => loss >= s.at)?.name ?? null;

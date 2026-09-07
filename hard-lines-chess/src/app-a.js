@@ -735,10 +735,10 @@ function finishEngineMove(result) {
     Play.lastEvalCp = null;
   } else if (!result.blundered) {
     Play.lastEvalCp = -result.score;
-    const pawns = -result.score / 100;
+    const points = -result.score / 100;
     Play.lastEval = Math.abs(result.score) > 29000
       ? (result.score > 0 ? 'it mates' : 'you mate')
-      : (pawns > 0 ? '+' : '') + pawns.toFixed(1);
+      : (points > 0 ? '+' : '') + points.toFixed(1);
   } else {
     // A random move was played instead of the searched one, so the searched
     // score describes a position that did not happen. The coach's decided

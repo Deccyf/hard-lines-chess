@@ -34,6 +34,13 @@ const BANNED = [
   { word: /\bpawns? (?:ahead|up|behind|down|worse|better)\b/i, why: 'material is counted in points' },
   { word: /\bin pawns\b/i, why: 'material is counted in points' },
   { word: /\bpawns a move\b/i, why: 'material is counted in points' },
+  // THE ONE THAT GOT THROUGH: the coach's own instructions told it to write
+  // "White is winning by about five pawns", which no pattern above matches —
+  // "five pawns" has no "up"/"ahead"/"of a" around it. A counted quantity of
+  // pawns IS the unit; pawns standing on squares are the exception, so the
+  // squares are what the guard lets past.
+  { word: /\b(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten) pawns?\b(?!\s+(?:on|at|from|to|down|across|abreast|in front|and ))/i,
+    why: 'material is counted in points' },
 ];
 
 // Files whose strings reach a screen. openings.js, famous.js and

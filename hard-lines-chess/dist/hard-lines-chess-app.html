@@ -640,6 +640,64 @@
     vector-effect: non-scaling-stroke;
   }
 
+  /* ── the progress chart ─────────────────────────────────────────────────
+     THE TREND IS THE ONLY STRONG MARK. Every game used to be a seven-pixel dot
+     in the accent colour with the trend line underneath it: at nine games that
+     is a chart, at two hundred and forty-three it is a solid band of red with
+     the answer hidden inside it. The loudest thing on the screen was the noise.
+
+     So the order of emphasis is inverted. A hairline grid one shade off the
+     ground, the spread as a soft ink band, the trend at two pixels in the
+     accent, and individual games only while there are few enough to tell
+     apart — with the latest one always marked, because "where am I now" is the
+     other question this chart is asked. */
+  .chart-grid { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; opacity: .55; }
+  .chart-band { fill: color-mix(in srgb, var(--ink) 9%, transparent); stroke: none; }
+  .chart-trend {
+    fill: none; stroke: var(--accent); stroke-width: 2.5; vector-effect: non-scaling-stroke;
+    stroke-linejoin: round; stroke-linecap: round;
+  }
+  /* Recessive, and only drawn at all below the cap — see renderProgressChart. */
+  .chart-dot {
+    fill: none; stroke: color-mix(in srgb, var(--ink) 45%, transparent); stroke-width: 4px;
+    stroke-linecap: round; vector-effect: non-scaling-stroke;
+  }
+  /* Where you are now: a ring, so it reads as a marker rather than one more
+     data point, and it survives the dots being switched off. */
+  .chart-now {
+    fill: none; stroke: var(--accent); stroke-width: 8px; stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  /* The plot's geometry, stated once: everything that has to line up with a
+     gridline is measured from these two numbers rather than guessed at. */
+  .chart-plot { --plot-h: 120px; --plot-inset: 12px; /* 2px frame border + 10px padding */
+    display: flex; gap: 8px; align-items: stretch; }
+  .chart-plot .chart-frame { flex: 1 1 auto; min-width: 0; position: relative; }
+  .chart-plot .curve.chart { height: var(--plot-h); }
+  /* The vertical scale, outside the stretched viewBox — text inside one is
+     distorted by preserveAspectRatio="none", which is why it is here.
+     A LABEL THAT IS NOT ON ITS GRIDLINE IS THE WRONG LABEL. Spacing the three
+     out evenly puts the outer two a couple of pixels off, because the labels
+     have height and the rules do not, so each is pinned to the pixel its own
+     rule is drawn at instead. */
+  .chart-yaxis {
+    position: relative; font-size: 10.5px; font-family: var(--mono);
+    color: var(--ink-faint); text-align: right; flex: 0 0 auto; min-width: 2.6rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .chart-yaxis span { position: absolute; right: 0; line-height: 1; transform: translateY(-50%); }
+  /* The three rules sit at 4, 50 and 96 of the hundred-unit viewBox. */
+  .chart-yaxis span:nth-child(1) { top: calc(var(--plot-inset) + var(--plot-h) * 0.04); }
+  .chart-yaxis span:nth-child(2) { top: calc(var(--plot-inset) + var(--plot-h) * 0.50); }
+  .chart-yaxis span:nth-child(3) { top: calc(var(--plot-inset) + var(--plot-h) * 0.96); }
+  .chart-tip {
+    position: absolute; bottom: calc(100% + 6px); transform: translateX(-50%);
+    background: var(--panel); border: 2px solid var(--line); box-shadow: var(--shadow-sm);
+    padding: 3px 7px; font-size: 11px; font-family: var(--mono); white-space: nowrap;
+    pointer-events: none; z-index: 3; color: var(--ink);
+  }
+
   /* ── the coach ──────────────────────────────────────────────────────── */
   .coach-log { max-height: 320px; overflow-y: auto; display: grid; gap: 10px; }
   .coach-you {
@@ -748,10 +806,14 @@
   .readout-row:first-child { border-top: 0; }
   .readout-row .k { color: var(--ink-soft); font-size: 12px; }
   .readout-row .v { font-family: var(--display); font-variant-numeric: tabular-nums; }
-  /* Room for the half of an edge dot that falls outside the plot. */
-  .chart-frame { padding: 10px 9px; }
+  /* Room for the half of an edge dot that falls outside the plot. The vertical
+     half is --plot-inset less the 2px border, so the scale labels beside it
+     stay on their gridlines when it changes. */
+  .chart-frame { padding: calc(var(--plot-inset, 12px) - 2px) 9px; }
   .chart { overflow: visible; }
-  .chart-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-faint); font-family: var(--mono); padding: 4px 2px 0; }
+  .chart-scale { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; color: var(--ink-faint); font-family: var(--mono); padding: 4px 2px 0; }
+  .chart-scale span { white-space: nowrap; }
+  .chart-key { margin-top: 6px; }
 
   /* ── the tab strip runs off the edge, and now says so ───────────────────
      Twelve sections do not fit across a phone. The strip has always scrolled;
@@ -6723,12 +6785,12 @@ function plainEval(cp, mover) {
       ? `${mover} forces checkmate in ${moves} ${moves === 1 ? 'move' : 'moves'}`
       : `${other} forces checkmate in ${moves} ${moves === 1 ? 'move' : 'moves'}`;
   }
-  const pawns = Math.abs(cp) / 100;
+  const points = Math.abs(cp) / 100;
   const leader = cp < 0 ? other : mover;
-  if (pawns < 0.5) return 'roughly equal';
-  if (pawns < 1.5) return `${leader} is slightly better (about ${pawns.toFixed(1)} of a point)`;
-  if (pawns < 3.0) return `${leader} is clearly better (about ${pawns.toFixed(1)} points ahead)`;
-  return `${leader} is winning (about ${pawns.toFixed(1)} points ahead)`;
+  if (points < 0.5) return 'roughly equal';
+  if (points < 1.5) return `${leader} is slightly better (about ${points.toFixed(1)} of a point)`;
+  if (points < 3.0) return `${leader} is clearly better (about ${points.toFixed(1)} points ahead)`;
+  return `${leader} is winning (about ${points.toFixed(1)} points ahead)`;
 }
 
 const severityFor = (loss) => SEVERITY.find((s) => loss >= s.at)?.name ?? null;
@@ -10631,10 +10693,10 @@ function finishEngineMove(result) {
     Play.lastEvalCp = null;
   } else if (!result.blundered) {
     Play.lastEvalCp = -result.score;
-    const pawns = -result.score / 100;
+    const points = -result.score / 100;
     Play.lastEval = Math.abs(result.score) > 29000
       ? (result.score > 0 ? 'it mates' : 'you mate')
-      : (pawns > 0 ? '+' : '') + pawns.toFixed(1);
+      : (points > 0 ? '+' : '') + points.toFixed(1);
   } else {
     // A random move was played instead of the searched one, so the searched
     // score describes a position that did not happen. The coach's decided
@@ -11793,6 +11855,47 @@ function rollingMedian(values, window = 5) {
   });
 }
 
+/**
+ * A rolling window that suits the number of games.
+ *
+ * FIVE WAS FIXED, AND FIVE OVER TWO HUNDRED GAMES IS NOT A TREND LINE, it is
+ * the noise redrawn slightly smoother. The window grows with the sample so the
+ * line answers the question the screen asks — is this going anywhere — rather
+ * than tracing every good and bad afternoon.
+ */
+const trendWindow = (n) => Math.max(5, Math.min(25, Math.round(n / 12)) | 1);
+
+/** The rolling low and high of the same window, for the spread behind the line. */
+function rollingSpread(values, window) {
+  const lo = [], hi = [];
+  for (let i = 0; i < values.length; i++) {
+    const from = Math.max(0, i - Math.floor(window / 2));
+    const slice = values.slice(from, from + window).filter((v) => v !== null);
+    if (!slice.length) { lo.push(null); hi.push(null); continue; }
+    lo.push(Math.min(...slice));
+    hi.push(Math.max(...slice));
+  }
+  return { lo, hi };
+}
+
+/**
+ * How your games have gone, over however many of them there are.
+ *
+ * WHAT WAS WRONG WITH THE OLD ONE. Every game was a seven-pixel dot in the
+ * accent colour, with the trend line underneath. At nine games that is a chart.
+ * At two hundred and forty-three it is a solid band of red with a line hidden
+ * somewhere inside it: the loudest mark on the screen was the noise, and the
+ * one thing worth reading was behind it.
+ *
+ * So the emphasis is the other way round now. The trend is the only strong
+ * mark. The spread it was drawn from is a soft band behind it, which says the
+ * same thing two hundred dots were trying to say — how much the games vary —
+ * without drawing two hundred of anything. Individual games are only drawn
+ * while there are few enough of them to tell apart.
+ *
+ * And it has an axis. "0 to 1400" underneath was the whole vertical scale; now
+ * there are gridlines and three labels, and hovering names the game.
+ */
 function renderProgressChart(games) {
   const measure = PROGRESS_MEASURES[Progress.measure];
   const panel = el('div', 'panel');
@@ -11820,59 +11923,155 @@ function renderProgressChart(games) {
   }
 
   const lo = Math.min(...scored), hi = Math.max(...scored);
+  // EVERY GAME THE SAME NUMBER IS A REAL HISTORY, not a broken one. It is what
+  // a run of games pinned to the bottom of the strength estimate looks like,
+  // which is the shape a lot of real histories have. Dividing by a made-up
+  // span of 1 drew a scale that does not exist: a hundred and twenty games all
+  // worth 300 came out labelled "300 / 301 / 300", with the top of the axis
+  // BELOW its own middle. When nothing varies the line goes down the middle
+  // and the axis says the one number there is.
+  const flat = hi === lo;
   const span = hi - lo || 1;
-  const trend = rollingMedian(values);
+  const window = trendWindow(scored.length);
+  const trend = rollingMedian(values, window);
+  const spread = rollingSpread(values, window);
   const width = Math.max(2, values.length - 1);
-  const y = (v) => 96 - ((v - lo) / span) * 92;
+  const y = (v) => (flat ? 50 : 96 - ((v - lo) / span) * 92);
 
   const NS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('class', 'curve');
+  svg.setAttribute('class', 'curve chart');
   svg.setAttribute('viewBox', `0 0 ${width} 100`);
   svg.setAttribute('preserveAspectRatio', 'none');
   svg.setAttribute('role', 'img');
-  svg.setAttribute('aria-label', `${measure.label} across ${games.length} reviewed games`);
+  svg.setAttribute('aria-label', flat
+    ? `${measure.label} across ${games.length} reviewed games, every one of them ${measure.format(hi)}`
+    : `${measure.label} across ${games.length} reviewed games, from ${measure.format(lo)} to ${measure.format(hi)}`);
 
-  // The trend first, so the dots sit on top of it.
+  // ── the grid, one shade off the ground and behind everything ─────────────
+  for (const frac of [0, 0.5, 1]) {
+    const rule = document.createElementNS(NS, 'line');
+    const at = 4 + frac * 92;
+    rule.setAttribute('x1', 0); rule.setAttribute('x2', width);
+    rule.setAttribute('y1', at); rule.setAttribute('y2', at);
+    rule.setAttribute('class', 'chart-grid');
+    svg.appendChild(rule);
+  }
+
+  // ── the spread the trend was drawn from ──────────────────────────────────
+  //
+  // The band is what replaces two hundred dots: it is the highest and lowest
+  // game inside the same rolling window, so its thickness IS how much the
+  // games vary, drawn once instead of once per game.
+  const top = [], bottom = [];
+  for (let i = 0; i < values.length; i++) {
+    if (spread.hi[i] === null) continue;
+    top.push(`${i},${y(spread.hi[i])}`);
+    bottom.unshift(`${i},${y(spread.lo[i])}`);
+  }
+  if (top.length > 1) {
+    const band = document.createElementNS(NS, 'polygon');
+    band.setAttribute('points', [...top, ...bottom].join(' '));
+    band.setAttribute('class', 'chart-band');
+    svg.appendChild(band);
+  }
+
+  // ── the trend, which is the point of the chart ───────────────────────────
   const points = trend.map((v, i) => (v === null ? null : `${i},${y(v)}`)).filter(Boolean);
   if (points.length > 1) {
     const line = document.createElementNS(NS, 'polyline');
     line.setAttribute('points', points.join(' '));
-    line.setAttribute('class', 'curve-line');
+    line.setAttribute('class', 'chart-trend');
     svg.appendChild(line);
   }
-  // A DOT DRAWN AS A CIRCLE IN THIS VIEWBOX IS NOT A DOT. The chart is stretched
-  // to the width of the panel with preserveAspectRatio="none", so one unit
-  // across is nothing like one unit down — with nine games the x axis is
-  // scaled about ninety times more than the y, and every circle came out as a
-  // red ellipse the width of the panel. A zero-length line with a round cap
-  // and a non-scaling stroke is a circle in SCREEN units, which is the only
-  // place a dot is round.
-  for (let i = 0; i < values.length; i++) {
-    if (values[i] === null) continue;
-    const dot = document.createElementNS(NS, 'line');
-    dot.setAttribute('x1', i); dot.setAttribute('x2', i);
-    dot.setAttribute('y1', y(values[i])); dot.setAttribute('y2', y(values[i]));
-    dot.setAttribute('class', 'curve-dot');
-    svg.appendChild(dot);
+
+  // ── and the games themselves, ONLY while they can be told apart ──────────
+  //
+  // A DOT DRAWN AS A CIRCLE IN THIS VIEWBOX IS NOT A DOT. The chart is
+  // stretched to the width of the panel with preserveAspectRatio="none", so a
+  // zero-length line with a round cap and a non-scaling stroke is the only way
+  // to get a circle measured in screen pixels. Above the cap they are not
+  // drawn at all: at one dot per pixel they stop being dots.
+  const DOT_CAP = 40;
+  const showDots = values.length <= DOT_CAP;
+  if (showDots) {
+    for (let i = 0; i < values.length; i++) {
+      if (values[i] === null) continue;
+      const dot = document.createElementNS(NS, 'line');
+      dot.setAttribute('x1', i); dot.setAttribute('x2', i);
+      dot.setAttribute('y1', y(values[i])); dot.setAttribute('y2', y(values[i]));
+      dot.setAttribute('class', 'chart-dot');
+      svg.appendChild(dot);
+    }
   }
 
-  // PADDED, because a dot is drawn in screen pixels and the first and last of
-  // them sit on x=0 and x=width. Without room outside the plot they are sliced
-  // in half by the frame, which reads as data running off the edge.
-  svg.classList.add('chart');
+  // The one dot that is always drawn: where you are now.
+  const lastAt = values.length - 1 - [...values].reverse().findIndex((v) => v !== null);
+  if (Number.isFinite(values[lastAt])) {
+    const now = document.createElementNS(NS, 'line');
+    now.setAttribute('x1', lastAt); now.setAttribute('x2', lastAt);
+    now.setAttribute('y1', y(values[lastAt])); now.setAttribute('y2', y(values[lastAt]));
+    now.setAttribute('class', 'chart-now');
+    svg.appendChild(now);
+  }
+
+  // ── the frame, with the vertical scale beside it ─────────────────────────
+  const plot = el('div', 'chart-plot');
+  const axis = el('div', 'chart-yaxis');
+  // The blanks keep the one label on the middle rule: the three spans are
+  // pinned to the three gridlines by position, not by order.
+  for (const v of (flat ? [null, hi, null] : [hi, lo + span / 2, lo])) {
+    axis.appendChild(el('span', null, v === null ? '' : measure.format(v)));
+  }
+  plot.appendChild(axis);
   const frame = el('div', 'curve-frame chart-frame');
   frame.appendChild(svg);
-  panel.appendChild(frame);
+  plot.appendChild(frame);
+
+  // ── hovering names the game, because a trend line hides the games ────────
+  //
+  // Nearest-point rather than a hit area on each mark: at this density the
+  // marks are a pixel apart and there is nothing to aim at.
+  const tip = el('div', 'chart-tip');
+  tip.hidden = true;
+  frame.appendChild(tip);
+  const at = (event) => {
+    const box = frame.getBoundingClientRect();
+    const frac = Math.min(1, Math.max(0, (event.clientX - box.left) / (box.width || 1)));
+    return Math.round(frac * (values.length - 1));
+  };
+  const showTip = (event) => {
+    const i = at(event);
+    const value = values[i];
+    tip.hidden = false;
+    tip.textContent = value === null
+      ? `Game ${i + 1} of ${values.length} — not scored`
+      : `Game ${i + 1} of ${values.length} — ${measure.format(value)}`;
+    const box = frame.getBoundingClientRect();
+    tip.style.left = `${Math.min(Math.max(6, event.clientX - box.left), box.width - 6)}px`;
+  };
+  frame.addEventListener('pointermove', showTip);
+  frame.addEventListener('pointerdown', showTip);
+  frame.addEventListener('pointerleave', () => { tip.hidden = true; });
+  panel.appendChild(plot);
 
   // Two facts, not four muddled together: the left-to-right axis is time, and
-  // the up-and-down one is the measure. The first version wrote
-  // "oldest · 62%" at one end and "86% · newest" at the other, which reads as
-  // though the oldest game scored 62%.
+  // the up-and-down one is the measure — which now has its own labels, so this
+  // line only has to carry the time axis and what the marks mean.
   const scale = el('div', 'chart-scale');
-  scale.appendChild(el('span', null, `${games.length} games, oldest at the left`));
-  scale.appendChild(el('span', null, `${measure.format(lo)} to ${measure.format(hi)}`));
+  scale.appendChild(el('span', null, `${games.length} games · oldest left`));
+  // The rolling middle of a flat run is the same number, so naming the window
+  // there would be a fact about nothing.
+  if (!flat) scale.appendChild(el('span', null, `line: middle of ${window}`));
   panel.appendChild(scale);
+  // What the marks are, on its own line — this wrapped into the axis label when
+  // the two were crammed onto one row on a phone. A flat line needs none of it:
+  // the sentence under the chart already says the one thing there is to say,
+  // and saying it twice in a row reads like a stutter.
+  if (!flat) {
+    panel.appendChild(el('p', 'note chart-key',
+      `The line is the middle of every ${window} games in a row, and the band is the best and worst of the same ${window} — so how thick the band is, is how much your games vary.${showDots ? ' Each dot is one game.' : ` Single games are only dotted up to ${DOT_CAP} of them; all ${values.length} would be one solid block. Touch the chart to name one.`}`));
+  }
 
   // ── and what it amounts to, in a sentence ────────────────────────────────
   const half = Math.floor(scored.length / 2);
@@ -11884,13 +12083,16 @@ function renderProgressChart(games) {
   // A difference smaller than this is not worth a word either way, and the
   // number of games here is never large enough to prove one.
   const meaningful = Math.abs(change) >= (measure.better === 'up' ? Math.max(1, span * 0.08) : 0.3);
+  const halves = `First ${half} games: ${measure.format(earlier)}. Last ${scored.length - half}: ${measure.format(later)}.`;
 
   const verdict = el('p', 'note');
-  verdict.textContent = scored.length < 6
-    ? `${measure.format(earlier)} across the first ${half}, ${measure.format(later)} across the last ${scored.length - half}. With ${scored.length} scored games that is a difference, not a trend — it takes many more before one bad afternoon stops moving the line.`
+  verdict.textContent = flat
+    ? `Every one of your ${scored.length} scored games came out at ${measure.format(hi)}. That is not a flat run of form — it is the measure itself running out of room, so nothing it says here can move until the games move off it.`
+    : scored.length < 6
+    ? `${halves} With ${scored.length} scored games that is a difference, not a trend — it takes many more before one bad afternoon stops moving the line.`
     : !meaningful
-      ? `${measure.format(earlier)} across the first ${half}, ${measure.format(later)} across the last ${scored.length - half}. That is flat: the two halves are close enough that the order of the games would change which was higher.`
-      : `${measure.format(earlier)} across the first ${half}, ${measure.format(later)} across the last ${scored.length - half} — ${improving ? 'the right way' : 'the wrong way'}. Both halves are your own games at whatever search setting you reviewed them with, so a change of setting shows up here as a change in you.`;
+      ? `${halves} That is flat: the two halves are close enough that the order of the games would change which was higher.`
+      : `${halves} Going ${improving ? 'the right way' : 'the wrong way'}. Both halves are your own games at whatever setting you reviewed them with, so a change of setting shows up here as a change in you.`;
   panel.appendChild(verdict);
   panel.appendChild(el('p', 'note', measure.note));
   return panel;
@@ -12048,7 +12250,7 @@ function renderProgress() {
   if (mates > 0) {
     breakdown.appendChild(el('p', 'note',
       `${byKind.allowed_mate ?? 0} of your moves allowed a forced mate and ${byKind.missed_mate ?? 0} missed one. `
-      + 'Those are counted separately because a mate is not a number of pawns and cannot be averaged with one.'));
+      + 'Those are counted separately because a mate is not a number of points and cannot be averaged with one.'));
   }
   box.appendChild(breakdown);
 
@@ -13195,7 +13397,7 @@ How to write:
 - Open with one sentence that answers the question in plain words, before any explanation.
 - Short sentences. Everyday words. Explain any chess term the moment you use it — "a passed pawn (one with no enemy pawns left to stop it)".
 - Name pieces and squares in words: "the bishop on d7", "White's king walks to f6". Never leave bare notation sitting in a sentence for the reader to decode.
-- Describe evaluations the way the data does — "White is winning by about five pawns". Never quote raw signed numbers like -4.96 at the reader.
+- Describe evaluations the way the data does — "White is winning by about five points". Never quote raw signed numbers like -4.96 at the reader, and never call the unit anything but points.
 - A few sentences, up to two short paragraphs. No headings, no bullet lists.
 
 Showing moves (this is how the reader actually follows you):
