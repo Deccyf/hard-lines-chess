@@ -17,6 +17,9 @@ const Import = {
   added: 0,
   duplicate: 0,
   unusable: 0,
+  // Games already stored that gained a field they were missing — see
+  // chessComMonth. Not an addition and not nothing.
+  updated: 0,
   months: 0,
 };
 
@@ -53,7 +56,7 @@ async function runImport() {
 
   Import.running = true;
   Import.cancelled = false;
-  Import.found = 0; Import.added = 0; Import.duplicate = 0; Import.unusable = 0; Import.months = 0;
+  Import.found = 0; Import.added = 0; Import.duplicate = 0; Import.unusable = 0; Import.updated = 0; Import.months = 0;
   $('importRun').hidden = true;
   $('importStop').hidden = false;
   importNote(`Asking Chess.com which months ${username} has games in…`);
@@ -85,6 +88,9 @@ async function runImport() {
       Import.found += month.found;
       Import.duplicate += month.duplicate;
       Import.unusable += month.unusable;
+      // chessComMonth fills these into the stored rows where they were
+      // missing; the count is how many it reached.
+      Import.updated += month.updated ?? 0;
       // Anything past the limit is not brought in and is not counted as
       // anything else either: it was simply not asked for.
       fresh.push(...month.rows.slice(0, wanted - fresh.length));
@@ -96,12 +102,16 @@ async function runImport() {
 
     Import.added = fresh.length;
     if (fresh.length) await storeImported(fresh);
+    // A RUN THAT ADDED NOTHING CAN STILL HAVE CHANGED SOMETHING. Backfilling
+    // ratings into games already stored happens in place, so without this the
+    // whole point of running the import again would be thrown away on reload.
+    else if (Import.updated) await Store.set('reviews', App.reviews);
 
     importNote(importSummary({
       found: Import.found, added: Import.added, months: Import.months,
-      duplicate: Import.duplicate, unusable: Import.unusable,
+      duplicate: Import.duplicate, unusable: Import.unusable, updated: Import.updated,
     }) + (fresh.length ? ' They are in Review, and the repertoire report has already been walked against them.' : ''),
-    fresh.length ? 'note good-note' : 'note');
+    fresh.length || Import.updated ? 'note good-note' : 'note');
 
     if (fresh.length) renderDeviations();
   } catch (error) {

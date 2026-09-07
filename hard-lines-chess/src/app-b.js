@@ -523,6 +523,17 @@ async function runReview() {
     tactics: result.tactics.length,
     meanLoss: result.meanLoss,
     depth,
+    // WHAT IT TOOK TO WORK ALL THAT OUT, kept so the game reopens without it
+    // being worked out again. A review is minutes of searching; before this
+    // the only thing that survived it was the list of mistakes, so every one
+    // of the games below was a dead row you could read and not open.
+    //
+    // The curve is the evaluation from White's side after every move, and the
+    // marks are what the reviewer called each one, a character apiece. See
+    // judgedFromStore() for why those two are enough and what they leave out.
+    curve: result.whiteCp,
+    marks: marksOf(result.judged),
+    counted: result.counted,
     estimate: result.meanLoss === null ? null : estimateRating(result.meanLoss, depth),
   });
   await Store.set('reviews', App.reviews);
@@ -717,25 +728,44 @@ function renderReviewResult() {
 
   renderCurve(box);
 
+  // A GAME REVIEWED BEFORE ANY OF THIS WAS KEPT has its mistakes and nothing
+  // else, and an empty move list under a heading reads like a fault. It says
+  // so, and says what to do about it.
+  if (Review.result.stored && !judged.length) {
+    const again = el('div', 'panel');
+    again.appendChild(el('h3', null, 'Every move'));
+    again.appendChild(el('p', 'note', 'This game was reviewed before the move-by-move record was kept, so only its mistakes survive. Review it again and the curve and the full move list come with it.'));
+    const btn = el('button', 'btn', 'Load it for another review');
+    btn.type = 'button';
+    btn.addEventListener('click', () => {
+      $('pgnInput').value = Review.result.pgn ?? '';
+      $('pgnInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    again.appendChild(btn);
+    box.appendChild(again);
+  }
+
   // Every move, both sides, with a glyph — the chess.com move list. Tapping
   // one puts the position on the board with both arrows and the eval bar.
-  const all = el('div', 'panel');
-  all.appendChild(el('h3', null, 'Every move'));
-  all.appendChild(el('p', 'note', 'Your moves are bold. ★ the engine’s own choice, ?! half a point, ? a point and a half, ?? three or more, #? a mate missed or allowed. Tap one to see it.'));
-  const list = el('div', 'movelist');
-  list.id = 'reviewMoves';
-  for (const j of judged) {
-    if (j.colour === 'white') list.appendChild(el('span', 'mn', `${j.moveNumber}.`));
-    const btn = el('button', 'mv' + (j.mine ? ' mine' : ''), j.san);
-    btn.type = 'button';
-    btn.dataset.class = j.cls;
-    btn.dataset.ply = j.ply;
-    btn.title = describeJudged(j);
-    btn.addEventListener('click', () => showJudged(j));
-    list.appendChild(btn);
+  if (judged.length) {
+    const all = el('div', 'panel');
+    all.appendChild(el('h3', null, 'Every move'));
+    all.appendChild(el('p', 'note', 'Your moves are bold. ★ the engine’s own choice, ?! half a point, ? a point and a half, ?? three or more, #? a mate missed or allowed. Tap one to see it.'));
+    const list = el('div', 'movelist');
+    list.id = 'reviewMoves';
+    for (const j of judged) {
+      if (j.colour === 'white') list.appendChild(el('span', 'mn', `${j.moveNumber}.`));
+      const btn = el('button', 'mv' + (j.mine ? ' mine' : ''), j.san);
+      btn.type = 'button';
+      btn.dataset.class = j.cls;
+      btn.dataset.ply = j.ply;
+      btn.title = describeJudged(j);
+      btn.addEventListener('click', () => showJudged(j));
+      list.appendChild(btn);
+    }
+    all.appendChild(list);
+    box.appendChild(all);
   }
-  all.appendChild(list);
-  box.appendChild(all);
 
   if (!mistakes.length) {
     box.appendChild(el('p', 'note', 'Nothing crossed the threshold. At this search depth that means no move of yours lost half a point or more.'));
@@ -780,6 +810,80 @@ function renderReviewResult() {
   box.appendChild(panel);
 }
 
+/**
+ * A game you reviewed before, opened again without reviewing it again.
+ *
+ * Every row under "Games reviewed" used to be text you could read and not act
+ * on. The review that produced it is minutes of searching, and the only thing
+ * that survived it was the list of mistakes — the curve, the move list and the
+ * board were gone the moment you left the screen, so a history of two hundred
+ * games was two hundred dead rows.
+ *
+ * Games now keep the two small things that cannot be worked out again from
+ * their moves alone, and this puts the whole review back from them: same
+ * curve, same move list, same board, no searching. See judgedFromStore for
+ * what those two things are and the one thing they leave out.
+ */
+function openStoredReview(game) {
+  let parsed = null;
+  try { parsed = parsePgn(game.pgn ?? ''); } catch { parsed = null; }
+  if (!parsed || !parsed.plies.length) {
+    show('review');
+    $('reviewStatus').textContent = 'That game was stored without readable moves, so there is nothing to open.';
+    return;
+  }
+  Review.side = game.side ?? 'white';
+  Review.parsed = parsed;
+  const judged = judgedFromStore(parsed, game.curve, game.marks, Review.side);
+  Review.result = {
+    mistakes: game.mistakes ?? [],
+    accuracy: game.accuracy ?? null,
+    meanLoss: game.meanLoss ?? null,
+    depth: game.depth ?? 9,
+    counted: game.counted ?? judged.filter((j) => j.mine).length,
+    minJudged: MIN_JUDGED,
+    judged,
+    whiteCp: Array.isArray(game.curve) ? game.curve : null,
+    capped: null,
+    pgn: game.pgn ?? '',
+    // Read back rather than just measured. Two things behave differently:
+    // the engine's own move is filled in one position at a time as you tap,
+    // and a game stored before any of this was kept says so instead of
+    // showing an empty move list.
+    stored: true,
+  };
+  show('review');
+  $('reviewStatus').textContent = '';
+  renderReviewResult();
+  $('reviewOut').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/**
+ * The engine's own move for one position, worked out the first time it is
+ * asked for.
+ *
+ * A stored game carries no best move for any of its plies, so without this
+ * every move of a reopened game would say "the engine wanted something else".
+ * One position takes a fraction of a second; keeping eighty of them per game
+ * is the thing this format exists not to do.
+ */
+function fillBestMove(j, depth) {
+  if (j.best || j.noBest) return false;
+  const budget = REVIEW_BUDGET[depth] ?? REVIEW_BUDGET[9];
+  try {
+    const at = new Board(j.fen);
+    if (at.outcome()) { j.noBest = true; return false; }
+    App.engine.reset();
+    const found = App.engine.search(at, { movetime: budget.movetime, maxDepth: depth });
+    if (!found?.move) { j.noBest = true; return false; }
+    j.best = { uci: moveToUci(found.move), san: toSan(new Board(j.fen), found.move) };
+    return true;
+  } catch {
+    j.noBest = true;
+    return false;
+  }
+}
+
 function describeJudged(j) {
   const who = j.mine ? 'You' : 'They';
   if (j.mates) return `${moveLabel(j)} — checkmate.`;
@@ -790,6 +894,10 @@ function describeJudged(j) {
 }
 
 function showJudged(j) {
+  // A reopened game has no engine move stored for this position; it is worked
+  // out now, before anything is drawn, so the arrow and the sentence under the
+  // board agree with each other.
+  if (Review.result?.stored) fillBestMove(j, Review.result.depth);
   $('reviewBoardWrap').hidden = false;
   Review.view.orientation = Review.side === 'white' ? WHITE : BLACK;
   Review.view.interactive = false;
@@ -1509,11 +1617,17 @@ function renderProgress() {
 
   const recent = el('div', 'panel');
   recent.appendChild(el('h3', null, 'Games reviewed'));
+  recent.appendChild(el('p', 'note', 'Tap one to open it again — the curve, every move and the board, without reviewing it a second time.'));
   const list = el('div', 'record');
   for (const g of [...games].reverse().slice(0, 12)) {
-    const row = el('div', 'record-row');
+    // A BUTTON, because it does something. These were <div>s: a history of two
+    // hundred games you could read and not open.
+    const row = el('button', 'record-row record-open');
+    row.type = 'button';
+    const when = new Date(g.at).toLocaleDateString();
     row.innerHTML = `<span class="record-band">${esc(g.white)} vs ${esc(g.black)}</span>
-      <span class="record-score">${(g.mistakes ?? []).length} found · ${Number.isFinite(g.accuracy) ? `${g.accuracy}%` : 'too short to score'}${estimateWords(g.estimate, { short: true }) ? ` · looked like ${estimateWords(g.estimate, { short: true })}` : ''}</span>`;
+      <span class="record-score">${esc(when)} · ${(g.mistakes ?? []).length} found · ${Number.isFinite(g.accuracy) ? `${g.accuracy}%` : 'too short to score'}${estimateWords(g.estimate, { short: true }) ? ` · looked like ${estimateWords(g.estimate, { short: true })}` : ''}</span>`;
+    row.addEventListener('click', () => openStoredReview(g));
     list.appendChild(row);
   }
   recent.appendChild(list);

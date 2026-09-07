@@ -401,6 +401,16 @@
   .record-row:last-child { border-bottom: 0; }
   .record-band { color: var(--ink-soft); }
   .record-score { font-variant-numeric: tabular-nums; font-weight: 700; }
+  /* A row that opens the game it names. It is a <button>, so it arrives with a
+     button's chrome; everything here is undoing that, not adding to it — the
+     row should read exactly like the ones that do nothing, until you touch it. */
+  .record-open {
+    width: 100%; background: none; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 15%, transparent);
+    color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+    align-items: baseline;
+  }
+  .record-open:hover, .record-open:focus-visible { background: var(--sunk); }
+  .record-open:hover .record-band, .record-open:focus-visible .record-band { color: var(--ink); }
 
   /* ── forms ─────────────────────────────────────────────────────────── */
   .field { display: grid; gap: 4px; margin-bottom: 10px; }
@@ -5931,6 +5941,75 @@ function fenProblem(fen) {
   return null;
 }
 
+// ── the clock, which is in the movetext and not in the moves ───────────────
+//
+// Both Chess.com and Lichess write the clock into the game as a comment after
+// each move — `{[%clk 0:02:57]}` — and parsePgn strips it along with every
+// other comment, because a comment is not a move. For most of this app that is
+// the right call. For the question "where does the time go", it is the whole
+// answer being thrown away, so these read it back out.
+
+/**
+ * Seconds left on the mover's clock after each ply, or null.
+ *
+ * IT RETURNS NULL RATHER THAN GUESS. The clocks are matched to the plies by
+ * counting, which is only sound when there is exactly one for every move: a
+ * game with clocks on some moves and not others, or with variations carrying
+ * clocks of their own, would line up shifted by however many are missing or
+ * spare. A clock on the wrong move is worse than no clock at all — it reports
+ * time trouble in the wrong half of the game — so a count that does not match
+ * is no answer instead of a wrong one.
+ */
+function clocksFrom(text, plyCount) {
+  const found = [...String(text ?? '').matchAll(/\[%clk\s+(\d+):(\d+):(\d+(?:\.\d+)?)\]/g)]
+    .map((m) => Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]));
+  if (!found.length) return null;
+  if (Number.isFinite(plyCount) && found.length !== plyCount) return null;
+  return found;
+}
+
+/**
+ * A TimeControl header as seconds, `{ base, increment }`, or null.
+ *
+ * "600" is ten minutes with no increment, "180+2" is three minutes plus two a
+ * move. "1/86400" is a day a move — correspondence, where the clock says
+ * nothing about how long anybody actually thought, so it is refused rather
+ * than reported as a twenty-four-hour think.
+ */
+function timeControlOf(header) {
+  const raw = String(header ?? '').trim();
+  if (!raw || raw === '-' || raw.includes('/')) return null;
+  const [base, inc] = raw.split('+');
+  const seconds = Number(base);
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  return { base: seconds, increment: Number(inc) || 0 };
+}
+
+/**
+ * How long each move took, in seconds — null where it cannot be known.
+ *
+ * A player's clock only moves on their own turn, so a move is timed against
+ * that player's PREVIOUS move, two plies back, not against the reply in
+ * between. The first move of each side is timed against the starting time,
+ * which only the TimeControl header knows; without it those two are null
+ * rather than reported as having taken the whole clock.
+ *
+ * A negative result means the clock went up by more than the increment, which
+ * happens with added time and on games whose headers do not describe them.
+ * Those are null too: this is a measurement, and a move that took less than no
+ * time is a sign the measurement does not apply, not a fast move.
+ */
+function timeSpent(clocks, control) {
+  if (!Array.isArray(clocks) || !clocks.length) return null;
+  const inc = control?.increment ?? 0;
+  return clocks.map((left, i) => {
+    const before = i >= 2 ? clocks[i - 2] : (control ? control.base : null);
+    if (before === null || before === undefined) return null;
+    const spent = before + inc - left;
+    return spent >= 0 && spent <= 86400 ? spent : null;
+  });
+}
+
 
 // ── motifs: WHAT WAS DONE TO YOU ───────────────────────────────────────────
 //
@@ -6795,6 +6874,80 @@ function plainEval(cp, mover) {
 
 const severityFor = (loss) => SEVERITY.find((s) => loss >= s.at)?.name ?? null;
 
+/**
+ * A reviewed game's judgement, one character a move, so it survives storage.
+ *
+ * THE CURVE ALONE IS NOT ENOUGH. What a move cost can be read straight off the
+ * evaluation either side of it, but three things cannot: that the move was the
+ * engine's OWN choice — which is not a mistake however two searches score it —
+ * and that it allowed or missed a forced mate, which are not a number of
+ * points at all. Those are decisions the reviewer made with a search in front
+ * of it, and they cost one byte a move to keep.
+ *
+ * The alternative was storing every judged move whole, with the position it
+ * was played in. That is about five kilobytes a game, and this app keeps its
+ * games in local storage, which holds about five megabytes in total — two
+ * hundred games of it would have filled the lot and started silently dropping
+ * everything else. A curve and a string is about half a kilobyte.
+ */
+const CLS_CHAR = {
+  best: '*', good: '.', inaccuracy: '?', mistake: '!', blunder: 'X',
+  missed_mate: 'M', allowed_mate: 'A',
+};
+const CHAR_CLS = Object.fromEntries(Object.entries(CLS_CHAR).map(([k, v]) => [v, k]));
+
+/** The judgement of a whole game as one string, for storing beside its curve. */
+const marksOf = (judged) => judged.map((j) => CLS_CHAR[j.cls] ?? '.').join('');
+
+/**
+ * A stored game read back into the shape the review screen already draws.
+ *
+ * `parsed` is its PGN parsed again — which is where every move, its notation
+ * and the position it was played in come from, so none of those are stored
+ * twice. The curve supplies what each move cost and the marks supply what the
+ * reviewer called it.
+ *
+ * WHAT IS DELIBERATELY MISSING is the engine's own move for each position.
+ * It is the one thing neither the curve nor the marks carry, and keeping one
+ * for every ply of every game is the cost this whole format exists to avoid.
+ * The screen searches for it when you tap a move — one position, not eighty —
+ * and every line that prints it already copes with it being absent.
+ */
+function judgedFromStore(parsed, curve, marks, side) {
+  const out = [];
+  if (!Array.isArray(curve) || typeof marks !== 'string') return out;
+  for (let i = 0; i < parsed.plies.length; i++) {
+    const ply = parsed.plies[i];
+    if (i + 1 >= curve.length) break;
+    const cls = CHAR_CLS[marks[i]] ?? 'good';
+    const mate = cls === 'missed_mate' || cls === 'allowed_mate';
+    // The curve is from White's side the whole way along, so a loss for the
+    // mover is a FALL in it when White moved and a RISE when Black did.
+    const drop = ply.colour === 'white' ? curve[i] - curve[i + 1] : curve[i + 1] - curve[i];
+    out.push({
+      ply: ply.ply,
+      moveNumber: Math.ceil(ply.ply / 2),
+      san: ply.san,
+      uci: ply.uci,
+      colour: ply.colour,
+      fen: ply.fenBefore,
+      fenAfter: parsed.plies[i + 1]?.fenBefore ?? null,
+      best: null,
+      // A mate is not a number of points and is not given one; the engine's
+      // own move cost nothing whatever the two searches either side of it say.
+      loss: mate ? null : (cls === 'best' ? 0 : Math.max(0, drop)),
+      kind: mate ? cls : 'material',
+      label: cls === 'missed_mate' ? 'You had a forced mate and let it go.'
+        : (cls === 'allowed_mate' ? 'This allowed a forced mate.' : null),
+      cls,
+      mates: false,
+      whiteCpAfter: curve[i + 1],
+      mine: ply.colour === side,
+    });
+  }
+  return out;
+}
+
 // Mate scores are not centipawns and a difference between them is not a number
 // of pawns. A move that allows mate, or misses one, is reported as that rather
 // than as arithmetic on the sentinel.
@@ -7544,6 +7697,15 @@ function chessComGame(game, username) {
     : (game.black?.result === 'win' ? '0-1'
       : (outcome ? '1/2-1/2' : '*'));
 
+  // THE RATINGS WERE BEING THROWN AWAY. The API returns both players' rating
+  // for the game, and this kept the usernames and dropped the numbers — so the
+  // app estimated your strength from how much each move cost while your actual
+  // rating, on the day, for that game, sat in the response unread. It is the
+  // one figure here that is not this app's opinion, and everything that wants
+  // to know whether you are getting better should be anchored to it.
+  const myRating = Number(iAmWhite ? game.white?.rating : game.black?.rating);
+  const theirRating = Number(iAmWhite ? game.black?.rating : game.white?.rating);
+
   return {
     at: (game.end_time ?? 0) * 1000 || Date.now(),
     white,
@@ -7553,6 +7715,12 @@ function chessComGame(game, username) {
     pgn: game.pgn,
     url: game.url ?? null,
     timeClass: game.time_class ?? null,
+    // An unrated game's rating is not a rating, so it is not kept as one.
+    myRating: game.rated !== false && Number.isFinite(myRating) ? myRating : null,
+    theirRating: game.rated !== false && Number.isFinite(theirRating) ? theirRating : null,
+    // "600", "180+2". The clocks in the movetext are only readable as time
+    // spent when the starting time is known, and this is where it is written.
+    timeControl: game.time_control ?? null,
     rated: game.rated !== false,
     // NOT REVIEWED. It has been imported, which is not the same thing, and
     // every screen that averages accuracy has to be able to tell the
@@ -7581,27 +7749,54 @@ function chessComGame(game, username) {
  * Chess.com URL where there is one and by end time and colour where there is
  * not, because two of your games cannot end at the same second with you on the
  * same side.
+ *
+ * A GAME ALREADY HERE IS STILL WORTH LOOKING AT, because what this app keeps
+ * about a game has grown. The ratings and the time control were not kept at
+ * all until recently, and an import that only ever adds would have left every
+ * game brought in before then without them for good — a rating chart that
+ * starts on the day the feature shipped, with hundreds of games behind it that
+ * have the numbers sitting in Chess.com's answer. So a duplicate whose stored
+ * copy is missing something this one has is filled in where it lies, and
+ * counted separately: it is neither a new game nor nothing happening.
+ *
+ * Only ever ADDING what is absent. Nothing already stored is overwritten —
+ * a reviewed game's own findings are not the importer's to touch.
  */
+const BACKFILL = ['myRating', 'theirRating', 'timeControl', 'timeClass', 'url', 'rated'];
+
 function chessComMonth(games, username, existing = []) {
-  const seen = new Set();
+  const seen = new Map();
   for (const row of existing) {
-    if (row?.url) seen.add(row.url);
-    if (row?.at) seen.add(`${row.at}|${row.side}`);
+    if (row?.url) seen.set(row.url, row);
+    if (row?.at) seen.set(`${row.at}|${row.side}`, row);
   }
 
   const rows = [];
-  let unusable = 0, duplicate = 0;
+  let unusable = 0, duplicate = 0, updated = 0;
   for (const raw of games ?? []) {
     const row = chessComGame(raw, username);
     if (!row) { unusable++; continue; }
     const key = row.url ?? `${row.at}|${row.side}`;
-    if (seen.has(key) || seen.has(`${row.at}|${row.side}`)) { duplicate++; continue; }
-    seen.add(key);
-    seen.add(`${row.at}|${row.side}`);
+    const already = seen.get(key) ?? seen.get(`${row.at}|${row.side}`);
+    if (already) {
+      duplicate++;
+      let filled = false;
+      for (const field of BACKFILL) {
+        const have = already[field];
+        if ((have === undefined || have === null) && row[field] !== undefined && row[field] !== null) {
+          already[field] = row[field];
+          filled = true;
+        }
+      }
+      if (filled) updated++;
+      continue;
+    }
+    seen.set(key, row);
+    seen.set(`${row.at}|${row.side}`, row);
     rows.push(row);
   }
   rows.sort((a, b) => b.at - a.at);
-  return { rows, unusable, duplicate, found: (games ?? []).length };
+  return { rows, unusable, duplicate, updated, found: (games ?? []).length };
 }
 
 /**
@@ -7612,7 +7807,7 @@ function chessComMonth(games, username, existing = []) {
  * how the first version of this told somebody their brand-new install already
  * had three of their games.
  */
-function importSummary({ found = 0, added = 0, duplicate = 0, unusable = 0, months = 0 }) {
+function importSummary({ found = 0, added = 0, duplicate = 0, unusable = 0, updated = 0, months = 0 }) {
   const month = (n) => `${n} ${n === 1 ? 'month' : 'months'}`;
   if (!found) return `No games at all in the ${month(months)} looked at.`;
 
@@ -7620,6 +7815,10 @@ function importSummary({ found = 0, added = 0, duplicate = 0, unusable = 0, mont
   if (added) parts.push(`${added} ${added === 1 ? 'game' : 'games'} brought in from ${month(months)}.`);
   else parts.push(`Nothing new in ${month(months)}.`);
   if (duplicate) parts.push(`${duplicate} ${duplicate === 1 ? 'was' : 'were'} already here.`);
+  // Said plainly, because "already here" and "already here and now has your
+  // rating on it" are different outcomes and only one of them is worth
+  // running the import again for.
+  if (updated) parts.push(`${updated} of those gained the rating and time control this app did not used to keep.`);
   if (unusable) parts.push(`${unusable} skipped: not standard chess, no moves, or not your game.`);
   return parts.join(' ');
 }
@@ -11287,6 +11486,17 @@ async function runReview() {
     tactics: result.tactics.length,
     meanLoss: result.meanLoss,
     depth,
+    // WHAT IT TOOK TO WORK ALL THAT OUT, kept so the game reopens without it
+    // being worked out again. A review is minutes of searching; before this
+    // the only thing that survived it was the list of mistakes, so every one
+    // of the games below was a dead row you could read and not open.
+    //
+    // The curve is the evaluation from White's side after every move, and the
+    // marks are what the reviewer called each one, a character apiece. See
+    // judgedFromStore() for why those two are enough and what they leave out.
+    curve: result.whiteCp,
+    marks: marksOf(result.judged),
+    counted: result.counted,
     estimate: result.meanLoss === null ? null : estimateRating(result.meanLoss, depth),
   });
   await Store.set('reviews', App.reviews);
@@ -11481,25 +11691,44 @@ function renderReviewResult() {
 
   renderCurve(box);
 
+  // A GAME REVIEWED BEFORE ANY OF THIS WAS KEPT has its mistakes and nothing
+  // else, and an empty move list under a heading reads like a fault. It says
+  // so, and says what to do about it.
+  if (Review.result.stored && !judged.length) {
+    const again = el('div', 'panel');
+    again.appendChild(el('h3', null, 'Every move'));
+    again.appendChild(el('p', 'note', 'This game was reviewed before the move-by-move record was kept, so only its mistakes survive. Review it again and the curve and the full move list come with it.'));
+    const btn = el('button', 'btn', 'Load it for another review');
+    btn.type = 'button';
+    btn.addEventListener('click', () => {
+      $('pgnInput').value = Review.result.pgn ?? '';
+      $('pgnInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    again.appendChild(btn);
+    box.appendChild(again);
+  }
+
   // Every move, both sides, with a glyph — the chess.com move list. Tapping
   // one puts the position on the board with both arrows and the eval bar.
-  const all = el('div', 'panel');
-  all.appendChild(el('h3', null, 'Every move'));
-  all.appendChild(el('p', 'note', 'Your moves are bold. ★ the engine’s own choice, ?! half a point, ? a point and a half, ?? three or more, #? a mate missed or allowed. Tap one to see it.'));
-  const list = el('div', 'movelist');
-  list.id = 'reviewMoves';
-  for (const j of judged) {
-    if (j.colour === 'white') list.appendChild(el('span', 'mn', `${j.moveNumber}.`));
-    const btn = el('button', 'mv' + (j.mine ? ' mine' : ''), j.san);
-    btn.type = 'button';
-    btn.dataset.class = j.cls;
-    btn.dataset.ply = j.ply;
-    btn.title = describeJudged(j);
-    btn.addEventListener('click', () => showJudged(j));
-    list.appendChild(btn);
+  if (judged.length) {
+    const all = el('div', 'panel');
+    all.appendChild(el('h3', null, 'Every move'));
+    all.appendChild(el('p', 'note', 'Your moves are bold. ★ the engine’s own choice, ?! half a point, ? a point and a half, ?? three or more, #? a mate missed or allowed. Tap one to see it.'));
+    const list = el('div', 'movelist');
+    list.id = 'reviewMoves';
+    for (const j of judged) {
+      if (j.colour === 'white') list.appendChild(el('span', 'mn', `${j.moveNumber}.`));
+      const btn = el('button', 'mv' + (j.mine ? ' mine' : ''), j.san);
+      btn.type = 'button';
+      btn.dataset.class = j.cls;
+      btn.dataset.ply = j.ply;
+      btn.title = describeJudged(j);
+      btn.addEventListener('click', () => showJudged(j));
+      list.appendChild(btn);
+    }
+    all.appendChild(list);
+    box.appendChild(all);
   }
-  all.appendChild(list);
-  box.appendChild(all);
 
   if (!mistakes.length) {
     box.appendChild(el('p', 'note', 'Nothing crossed the threshold. At this search depth that means no move of yours lost half a point or more.'));
@@ -11544,6 +11773,80 @@ function renderReviewResult() {
   box.appendChild(panel);
 }
 
+/**
+ * A game you reviewed before, opened again without reviewing it again.
+ *
+ * Every row under "Games reviewed" used to be text you could read and not act
+ * on. The review that produced it is minutes of searching, and the only thing
+ * that survived it was the list of mistakes — the curve, the move list and the
+ * board were gone the moment you left the screen, so a history of two hundred
+ * games was two hundred dead rows.
+ *
+ * Games now keep the two small things that cannot be worked out again from
+ * their moves alone, and this puts the whole review back from them: same
+ * curve, same move list, same board, no searching. See judgedFromStore for
+ * what those two things are and the one thing they leave out.
+ */
+function openStoredReview(game) {
+  let parsed = null;
+  try { parsed = parsePgn(game.pgn ?? ''); } catch { parsed = null; }
+  if (!parsed || !parsed.plies.length) {
+    show('review');
+    $('reviewStatus').textContent = 'That game was stored without readable moves, so there is nothing to open.';
+    return;
+  }
+  Review.side = game.side ?? 'white';
+  Review.parsed = parsed;
+  const judged = judgedFromStore(parsed, game.curve, game.marks, Review.side);
+  Review.result = {
+    mistakes: game.mistakes ?? [],
+    accuracy: game.accuracy ?? null,
+    meanLoss: game.meanLoss ?? null,
+    depth: game.depth ?? 9,
+    counted: game.counted ?? judged.filter((j) => j.mine).length,
+    minJudged: MIN_JUDGED,
+    judged,
+    whiteCp: Array.isArray(game.curve) ? game.curve : null,
+    capped: null,
+    pgn: game.pgn ?? '',
+    // Read back rather than just measured. Two things behave differently:
+    // the engine's own move is filled in one position at a time as you tap,
+    // and a game stored before any of this was kept says so instead of
+    // showing an empty move list.
+    stored: true,
+  };
+  show('review');
+  $('reviewStatus').textContent = '';
+  renderReviewResult();
+  $('reviewOut').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/**
+ * The engine's own move for one position, worked out the first time it is
+ * asked for.
+ *
+ * A stored game carries no best move for any of its plies, so without this
+ * every move of a reopened game would say "the engine wanted something else".
+ * One position takes a fraction of a second; keeping eighty of them per game
+ * is the thing this format exists not to do.
+ */
+function fillBestMove(j, depth) {
+  if (j.best || j.noBest) return false;
+  const budget = REVIEW_BUDGET[depth] ?? REVIEW_BUDGET[9];
+  try {
+    const at = new Board(j.fen);
+    if (at.outcome()) { j.noBest = true; return false; }
+    App.engine.reset();
+    const found = App.engine.search(at, { movetime: budget.movetime, maxDepth: depth });
+    if (!found?.move) { j.noBest = true; return false; }
+    j.best = { uci: moveToUci(found.move), san: toSan(new Board(j.fen), found.move) };
+    return true;
+  } catch {
+    j.noBest = true;
+    return false;
+  }
+}
+
 function describeJudged(j) {
   const who = j.mine ? 'You' : 'They';
   if (j.mates) return `${moveLabel(j)} — checkmate.`;
@@ -11554,6 +11857,10 @@ function describeJudged(j) {
 }
 
 function showJudged(j) {
+  // A reopened game has no engine move stored for this position; it is worked
+  // out now, before anything is drawn, so the arrow and the sentence under the
+  // board agree with each other.
+  if (Review.result?.stored) fillBestMove(j, Review.result.depth);
   $('reviewBoardWrap').hidden = false;
   Review.view.orientation = Review.side === 'white' ? WHITE : BLACK;
   Review.view.interactive = false;
@@ -12273,11 +12580,17 @@ function renderProgress() {
 
   const recent = el('div', 'panel');
   recent.appendChild(el('h3', null, 'Games reviewed'));
+  recent.appendChild(el('p', 'note', 'Tap one to open it again — the curve, every move and the board, without reviewing it a second time.'));
   const list = el('div', 'record');
   for (const g of [...games].reverse().slice(0, 12)) {
-    const row = el('div', 'record-row');
+    // A BUTTON, because it does something. These were <div>s: a history of two
+    // hundred games you could read and not open.
+    const row = el('button', 'record-row record-open');
+    row.type = 'button';
+    const when = new Date(g.at).toLocaleDateString();
     row.innerHTML = `<span class="record-band">${esc(g.white)} vs ${esc(g.black)}</span>
-      <span class="record-score">${(g.mistakes ?? []).length} found · ${Number.isFinite(g.accuracy) ? `${g.accuracy}%` : 'too short to score'}${estimateWords(g.estimate, { short: true }) ? ` · looked like ${estimateWords(g.estimate, { short: true })}` : ''}</span>`;
+      <span class="record-score">${esc(when)} · ${(g.mistakes ?? []).length} found · ${Number.isFinite(g.accuracy) ? `${g.accuracy}%` : 'too short to score'}${estimateWords(g.estimate, { short: true }) ? ` · looked like ${estimateWords(g.estimate, { short: true })}` : ''}</span>`;
+    row.addEventListener('click', () => openStoredReview(g));
     list.appendChild(row);
   }
   recent.appendChild(list);
@@ -16112,6 +16425,9 @@ const Import = {
   added: 0,
   duplicate: 0,
   unusable: 0,
+  // Games already stored that gained a field they were missing — see
+  // chessComMonth. Not an addition and not nothing.
+  updated: 0,
   months: 0,
 };
 
@@ -16148,7 +16464,7 @@ async function runImport() {
 
   Import.running = true;
   Import.cancelled = false;
-  Import.found = 0; Import.added = 0; Import.duplicate = 0; Import.unusable = 0; Import.months = 0;
+  Import.found = 0; Import.added = 0; Import.duplicate = 0; Import.unusable = 0; Import.updated = 0; Import.months = 0;
   $('importRun').hidden = true;
   $('importStop').hidden = false;
   importNote(`Asking Chess.com which months ${username} has games in…`);
@@ -16180,6 +16496,9 @@ async function runImport() {
       Import.found += month.found;
       Import.duplicate += month.duplicate;
       Import.unusable += month.unusable;
+      // chessComMonth fills these into the stored rows where they were
+      // missing; the count is how many it reached.
+      Import.updated += month.updated ?? 0;
       // Anything past the limit is not brought in and is not counted as
       // anything else either: it was simply not asked for.
       fresh.push(...month.rows.slice(0, wanted - fresh.length));
@@ -16191,12 +16510,16 @@ async function runImport() {
 
     Import.added = fresh.length;
     if (fresh.length) await storeImported(fresh);
+    // A RUN THAT ADDED NOTHING CAN STILL HAVE CHANGED SOMETHING. Backfilling
+    // ratings into games already stored happens in place, so without this the
+    // whole point of running the import again would be thrown away on reload.
+    else if (Import.updated) await Store.set('reviews', App.reviews);
 
     importNote(importSummary({
       found: Import.found, added: Import.added, months: Import.months,
-      duplicate: Import.duplicate, unusable: Import.unusable,
+      duplicate: Import.duplicate, unusable: Import.unusable, updated: Import.updated,
     }) + (fresh.length ? ' They are in Review, and the repertoire report has already been walked against them.' : ''),
-    fresh.length ? 'note good-note' : 'note');
+    fresh.length || Import.updated ? 'note good-note' : 'note');
 
     if (fresh.length) renderDeviations();
   } catch (error) {

@@ -85,6 +85,80 @@ function plainEval(cp, mover) {
 
 const severityFor = (loss) => SEVERITY.find((s) => loss >= s.at)?.name ?? null;
 
+/**
+ * A reviewed game's judgement, one character a move, so it survives storage.
+ *
+ * THE CURVE ALONE IS NOT ENOUGH. What a move cost can be read straight off the
+ * evaluation either side of it, but three things cannot: that the move was the
+ * engine's OWN choice — which is not a mistake however two searches score it —
+ * and that it allowed or missed a forced mate, which are not a number of
+ * points at all. Those are decisions the reviewer made with a search in front
+ * of it, and they cost one byte a move to keep.
+ *
+ * The alternative was storing every judged move whole, with the position it
+ * was played in. That is about five kilobytes a game, and this app keeps its
+ * games in local storage, which holds about five megabytes in total — two
+ * hundred games of it would have filled the lot and started silently dropping
+ * everything else. A curve and a string is about half a kilobyte.
+ */
+const CLS_CHAR = {
+  best: '*', good: '.', inaccuracy: '?', mistake: '!', blunder: 'X',
+  missed_mate: 'M', allowed_mate: 'A',
+};
+const CHAR_CLS = Object.fromEntries(Object.entries(CLS_CHAR).map(([k, v]) => [v, k]));
+
+/** The judgement of a whole game as one string, for storing beside its curve. */
+const marksOf = (judged) => judged.map((j) => CLS_CHAR[j.cls] ?? '.').join('');
+
+/**
+ * A stored game read back into the shape the review screen already draws.
+ *
+ * `parsed` is its PGN parsed again — which is where every move, its notation
+ * and the position it was played in come from, so none of those are stored
+ * twice. The curve supplies what each move cost and the marks supply what the
+ * reviewer called it.
+ *
+ * WHAT IS DELIBERATELY MISSING is the engine's own move for each position.
+ * It is the one thing neither the curve nor the marks carry, and keeping one
+ * for every ply of every game is the cost this whole format exists to avoid.
+ * The screen searches for it when you tap a move — one position, not eighty —
+ * and every line that prints it already copes with it being absent.
+ */
+function judgedFromStore(parsed, curve, marks, side) {
+  const out = [];
+  if (!Array.isArray(curve) || typeof marks !== 'string') return out;
+  for (let i = 0; i < parsed.plies.length; i++) {
+    const ply = parsed.plies[i];
+    if (i + 1 >= curve.length) break;
+    const cls = CHAR_CLS[marks[i]] ?? 'good';
+    const mate = cls === 'missed_mate' || cls === 'allowed_mate';
+    // The curve is from White's side the whole way along, so a loss for the
+    // mover is a FALL in it when White moved and a RISE when Black did.
+    const drop = ply.colour === 'white' ? curve[i] - curve[i + 1] : curve[i + 1] - curve[i];
+    out.push({
+      ply: ply.ply,
+      moveNumber: Math.ceil(ply.ply / 2),
+      san: ply.san,
+      uci: ply.uci,
+      colour: ply.colour,
+      fen: ply.fenBefore,
+      fenAfter: parsed.plies[i + 1]?.fenBefore ?? null,
+      best: null,
+      // A mate is not a number of points and is not given one; the engine's
+      // own move cost nothing whatever the two searches either side of it say.
+      loss: mate ? null : (cls === 'best' ? 0 : Math.max(0, drop)),
+      kind: mate ? cls : 'material',
+      label: cls === 'missed_mate' ? 'You had a forced mate and let it go.'
+        : (cls === 'allowed_mate' ? 'This allowed a forced mate.' : null),
+      cls,
+      mates: false,
+      whiteCpAfter: curve[i + 1],
+      mine: ply.colour === side,
+    });
+  }
+  return out;
+}
+
 // Mate scores are not centipawns and a difference between them is not a number
 // of pawns. A move that allows mate, or misses one, is reported as that rather
 // than as arithmetic on the sentinel.

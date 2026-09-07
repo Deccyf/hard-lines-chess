@@ -396,6 +396,16 @@
   .record-row:last-child { border-bottom: 0; }
   .record-band { color: var(--ink-soft); }
   .record-score { font-variant-numeric: tabular-nums; font-weight: 700; }
+  /* A row that opens the game it names. It is a <button>, so it arrives with a
+     button's chrome; everything here is undoing that, not adding to it — the
+     row should read exactly like the ones that do nothing, until you touch it. */
+  .record-open {
+    width: 100%; background: none; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 15%, transparent);
+    color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+    align-items: baseline;
+  }
+  .record-open:hover, .record-open:focus-visible { background: var(--sunk); }
+  .record-open:hover .record-band, .record-open:focus-visible .record-band { color: var(--ink); }
 
   /* ── forms ─────────────────────────────────────────────────────────── */
   .field { display: grid; gap: 4px; margin-bottom: 10px; }

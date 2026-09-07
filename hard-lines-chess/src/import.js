@@ -61,6 +61,15 @@ function chessComGame(game, username) {
     : (game.black?.result === 'win' ? '0-1'
       : (outcome ? '1/2-1/2' : '*'));
 
+  // THE RATINGS WERE BEING THROWN AWAY. The API returns both players' rating
+  // for the game, and this kept the usernames and dropped the numbers — so the
+  // app estimated your strength from how much each move cost while your actual
+  // rating, on the day, for that game, sat in the response unread. It is the
+  // one figure here that is not this app's opinion, and everything that wants
+  // to know whether you are getting better should be anchored to it.
+  const myRating = Number(iAmWhite ? game.white?.rating : game.black?.rating);
+  const theirRating = Number(iAmWhite ? game.black?.rating : game.white?.rating);
+
   return {
     at: (game.end_time ?? 0) * 1000 || Date.now(),
     white,
@@ -70,6 +79,12 @@ function chessComGame(game, username) {
     pgn: game.pgn,
     url: game.url ?? null,
     timeClass: game.time_class ?? null,
+    // An unrated game's rating is not a rating, so it is not kept as one.
+    myRating: game.rated !== false && Number.isFinite(myRating) ? myRating : null,
+    theirRating: game.rated !== false && Number.isFinite(theirRating) ? theirRating : null,
+    // "600", "180+2". The clocks in the movetext are only readable as time
+    // spent when the starting time is known, and this is where it is written.
+    timeControl: game.time_control ?? null,
     rated: game.rated !== false,
     // NOT REVIEWED. It has been imported, which is not the same thing, and
     // every screen that averages accuracy has to be able to tell the
@@ -98,27 +113,54 @@ function chessComGame(game, username) {
  * Chess.com URL where there is one and by end time and colour where there is
  * not, because two of your games cannot end at the same second with you on the
  * same side.
+ *
+ * A GAME ALREADY HERE IS STILL WORTH LOOKING AT, because what this app keeps
+ * about a game has grown. The ratings and the time control were not kept at
+ * all until recently, and an import that only ever adds would have left every
+ * game brought in before then without them for good — a rating chart that
+ * starts on the day the feature shipped, with hundreds of games behind it that
+ * have the numbers sitting in Chess.com's answer. So a duplicate whose stored
+ * copy is missing something this one has is filled in where it lies, and
+ * counted separately: it is neither a new game nor nothing happening.
+ *
+ * Only ever ADDING what is absent. Nothing already stored is overwritten —
+ * a reviewed game's own findings are not the importer's to touch.
  */
+const BACKFILL = ['myRating', 'theirRating', 'timeControl', 'timeClass', 'url', 'rated'];
+
 function chessComMonth(games, username, existing = []) {
-  const seen = new Set();
+  const seen = new Map();
   for (const row of existing) {
-    if (row?.url) seen.add(row.url);
-    if (row?.at) seen.add(`${row.at}|${row.side}`);
+    if (row?.url) seen.set(row.url, row);
+    if (row?.at) seen.set(`${row.at}|${row.side}`, row);
   }
 
   const rows = [];
-  let unusable = 0, duplicate = 0;
+  let unusable = 0, duplicate = 0, updated = 0;
   for (const raw of games ?? []) {
     const row = chessComGame(raw, username);
     if (!row) { unusable++; continue; }
     const key = row.url ?? `${row.at}|${row.side}`;
-    if (seen.has(key) || seen.has(`${row.at}|${row.side}`)) { duplicate++; continue; }
-    seen.add(key);
-    seen.add(`${row.at}|${row.side}`);
+    const already = seen.get(key) ?? seen.get(`${row.at}|${row.side}`);
+    if (already) {
+      duplicate++;
+      let filled = false;
+      for (const field of BACKFILL) {
+        const have = already[field];
+        if ((have === undefined || have === null) && row[field] !== undefined && row[field] !== null) {
+          already[field] = row[field];
+          filled = true;
+        }
+      }
+      if (filled) updated++;
+      continue;
+    }
+    seen.set(key, row);
+    seen.set(`${row.at}|${row.side}`, row);
     rows.push(row);
   }
   rows.sort((a, b) => b.at - a.at);
-  return { rows, unusable, duplicate, found: (games ?? []).length };
+  return { rows, unusable, duplicate, updated, found: (games ?? []).length };
 }
 
 /**
@@ -129,7 +171,7 @@ function chessComMonth(games, username, existing = []) {
  * how the first version of this told somebody their brand-new install already
  * had three of their games.
  */
-function importSummary({ found = 0, added = 0, duplicate = 0, unusable = 0, months = 0 }) {
+function importSummary({ found = 0, added = 0, duplicate = 0, unusable = 0, updated = 0, months = 0 }) {
   const month = (n) => `${n} ${n === 1 ? 'month' : 'months'}`;
   if (!found) return `No games at all in the ${month(months)} looked at.`;
 
@@ -137,6 +179,10 @@ function importSummary({ found = 0, added = 0, duplicate = 0, unusable = 0, mont
   if (added) parts.push(`${added} ${added === 1 ? 'game' : 'games'} brought in from ${month(months)}.`);
   else parts.push(`Nothing new in ${month(months)}.`);
   if (duplicate) parts.push(`${duplicate} ${duplicate === 1 ? 'was' : 'were'} already here.`);
+  // Said plainly, because "already here" and "already here and now has your
+  // rating on it" are different outcomes and only one of them is worth
+  // running the import again for.
+  if (updated) parts.push(`${updated} of those gained the rating and time control this app did not used to keep.`);
   if (unusable) parts.push(`${unusable} skipped: not standard chess, no moves, or not your game.`);
   return parts.join(' ');
 }
