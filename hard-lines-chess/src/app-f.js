@@ -314,7 +314,7 @@ Material: ${bundle.material}`);
   // The depth is printed only when there was a search; "0 plies deep" is a
   // number that describes nothing. The best-move list is omitted when it is
   // empty rather than left as a heading over blank lines.
-  const depthNote = bundle.depth ? `, ${bundle.depth} plies deep` : '';
+  const depthNote = bundle.depth ? `, looking about ${Math.max(1, Math.round(bundle.depth / 2))} moves ahead` : '';
   const turnLine = bundle.outcome
     ? `The game is over. Nothing was searched; there is no move to find.`
     : `It is ${bundle.mover} to move. Every evaluation below is written out in words already; use those words.`;

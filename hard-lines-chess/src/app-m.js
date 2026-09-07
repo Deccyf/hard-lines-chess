@@ -371,15 +371,20 @@ function paintWatchNote(note) {
   const box = $('watchNote');
   if (!note.judged) { box.textContent = 'Looking at it…'; box.className = 'note'; return; }
   const { best, loss, evalAfter, depth } = note.judged;
-  const how = depth ? `A ${depth}-ply search` : 'A deeper search';
+  // "A 5-PLY SEARCH" MEANS NOTHING TO A CHESS PLAYER. A ply is half a move —
+  // one side's turn — and it is engine vocabulary, not chess vocabulary. What
+  // a reader wants is how far ahead the machine looked, in the moves they
+  // count themselves, so the depth is halved and said as "about", because
+  // halving an odd number is a rounding and should sound like one.
+  const how = depth ? `Looking about ${Math.max(1, Math.round(depth / 2))} ${Math.round(depth / 2) === 1 ? 'move' : 'moves'} ahead, the engine` : 'A deeper search';
   if (best === note.played || loss < 40) {
     box.textContent = `${how} agrees with ${note.played}. ${evalAfter}.`;
     box.className = 'note good-note';
   } else if (loss < 150) {
-    box.textContent = `${how} prefers ${best}. A little worse by that measure, not a mistake. ${evalAfter}.`;
+    box.textContent = `${how} prefers ${best}. Slightly worse, not a mistake. ${evalAfter}.`;
     box.className = 'note';
   } else {
-    box.textContent = `${how} wanted ${best}. By that measure ${note.played} costs about ${(loss / 100).toFixed(1)} pawns. ${evalAfter}.`;
+    box.textContent = `${how} wanted ${best}. That makes ${note.played} about ${(loss / 100).toFixed(1)} points worse. ${evalAfter}.`;
     box.className = 'note bad-note';
   }
 }

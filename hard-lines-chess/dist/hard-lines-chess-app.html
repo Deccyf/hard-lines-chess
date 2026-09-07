@@ -285,6 +285,20 @@
   .coords span { text-align: center; }
 
   .panel { border: 2px solid var(--line); background: var(--panel); box-shadow: var(--shadow); padding: 14px; }
+
+  /* ── VERTICAL RHYTHM, and why it is not just .panel + .panel ─────────────
+     That rule was the whole spacing system, and it only fires between two
+     panels that are literally siblings. Anything separated by a board, a list
+     or a wrapper got nothing — measured at 390px, six screens had blocks
+     sitting flush against each other with a zero pixel gap, so two boxes read
+     as one box with a line through it.
+
+     A type selector has less weight than a class, so every element that
+     declares its own margin — .note, .lede, .row — keeps it, and this reaches
+     only the blocks that never had one. */
+  section > * + *,
+  section > div > * + *,
+  .layout > div > * + * { margin-top: 16px; }
   .panel + .panel { margin-top: 16px; }
   .panel h2 { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin: 0 0 10px; font-weight: 700; }
 
@@ -779,7 +793,7 @@
 
   <!-- TODAY -->
   <section id="section-today">
-    <p class="lede">What is worth doing right now. A row only appears when there is something to act on.</p>
+    <p class="lede">What to do next. Rows only appear when there is something to act on.</p>
     <div id="todayList" class="tasks"></div>
     <div id="todayRecord" class="panel"></div>
     <div class="panel">
@@ -788,9 +802,8 @@
     </div>
     <div class="panel" id="downloadWrap">
       <h3 id="downloadTitle">Take it with you</h3>
-      <p class="note" style="margin:0" id="downloadBlurb">The whole app is one file, and it works with no connection once
-        it has loaded. Save a copy and it opens from your Files app, a USB stick or a desktop, with no server at all.
-        Your progress in that copy is kept by the browser you open it in.</p>
+      <p class="note" style="margin:0" id="downloadBlurb">The whole app is one file and works offline. Save a copy and it opens from your Files app, a USB
+        stick or a desktop. Progress in that copy stays in the browser you open it in.</p>
       <div class="row" style="margin-top:10px" id="installRow" hidden><button class="btn primary" id="installApp" type="button">Install as an app</button></div>
       <p class="note" id="installNote"></p>
       <div class="row" style="margin-top:10px" id="downloadRow"><button class="btn" id="downloadApp" type="button">Save a copy of the app</button></div>
@@ -820,9 +833,9 @@
             <div class="status teach" id="teachStatus"><b id="teachHead">Nothing set</b><span id="teachBody"></span></div>
             <div id="teachListWrap" hidden style="margin-top:8px"><h4>This game's problems</h4><div class="record" id="teachList"></div></div>
           </div>
-          <p class="note" id="playFrom" hidden>Playing from a set-up position. This game will be saved but not counted in your record against the band.</p>
+          <p class="note" id="playFrom" hidden>Set-up position. Saved, but not counted in your record.</p>
           <div id="playAfter" hidden class="after">
-            <p class="note" id="playAfterText">The game is saved. Its moves are in your record on the Today page.</p>
+            <p class="note" id="playAfterText">Saved. The moves are on your Today page.</p>
             <div class="row" style="margin-top:8px"><button class="btn" id="playAnalyse" type="button">Look at the final position</button></div>
           </div>
         </div>
@@ -878,7 +891,7 @@
         <div class="panel">
           <h2>Its evaluation</h2>
           <div class="readout">
-            <div><span class="k">In pawns, from your side</span><span class="v" id="playEval">—</span></div>
+            <div><span class="k">In points, from your side</span><span class="v" id="playEval">—</span></div>
           </div>
           <p class="note">The engine's own opinion, not a fact about the position. A positive number means it thinks you are better.</p>
         </div>
@@ -905,7 +918,7 @@
           <span><i class="k-threat"></i> what they threaten</span>
         </div>
         <div class="panel">
-          <div class="status"><b id="practiceTurn">White to move.</b><span>Move either side. Right-click or long-press a square to mark it; right-drag to draw an arrow.</span></div>
+          <div class="status"><b id="practiceTurn">White to move.</b><span>Move either side. Long-press a square to mark it, or drag with the right button for an arrow.</span></div>
           <div class="row" style="margin-top:12px">
             <button class="btn primary" id="practiceSuggest" type="button">Suggest a move</button>
             <button class="btn" id="practiceUndo" type="button">Undo</button>
@@ -1003,7 +1016,7 @@
         </ol>
 
         <p class="note">Every line below, and every branch, has been checked move by move against this app's own
-          engine, and none of them leaves you worse than about half a pawn. Where the text counts something —
+          engine, and none of them leaves you worse than about half a point. Where the text counts something —
           attackers on a square, a piece with one move — the count was made on the board, not from memory.</p>
       </details>
 
@@ -1015,11 +1028,9 @@
         <h2>Where you leave the book</h2>
         <p class="note" id="deviationSummary"></p>
         <div id="deviationList"></div>
-        <p class="note">Every game you have played here or pasted into Review, walked against the lines below. The
-          opening named is the one the game followed furthest — nobody records what they meant to play, and the moves
-          are what there is. A move that transposes into another line you know is not counted as leaving anything.
-          What each one cost is two searches of the same depth, one after your move and one after the book's, and the
-          answer is allowed to be nothing: leaving your preparation is not automatically a mistake.</p>
+        <p class="note">Your games walked against the lines below. The opening named is the one the game followed furthest, and
+          transposing into another line you know does not count as leaving. The cost is two searches of equal depth,
+          one after your move and one after the book's — and it is allowed to be nothing.</p>
       </div>
 
       <div id="openingList"></div>
@@ -1073,10 +1084,8 @@
          it. -->
     <div class="panel">
       <h2>Bring in your Chess.com games</h2>
-      <p class="note">Chess.com publishes every public game through an endpoint that needs no password and no
-        account to connect. Type your username and this reads your archives, newest month first, and stores the
-        games here. The request goes from this browser to Chess.com and back; there is no server in this app for
-        anything to be sent to.</p>
+      <p class="note">No password needed — Chess.com publishes public games openly. Your username reads your archives,
+        newest month first. The request goes from this browser to Chess.com and back; this app has no server.</p>
       <div class="fields">
         <label class="field"><span>Chess.com username</span>
           <input type="text" id="importUser" autocomplete="username" spellcheck="false" placeholder="the name in your profile address">
@@ -1096,13 +1105,13 @@
       </div>
       <p class="note" id="importNote"></p>
       <p class="note" id="importState"></p>
-      <p class="note">Importing is not reviewing. The games arrive with their moves, which is everything the
-        repertoire report needs — an accuracy and a list of mistakes need the engine to walk the game.</p>
+      <p class="note">Importing brings the moves, which is all the repertoire report needs. An accuracy and a mistake list
+        need the engine to walk the game.</p>
 
       <div class="after" style="margin-top:14px">
         <h3>Walk them with the engine</h3>
-        <p class="note">Oldest first, one at a time, saved after each — so stopping keeps what it has done and
-          pressing it again carries on. A game already walked is never walked twice.</p>
+        <p class="note">Oldest first, saved after each — stop any time and press again to carry on. Mistakes worth drilling
+          are added to Drills as it goes.</p>
         <div class="fields">
           <label class="field"><span>How hard it looks</span>
             <select id="walkDepth">
@@ -1124,8 +1133,8 @@
     <div class="panel">
       <h2>Review a game you played</h2>
       <p class="note">
-        Or paste one. Lichess games have to come across this way — that site does not send the header a browser
-        needs to read its games from another page — and so does any game from anywhere else.
+        Or paste one. Lichess games have to come this way — that site will not let a browser read them from
+        another page — and so does anything from elsewhere.
       </p>
       <details class="how">
         <summary>Where to find the PGN</summary>
@@ -1193,10 +1202,8 @@
   <section id="section-puzzles" hidden>
     <div class="panel">
       <h2>Tactics from your own games</h2>
-      <p class="note" style="margin:0 0 10px">Every one of these is a moment your opponent went wrong in a game you
-        actually played, and exactly one move took it. The engine walks the game, finds where they gave something
-        away, then checks with a second, deeper search that one move is clearly best — a position where two moves
-        win equally is thrown away rather than asked as a puzzle.</p>
+      <p class="note" style="margin:0 0 10px">Moments your opponent slipped in your own games, where one move punished it. A second, deeper search
+        confirms a single move is clearly best; anything with two equal answers is dropped rather than asked.</p>
       <p class="note" style="margin:0 0 12px"><strong>Not the same as Drills.</strong> A drill is a position where
         <em>you</em> went wrong. A puzzle is a chance that was on the board for you.</p>
       <div id="puzzleHead" hidden></div>
@@ -1245,13 +1252,12 @@
 
   <!-- STORM -->
   <section id="section-storm" hidden>
-    <p class="lede" id="stormLede">Three minutes. One position after another. The only way to go faster is to see faster.</p>
+    <p class="lede" id="stormLede">Three minutes, one position after another. The only way to go faster is to see faster.</p>
 
     <div class="panel" id="stormSetup">
-      <p class="note" style="margin:0 0 10px">Everything else here is untimed on purpose — a drill you rush is a drill you
-        did not do. Recognition is the exception: you already know what a fork looks like, and what you do not have is
-        finding it in four seconds. A wrong move costs ten seconds rather than ending the run, because the thing that
-        improves is how many positions you get through.</p>
+      <p class="note" style="margin:0 0 10px">Everything else here is untimed on purpose — a drill you rush is a drill you did not do. Recognition is
+        the exception: you know what a fork looks like, what you lack is finding it in four seconds. A wrong move
+        costs ten seconds rather than ending the run.</p>
       <p class="note" id="stormSource"></p>
       <div class="row">
         <button class="btn primary" id="stormStart" type="button">Start</button>
@@ -1288,7 +1294,7 @@
 
   <!-- ENDGAMES -->
   <section id="section-endgames" hidden>
-    <p class="lede">Positions with a technique attached, played out against a defence that will not help you.</p>
+    <p class="lede">Techniques worth owning, against a defence that will not help you.</p>
 
     <div id="endgameBoardWrap" hidden>
       <div class="layout">
@@ -1326,17 +1332,16 @@
 
     <div class="panel">
       <h3>Why these are graded and your games are not</h3>
-      <p class="note">King and pawn against king is not estimated here, it is solved: every one of the
-        393,216 positions is a win or a draw, worked out once and looked up after every move. That is
-        why the app can tell you the move a win turned into a draw rather than only that it did. The
-        search cannot do this — shown the drawn opposition it is confident White is winning — and where
-        the search is the referee instead, the panel above says so.</p>
+      <p class="note">King and pawn against king is not estimated here, it is solved — all 393,216 positions worked out once
+        and looked up after every move. That is how the app can name the exact move a win turned into a draw. The
+        search cannot: shown the drawn opposition it is sure White is winning. Where the search referees instead, the
+        panel above says so.</p>
     </div>
   </section>
 
   <!-- WATCH -->
   <section id="section-watch" hidden>
-    <p class="lede">Somebody else's game, a move at a time, with the engine saying what it makes of each one.</p>
+    <p class="lede">Somebody else's game, a move at a time, with the engine on every move.</p>
 
     <div class="panel">
       <div class="row">
@@ -1349,9 +1354,8 @@
           </select>
         </label>
       </div>
-      <p class="note" style="margin:10px 0 0" id="watchBlurb">Two bands off the ladder, drawn at random, given opposite
-        colours and an opening neither of them picked. Inside the search each side chooses freely among the moves it
-        rates equal, so the same two bands do not play the same game twice. Press it again for another one.</p>
+      <p class="note" style="margin:10px 0 0" id="watchBlurb">Two bots off the ladder, drawn at random, with an opening neither of them picked. Press it again for
+        a different game — it is never the same twice.</p>
     </div>
 
     <div id="watchStage" hidden>
@@ -1391,27 +1395,24 @@
 
     <div class="panel">
       <h3>Games worth watching</h3>
-      <p class="note">Every move below is replayed through this app's own move generator before it ships, so a game
-        here is the game it says it is. Where the record says checkmate, the final position has to be checkmate or the
-        build fails. Where a player resigned, nothing here can check that — a resignation is a fact about a room, not
-        about a position — and the screen says so rather than pretending the board proves it.</p>
+      <p class="note">Every move is replayed on a real board before it ships, so these are the games they say they are.
+        A recorded checkmate has to be checkmate or the build fails. A resignation is a fact about a room, not a
+        position, and the screen says so rather than pretending the board proves it.</p>
     </div>
     <div id="watchGames"></div>
 
     <div class="panel">
       <h3>What the commentary is, and what it is not</h3>
-      <p class="note">Three sources, in this order. While the moves are still in one of the app's openings, you get
-        that opening's own note for the move just played — the same prose the Openings screen uses, already checked
-        against a board. On a famous game, at the moves that have one, you get a sentence somebody wrote about that
-        exact move. And after every move, a search deeper than the one that played it: if it wanted something else,
-        the gap between the two is printed in pawns.</p>
-      <p class="note">What you will not get is what the player was thinking. This app cannot know that, and a
-        confident guess dressed as commentary would be the one thing here that is not measured.</p>
+      <p class="note">Three sources. While the game is still in one of the app's openings, you get that opening's own note
+        for the move just played. On a famous game, at the moves that have one, a sentence somebody wrote about that
+        exact move. And after every move, a search deeper than the one that played it — if it wanted something else,
+        the gap is printed in points.</p>
+      <p class="note">What you will not get is what the player was thinking. Nothing here can know that.</p>
     </div>
   </section>
   <!-- NOTATION -->
   <section id="section-notation" hidden>
-    <p class="lede">How a move is written down — worked out from the board in front of you, character by character.</p>
+    <p class="lede">How moves are written down, worked out from the board in front of you.</p>
 
     <div id="notationStage">
       <div class="layout">
@@ -1483,22 +1484,20 @@
 
     <div class="panel">
       <h3>One rule at a time</h3>
-      <p class="note">Each of these sets the board up and asks for one move. The notation beside it is not typed into
-        this app — it is written by the same code that writes the moves in your own games, from the position, at the
-        moment you open the list. A lesson whose notation stopped being true would fail the build rather than teach
-        you the wrong rule.</p>
+      <p class="note">Each sets the board up and asks for one move. The notation beside it is written from the position by
+        the same code that writes the moves in your own games, so a lesson that stopped being true would fail the
+        build rather than teach you the wrong rule.</p>
     </div>
     <div id="notationLessons"></div>
   </section>
   <!-- VISION -->
   <section id="section-vision" hidden>
-    <p class="lede" id="visionLede">Where the squares are, without counting up from a1.</p>
+    <p class="lede" id="visionLede">Know every square without counting up from a1.</p>
 
     <div class="panel" id="visionSetup">
-      <p class="note" style="margin:0 0 10px">Every other part of this app assumes you can do this. The
-        openings talk about d4 and c5, the review says the mistake was on f7, and the coach answers in
-        algebraic — all of it is noise until the letters and numbers are somewhere you can reach without
-        thinking. Thirty seconds a round.</p>
+      <p class="note" style="margin:0 0 10px">Everything else here assumes you can do this. The openings talk about d4 and c5, the review says the
+        mistake was on f7 — all noise until the letters and numbers are somewhere you can reach without thinking.
+        Thirty seconds a round.</p>
       <div class="fields">
         <label class="field"><span>Questions</span>
           <select id="visionMode">
@@ -1556,13 +1555,12 @@
   <!-- DRILLS -->
   <section id="section-drills" hidden>
     <div class="panel">
-      <h2>Your own mistakes, again later</h2>
-      <p class="note" style="margin:0 0 10px">Positions where <em>you</em> went wrong, from games you reviewed. The
-        chances your opponent handed you are on the Puzzles tab instead.</p>
+      <h2>Your mistakes, again later</h2>
+      <p class="note" style="margin:0 0 10px">Positions where <em>you</em> went wrong. Chances your opponent handed you are under Puzzles.</p>
       <p class="note" id="drillCount"></p>
       <p class="note" id="drillEmpty">
-        Nothing here yet. Review a game and add its mistakes — then the positions you got wrong come back
-        after a day, then a week, then longer, for as long as you keep getting them right.
+        Nothing here yet. Review a game and its mistakes land here, coming back after a day, a week, then
+        longer, for as long as you keep getting them right.
       </p>
       <div class="row">
         <button class="btn primary" id="drillStart" hidden>Start</button>
@@ -6723,9 +6721,9 @@ function plainEval(cp, mover) {
   const pawns = Math.abs(cp) / 100;
   const leader = cp < 0 ? other : mover;
   if (pawns < 0.5) return 'roughly equal';
-  if (pawns < 1.5) return `${leader} is slightly better (about ${pawns.toFixed(1)} of a pawn)`;
-  if (pawns < 3.0) return `${leader} is clearly better (about ${pawns.toFixed(1)} pawns ahead)`;
-  return `${leader} is winning (about ${pawns.toFixed(1)} pawns ahead)`;
+  if (pawns < 1.5) return `${leader} is slightly better (about ${pawns.toFixed(1)} of a point)`;
+  if (pawns < 3.0) return `${leader} is clearly better (about ${pawns.toFixed(1)} points ahead)`;
+  return `${leader} is winning (about ${pawns.toFixed(1)} points ahead)`;
 }
 
 const severityFor = (loss) => SEVERITY.find((s) => loss >= s.at)?.name ?? null;
@@ -9397,7 +9395,7 @@ function trapGate(board, plyNumber, pliesSinceLastProblem, options = {}) {
 
   if (pliesSinceLastProblem !== null && pliesSinceLastProblem !== undefined
     && pliesSinceLastProblem < opts.spacing) {
-    return `spacing: ${pliesSinceLastProblem} plies since the last problem, and they are ${opts.spacing} apart at the closest`;
+    return `spacing: the last problem was ${Math.ceil(pliesSinceLastProblem / 2)} moves ago, and they are ${Math.ceil(opts.spacing / 2)} apart at the closest`;
   }
 
   // The decided gate needs an evaluation, and a search is what this gate
@@ -9568,7 +9566,7 @@ function resolveProblem(uci) {
 
   if (uci === p.expectedMistake.uci) {
     p.outcome = 'fell';
-    p.note = `That was the trap: ${p.expectedMistake.san} is answered by ${p.refutation?.san ?? 'a reply'} and it costs about ${(p.trappiness / 100).toFixed(1)} pawns. The engine wanted ${p.bestMove.san}.`;
+    p.note = `That was the trap: ${p.expectedMistake.san} is answered by ${p.refutation?.san ?? 'a reply'} and it costs about ${(p.trappiness / 100).toFixed(1)} points. The engine wanted ${p.bestMove.san}.`;
   } else if (uci === p.bestMove.uci) {
     p.outcome = 'found';
     p.note = `Yes — ${p.bestMove.san} was the move. The trap was ${p.expectedMistake.san}, which loses to ${p.refutation?.san ?? 'a reply'}.`;
@@ -9576,7 +9574,7 @@ function resolveProblem(uci) {
     const onList = p.shortlist?.find((m) => m.uci === uci);
     if (onList && onList.deepLoss >= 200) {
       p.outcome = 'other-loss';
-      p.note = `Not the trap, but not the answer either: that loses about ${(onList.deepLoss / 100).toFixed(1)} pawns to the engine's ${p.bestMove.san}. The trap itself was ${p.expectedMistake.san}.`;
+      p.note = `Not the trap, but not the answer either: that loses about ${(onList.deepLoss / 100).toFixed(1)} points to the engine's ${p.bestMove.san}. The trap itself was ${p.expectedMistake.san}.`;
     } else {
       p.outcome = 'avoided';
       p.note = `You steered round it. The trap was ${p.expectedMistake.san}, which loses to ${p.refutation?.san ?? 'a reply'}; the engine's own choice was ${p.bestMove.san}.`;
@@ -9612,7 +9610,7 @@ function renderTeaching() {
       head.textContent = 'Nothing set';
       body.textContent = kept.length
         ? `Quiet for now. ${kept.length} ${kept.length === 1 ? 'problem' : 'problems'} so far this game — expect two to four in a whole game.`
-        : 'The coach speaks only when there is a trap to warn you about. A quiet stretch is not the coach being asleep; it is the position having nothing in it.';
+        : 'The coach speaks only when there is a trap to warn you about. A quiet stretch means there was nothing to warn about.';
     }
   }
 
@@ -9776,7 +9774,7 @@ function refreshBook() {
     ? ` ${Book.skipped} ${Book.skipped === 1 ? 'game' : 'games'} from a set-up position ${Book.skipped === 1 ? 'is' : 'are'} not used.`
     : '';
   if (!Book.games) {
-    note.textContent = `No games stored yet, so there is no book. Play a few, or paste some into Review, and its opening moves will start coming from what your opponents actually played against you.${unused}`;
+    note.textContent = `No games yet, so no book. Play a few or bring some in, and the opening moves will start coming from what your opponents actually played against you.${unused}`;
     toggle.disabled = true;
     return;
   }
@@ -11004,7 +11002,7 @@ function renderBranches() {
   const drill = Openings.mode === 'drill';
   box.appendChild(el('h4', null, 'When they leave the line'));
   box.appendChild(el('p', 'note', drill
-    ? 'Each branch is a different reply you will actually meet. Pick one and the test continues from where it departs; the moves stay hidden until you play them.'
+    ? 'Each branch is a reply you will actually meet. Pick one and the test carries on from where it splits.'
     : 'Each branch is a different reply you will actually meet. Pick one and the walk-through continues from where it departs.'));
   const list = el('div', 'branches');
 
@@ -11368,16 +11366,15 @@ function renderReviewResult() {
   const summary = el('div', 'panel');
   const blunders = mistakes.filter((m) => m.severity === 'blunder').length;
   summary.innerHTML = `<h3>${esc(h.White ?? '?')} vs ${esc(h.Black ?? '?')}</h3>
-    <p class="note">You played ${esc(Review.side)}. ${Review.parsed.plies.length} plies, ${Review.result.counted} of your moves judged.</p>
+    <p class="note">You played ${esc(Review.side)}. ${Math.ceil(Review.parsed.plies.length / 2)} moves, ${Review.result.counted} of your moves judged.</p>
     <div class="readout">
       <div><span class="k">Rough accuracy</span><span class="v">${accuracy === null ? '—' : `${accuracy}%`}</span></div>
       <div><span class="k">Mistakes found</span><span class="v">${mistakes.length}</span></div>
     </div>
     <p class="note">${blunders} of them ${blunders === 1 ? 'was' : 'were'} a blunder. ${accuracy === null
       ? `No accuracy: only ${Review.result.counted} of your moves were judged and ${Review.result.minJudged} are needed before an average means anything.`
-      : `Accuracy here is average
-    centipawn loss turned into a percentage — it is this engine's own figure and is not comparable with
-    the number Chess.com or Lichess shows you.`}</p>`;
+      : `Accuracy here is your average loss per move, turned into a percentage. It is this engine's own
+    figure and will not match the one Chess.com or Lichess shows you.`}</p>`;
   box.appendChild(summary);
 
   // The estimate, with what it is and is not, every time. A number on its
@@ -11390,9 +11387,9 @@ function renderReviewResult() {
         <div><span class="k">Estimated strength</span><span class="v">${estimateWords(est)}</span></div>
         <div><span class="k">Played like the band</span><span class="v">${est.ceilingHit ? `${est.ceiling}+` : esc(est.band)}</span></div>
       </div>
-      ${est.floorHit && Number.isFinite(est.floorLoss) ? `<p class="note"><strong>Why not a number:</strong> the weakest opponent this app has measured loses about ${(est.floorLoss / 100).toFixed(2)} pawns a move at this setting, and this game lost ${(Review.result.meanLoss / 100).toFixed(2)}. There is nothing below that on the scale — the ladder has no weaker rung to have measured — so this is where the measurement stops, not a statement about how strong you are. The figure gets useful as your loss per move comes down towards ${(est.floorLoss / 100).toFixed(2)}.</p>` : ''}
+      ${est.floorHit && Number.isFinite(est.floorLoss) ? `<p class="note"><strong>Why not a number:</strong> the weakest opponent this app has measured loses about ${(est.floorLoss / 100).toFixed(2)} points a move at this setting, and this game lost ${(Review.result.meanLoss / 100).toFixed(2)}. There is nothing below that on the scale — the ladder has no weaker rung to have measured — so this is where the measurement stops, not a statement about how strong you are. The figure gets useful as your loss per move comes down towards ${(est.floorLoss / 100).toFixed(2)}.</p>` : ''}
       ${est.ceilingHit ? `<p class="note"><strong>Why not a number:</strong> above ${est.ceiling} this app's own opponents all look the same to its reviewer — they play the moves it would play, and lose next to nothing — so the measurement cannot separate them, and a figure up there would be invented. Use a slower review setting for a little more range.</p>` : ''}
-      <p class="note">Worked out from your average loss per move (${(Review.result.meanLoss / 100).toFixed(2)} pawns)
+      <p class="note">Worked out from your average loss per move (${(Review.result.meanLoss / 100).toFixed(2)} points)
       by comparing it with games this app's own opponents played against each other, walked by the same reviewer at
       the same setting. <strong>It is a comparison with this app's ladder, not a rating.</strong> The ladder's numbers
       are targets rather than measured strengths, so treat this as "which band you played like today", not as your
@@ -11421,7 +11418,7 @@ function renderReviewResult() {
   // one puts the position on the board with both arrows and the eval bar.
   const all = el('div', 'panel');
   all.appendChild(el('h3', null, 'Every move'));
-  all.appendChild(el('p', 'note', 'Your moves are bold. ★ is the engine’s own choice, ?! lost half a pawn, ? a pawn and a half, ?? three or more, #? a mate missed or allowed. Tap a move to see it.'));
+  all.appendChild(el('p', 'note', 'Your moves are bold. ★ the engine’s own choice, ?! half a point, ? a point and a half, ?? three or more, #? a mate missed or allowed. Tap one to see it.'));
   const list = el('div', 'movelist');
   list.id = 'reviewMoves';
   for (const j of judged) {
@@ -11438,7 +11435,7 @@ function renderReviewResult() {
   box.appendChild(all);
 
   if (!mistakes.length) {
-    box.appendChild(el('p', 'note', 'Nothing crossed the threshold. At this search depth that means no move of yours lost half a pawn or more.'));
+    box.appendChild(el('p', 'note', 'Nothing crossed the threshold. At this search depth that means no move of yours lost half a point or more.'));
     return;
   }
 
@@ -11447,7 +11444,7 @@ function renderReviewResult() {
 
   for (const m of mistakes) {
     const row = el('button', 'mistake ' + m.severity);
-    const cost = m.loss === null ? m.label : `lost ${(m.loss / 100).toFixed(1)} pawns`;
+    const cost = m.loss === null ? m.label : `lost ${(m.loss / 100).toFixed(1)} points`;
     row.innerHTML = `<span class="mistake-move">${esc(moveLabel(m))}</span>
       <span class="mistake-sev">${esc(m.severity)}</span>
       <span class="mistake-note">${esc(cost)}${m.best ? ` · the engine wanted ${esc(m.best.san)}` : ''}</span>
@@ -11485,8 +11482,8 @@ function describeJudged(j) {
   if (j.mates) return `${moveLabel(j)} — checkmate.`;
   if (j.cls === 'best') return `${moveLabel(j)} — the engine's own move.`;
   if (j.kind !== 'material') return `${moveLabel(j)} — ${j.label} The engine wanted ${j.best?.san ?? 'something else'}.`;
-  if (j.cls === 'good') return `${moveLabel(j)} — fine. ${who} lost ${(j.loss / 100).toFixed(2)} pawns against ${j.best?.san ?? 'the engine’s move'}.`;
-  return `${moveLabel(j)} — ${j.cls}: lost ${(j.loss / 100).toFixed(1)} pawns. The engine wanted ${j.best?.san ?? 'something else'}.`;
+  if (j.cls === 'good') return `${moveLabel(j)} — fine. ${who} lost ${(j.loss / 100).toFixed(2)} points against ${j.best?.san ?? 'the engine’s move'}.`;
+  return `${moveLabel(j)} — ${j.cls}: lost ${(j.loss / 100).toFixed(1)} points. The engine wanted ${j.best?.san ?? 'something else'}.`;
 }
 
 function showJudged(j) {
@@ -11539,7 +11536,7 @@ function showMistake(m) {
   Review.view.setFen(m.fen, { arrows: arrowsFor(m.uci, m.best?.uci) });
   $('reviewBoardNote').textContent = m.loss === null
     ? `${moveLabel(m)} — ${m.label} The engine wanted ${m.best?.san ?? 'something else'}.`
-    : `${moveLabel(m)} lost ${(m.loss / 100).toFixed(1)} pawns. The engine wanted ${m.best?.san ?? 'something else'}.`;
+    : `${moveLabel(m)} lost ${(m.loss / 100).toFixed(1)} points. The engine wanted ${m.best?.san ?? 'something else'}.`;
   $('reviewBoardWrap').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -11976,7 +11973,7 @@ function renderProgress() {
         <div><span class="k">Middle of your last ${rated.length}</span><span class="v">${middle}</span></div>
         <div><span class="k">Played like the band</span><span class="v">${esc(measuredBandLabel(measuredIndex, measured))}</span></div>
       </div>
-      ${atFloor > rated.length / 2 && Number.isFinite(rated[rated.length - 1].estimate?.floorLoss) ? `<p class="note"><strong>The scale has run out below you, which is not the same as a low number.</strong> ${atFloor} of these ${rated.length} games lost more per move than the weakest opponent this app has ever measured — about ${(rated[rated.length - 1].estimate.floorLoss / 100).toFixed(2)} pawns a move. The ladder has no weaker rung, so there is nothing to compare them against and the figure cannot separate them. Mistakes a game, above, is the measure that still works here.</p>` : ''}
+      ${atFloor > rated.length / 2 && Number.isFinite(rated[rated.length - 1].estimate?.floorLoss) ? `<p class="note"><strong>The scale has run out below you, which is not the same as a low number.</strong> ${atFloor} of these ${rated.length} games lost more per move than the weakest opponent this app has ever measured — about ${(rated[rated.length - 1].estimate.floorLoss / 100).toFixed(2)} points a move. The ladder has no weaker rung, so there is nothing to compare them against and the figure cannot separate them. Mistakes a game, above, is the measure that still works here.</p>` : ''}
       <p class="note">The middle value of the per-game estimates from your last ${rated.length} reviewed ${rated.length === 1 ? 'game' : 'games'} (they ranged ${range}). Each one compares your average loss per move with this app's own ladder, whose numbers are targets rather than measured ratings — so this says which band your recent games resemble, and nothing about your rating anywhere else. The band named is one the calibration actually played, measured at ${step}-point steps${atFloor > rated.length / 2 ? '' : `; the button below picks the nearest rung the ladder offers, the ${esc(play.label)} band`}.</p>`;
     // NO BAND BUTTON OFF A FLOORED ESTIMATE. The nearest rung to an estimate
     // pinned at the bottom is the weakest band there is — an opponent that
@@ -11985,7 +11982,7 @@ function renderProgress() {
     // number it has just finished explaining it does not have. The record of
     // what you have actually beaten is a measurement; this is not.
     if (atFloor > rated.length / 2) {
-      panel.appendChild(el('p', 'note', 'No band is suggested from this. The nearest rung to a floored estimate is the weakest opponent on the ladder, which is not what these games say you should be playing — pick the band by your record against it on the Today page, where the wins and losses are real.'));
+      panel.appendChild(el('p', 'note', 'No band suggested. The nearest rung to a floored estimate is the weakest bot on the ladder, which is not what these games say you should play. Pick by your record on the Today page, where the wins and losses are real.'));
     } else {
       const go = el('button', 'btn', `Play the ${play.label} band`);
       go.addEventListener('click', () => { Play.band = BANDS[play.index]; renderBandPicker(); show('play'); newPlayGame(); });
@@ -12021,7 +12018,7 @@ function renderProgress() {
   if (themes.length) {
     const panel = el('div', 'panel');
     panel.appendChild(el('h3', null, 'What your mistakes have in common'));
-    panel.appendChild(el('p', 'note', 'Every one of these was demonstrated on the board by replaying the moves that punished you, not guessed from how much the move cost. They describe what was done TO you.'));
+    panel.appendChild(el('p', 'note', 'Each one was shown on the board by replaying the moves that punished you, not guessed from what the move cost. They describe what was done TO you.'));
     const bars = el('div', 'bars');
     const worst = Math.max(...themes.map(([, n]) => n));
     for (const [theme, count] of themes) {
@@ -12143,7 +12140,7 @@ function makeEvalBar(host) {
       blackLabel.textContent = whiteWinning ? '' : label;
       host.title = label === '#'
         ? `Checkmate — ${whiteWinning ? 'Black' : 'White'} is checkmated`
-        : `${whiteWinning ? 'White' : 'Black'} ${Math.abs(whiteCp) > 29000 ? 'mates in ' + label.slice(1) : 'ahead by ' + label + ' pawns'}`;
+        : `${whiteWinning ? 'White' : 'Black'} ${Math.abs(whiteCp) > 29000 ? 'mates in ' + label.slice(1) : 'ahead by ' + label}`;
     },
   };
   bar.set(null);
@@ -12348,10 +12345,12 @@ function renderPracticeLines(result, board) {
 
   const best = result.lines[0];
   const bestSan = toSan(board, best.move);
-  const depthNote = result.depth ? ` (looked ${result.depth} plies ahead)` : '';
+  // Moves, not plies. A ply is half a move and is engine vocabulary; nobody
+  // playing chess counts in them.
+  const depthNote = result.depth ? ` (looked about ${Math.max(1, Math.round(result.depth / 2))} moves ahead)` : '';
   $('practiceVerdict').textContent = Math.abs(best.score) > 29000
     ? `${bestSan} — a forced mate${depthNote}.`
-    : `${bestSan} is its choice. Scores are in pawns from White's side${depthNote}.`;
+    : `${bestSan} is its choice. Scores are from White's side, in points${depthNote}.`;
 }
 
 /**
@@ -12635,7 +12634,7 @@ async function downloadApp() {
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 30000);
-    note.textContent = 'Asked your browser to save it. If nothing happened, this page is running somewhere that blocks downloads — the same file is attached in your chat with Claude.';
+    note.textContent = 'Asked your browser to save it. If nothing happened, downloads are blocked here — use the browser’s own Save Page instead.';
   } catch (e) {
     note.textContent = 'This page cannot save a file here. The same file is attached in your chat with Claude — download it from there.';
   }
@@ -12932,7 +12931,7 @@ function nextPuzzleDue() {
 function puzzlePrize(p) {
   if (p.mate !== null && p.mate !== undefined) return `mate in ${p.mate}`;
   if (p.edge === null || p.edge === undefined) return 'a winning position';
-  return `${(p.edge / 100).toFixed(1)} pawns up`;
+  return `${(p.edge / 100).toFixed(1)} points up`;
 }
 
 function renderPuzzleList() {
@@ -13447,7 +13446,7 @@ Material: ${bundle.material}`);
   // The depth is printed only when there was a search; "0 plies deep" is a
   // number that describes nothing. The best-move list is omitted when it is
   // empty rather than left as a heading over blank lines.
-  const depthNote = bundle.depth ? `, ${bundle.depth} plies deep` : '';
+  const depthNote = bundle.depth ? `, looking about ${Math.max(1, Math.round(bundle.depth / 2))} moves ahead` : '';
   const turnLine = bundle.outcome
     ? `The game is over. Nothing was searched; there is no move to find.`
     : `It is ${bundle.mover} to move. Every evaluation below is written out in words already; use those words.`;
@@ -13925,7 +13924,7 @@ function narrateCoach(bundle, question) {
   // sentences later. The coach's own rules tell the model to open with one
   // sentence that answers the question before any explanation; the function
   // has to do the same or it is a worse coach than the one it replaces.
-  const depth = bundle.depth ? ` (searched ${bundle.depth} plies deep)` : '';
+  const depth = bundle.depth ? ` (looking about ${Math.max(1, Math.round(bundle.depth / 2))} moves ahead)` : '';
   const checkNote = bundle.check ? ` ${bundle.mover} is in check, so the only moves are the ones that answer it.` : '';
   const best = bundle.lines[0];
 
@@ -14133,7 +14132,7 @@ function startEndgame(entry) {
   // has.
   $('endgameReferee').textContent = entry.referee === 'table'
     ? 'This ending is solved exactly, so every move is graded as you play it — the app can tell you the move the win went, not just that it went.'
-    : 'The defence is the app’s own engine. It will not help you, but it cannot grade a single move here the way a solved ending can — the goal below is the test.';
+    : 'The engine defends. It will not help you, but it cannot grade each move the way the solved table does, so the verdict comes at the end.';
 
   $('endgameGoal').textContent = goalSentence(entry);
   $('endgameVerdict').textContent = '';
@@ -15325,15 +15324,20 @@ function paintWatchNote(note) {
   const box = $('watchNote');
   if (!note.judged) { box.textContent = 'Looking at it…'; box.className = 'note'; return; }
   const { best, loss, evalAfter, depth } = note.judged;
-  const how = depth ? `A ${depth}-ply search` : 'A deeper search';
+  // "A 5-PLY SEARCH" MEANS NOTHING TO A CHESS PLAYER. A ply is half a move —
+  // one side's turn — and it is engine vocabulary, not chess vocabulary. What
+  // a reader wants is how far ahead the machine looked, in the moves they
+  // count themselves, so the depth is halved and said as "about", because
+  // halving an odd number is a rounding and should sound like one.
+  const how = depth ? `Looking about ${Math.max(1, Math.round(depth / 2))} ${Math.round(depth / 2) === 1 ? 'move' : 'moves'} ahead, the engine` : 'A deeper search';
   if (best === note.played || loss < 40) {
     box.textContent = `${how} agrees with ${note.played}. ${evalAfter}.`;
     box.className = 'note good-note';
   } else if (loss < 150) {
-    box.textContent = `${how} prefers ${best}. A little worse by that measure, not a mistake. ${evalAfter}.`;
+    box.textContent = `${how} prefers ${best}. Slightly worse, not a mistake. ${evalAfter}.`;
     box.className = 'note';
   } else {
-    box.textContent = `${how} wanted ${best}. By that measure ${note.played} costs about ${(loss / 100).toFixed(1)} pawns. ${evalAfter}.`;
+    box.textContent = `${how} wanted ${best}. That makes ${note.played} about ${(loss / 100).toFixed(1)} points worse. ${evalAfter}.`;
     box.className = 'note bad-note';
   }
 }
@@ -15781,15 +15785,15 @@ function renderDeviationRows() {
     } else if (!cost) {
       line.textContent = 'The cost could not be measured here.';
     } else if (cost.loss >= 100) {
-      line.textContent = `Measured: about ${(cost.loss / 100).toFixed(1)} pawns worse than the book move.`;
+      line.textContent = `Measured: about ${(cost.loss / 100).toFixed(1)} points worse than the book move.`;
       line.className = 'note bad-note';
     } else if (cost.loss >= 30) {
-      line.textContent = `Measured: about ${(cost.loss / 100).toFixed(2)} of a pawn worse than the book move.`;
+      line.textContent = `Measured: about ${(cost.loss / 100).toFixed(2)} of a point worse than the book move.`;
     } else if (cost.loss > -30) {
       line.textContent = 'Measured: it costs nothing here. Worth knowing the line anyway, but this move is not the problem.';
       line.className = 'note good-note';
     } else {
-      line.textContent = `Measured: your move came out ${(Math.abs(cost.loss) / 100).toFixed(2)} of a pawn BETTER than the book's, at this depth.`;
+      line.textContent = `Measured: your move came out ${(Math.abs(cost.loss) / 100).toFixed(2)} of a point BETTER than the book's, at this depth.`;
       line.className = 'note good-note';
     }
     item.appendChild(line);
@@ -15881,7 +15885,7 @@ async function runImport() {
   // else in it trustworthy — so there is no request to make and no error worth
   // showing. Pasting a game still works there, and so does everything else.
   if (IN_ANDROID_APP) {
-    importNote('The Android app holds no internet permission, so it cannot fetch anything — that is what lets it promise nothing leaves your device. Import your games in the web version at the same address you installed this from, or paste a game below.', 'note');
+    importNote('The Android app has no internet permission, which is what lets it promise nothing leaves your device. Import in the web version — same address you installed this from — or paste a game below.', 'note');
     return;
   }
 
@@ -15947,7 +15951,7 @@ async function runImport() {
     // request never arriving: a browser extension, an offline phone, or a
     // network that blocks the host. Saying "check your connection" is more use
     // than printing the exception.
-    importNote(`Could not reach Chess.com. That is usually a connection, an extension blocking the request, or the page being opened from a file rather than a web address. Pasting a game below always works. (${error?.message ?? 'no detail'})`, 'note bad-note');
+    importNote(`Could not reach Chess.com. Usually a connection, an extension blocking it, or the page opened from a file rather than a web address. Pasting below always works. (${error?.message ?? 'no detail'})`, 'note bad-note');
   } finally {
     Import.running = false;
     $('importRun').hidden = false;
@@ -16378,7 +16382,7 @@ async function boot() {
     // in a copy opened from the Files app is the page not knowing where it is.
     $('downloadTitle').textContent = 'Your copy';
     $('downloadBlurb').hidden = true;
-    $('downloadNote').textContent = 'This is your own copy of the app, already saved and running from your device. It needs no connection, and its progress is kept by this browser — separately from any other copy.';
+    $('downloadNote').textContent = 'Your own copy, saved and running from your device. No connection needed. Progress is kept by this browser, separately from any other copy.';
     // Said once, plainly, because "why is there no install option" is the
     // obvious next question and the answer is a browser rule rather than
     // anything this page could do differently.
@@ -16390,7 +16394,7 @@ async function boot() {
     // its progress somewhere else — and there is nowhere here to open it.
     $('downloadTitle').textContent = 'Your copy';
     $('downloadBlurb').hidden = true;
-    $('downloadNote').textContent = 'This is the Android app. The whole trainer is inside it — engine, openings, review and all — and it never asks the network for anything: it holds no permission to. Your progress is kept on this device.';
+    $('downloadNote').textContent = 'The whole trainer is inside this app — engine, openings, review and all. It holds no internet permission, so it never asks the network for anything. Your progress stays on this device.';
   }
   (async () => {
     try { App.downloads = await window.claude?.use?.('downloads') ?? null; } catch { App.downloads = null; }

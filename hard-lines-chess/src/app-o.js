@@ -162,15 +162,15 @@ function renderDeviationRows() {
     } else if (!cost) {
       line.textContent = 'The cost could not be measured here.';
     } else if (cost.loss >= 100) {
-      line.textContent = `Measured: about ${(cost.loss / 100).toFixed(1)} pawns worse than the book move.`;
+      line.textContent = `Measured: about ${(cost.loss / 100).toFixed(1)} points worse than the book move.`;
       line.className = 'note bad-note';
     } else if (cost.loss >= 30) {
-      line.textContent = `Measured: about ${(cost.loss / 100).toFixed(2)} of a pawn worse than the book move.`;
+      line.textContent = `Measured: about ${(cost.loss / 100).toFixed(2)} of a point worse than the book move.`;
     } else if (cost.loss > -30) {
       line.textContent = 'Measured: it costs nothing here. Worth knowing the line anyway, but this move is not the problem.';
       line.className = 'note good-note';
     } else {
-      line.textContent = `Measured: your move came out ${(Math.abs(cost.loss) / 100).toFixed(2)} of a pawn BETTER than the book's, at this depth.`;
+      line.textContent = `Measured: your move came out ${(Math.abs(cost.loss) / 100).toFixed(2)} of a point BETTER than the book's, at this depth.`;
       line.className = 'note good-note';
     }
     item.appendChild(line);

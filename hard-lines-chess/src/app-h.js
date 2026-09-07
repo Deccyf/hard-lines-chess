@@ -152,7 +152,7 @@ function resolveProblem(uci) {
 
   if (uci === p.expectedMistake.uci) {
     p.outcome = 'fell';
-    p.note = `That was the trap: ${p.expectedMistake.san} is answered by ${p.refutation?.san ?? 'a reply'} and it costs about ${(p.trappiness / 100).toFixed(1)} pawns. The engine wanted ${p.bestMove.san}.`;
+    p.note = `That was the trap: ${p.expectedMistake.san} is answered by ${p.refutation?.san ?? 'a reply'} and it costs about ${(p.trappiness / 100).toFixed(1)} points. The engine wanted ${p.bestMove.san}.`;
   } else if (uci === p.bestMove.uci) {
     p.outcome = 'found';
     p.note = `Yes — ${p.bestMove.san} was the move. The trap was ${p.expectedMistake.san}, which loses to ${p.refutation?.san ?? 'a reply'}.`;
@@ -160,7 +160,7 @@ function resolveProblem(uci) {
     const onList = p.shortlist?.find((m) => m.uci === uci);
     if (onList && onList.deepLoss >= 200) {
       p.outcome = 'other-loss';
-      p.note = `Not the trap, but not the answer either: that loses about ${(onList.deepLoss / 100).toFixed(1)} pawns to the engine's ${p.bestMove.san}. The trap itself was ${p.expectedMistake.san}.`;
+      p.note = `Not the trap, but not the answer either: that loses about ${(onList.deepLoss / 100).toFixed(1)} points to the engine's ${p.bestMove.san}. The trap itself was ${p.expectedMistake.san}.`;
     } else {
       p.outcome = 'avoided';
       p.note = `You steered round it. The trap was ${p.expectedMistake.san}, which loses to ${p.refutation?.san ?? 'a reply'}; the engine's own choice was ${p.bestMove.san}.`;
@@ -196,7 +196,7 @@ function renderTeaching() {
       head.textContent = 'Nothing set';
       body.textContent = kept.length
         ? `Quiet for now. ${kept.length} ${kept.length === 1 ? 'problem' : 'problems'} so far this game — expect two to four in a whole game.`
-        : 'The coach speaks only when there is a trap to warn you about. A quiet stretch is not the coach being asleep; it is the position having nothing in it.';
+        : 'The coach speaks only when there is a trap to warn you about. A quiet stretch means there was nothing to warn about.';
     }
   }
 

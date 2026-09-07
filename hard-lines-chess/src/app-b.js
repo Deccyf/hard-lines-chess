@@ -305,7 +305,7 @@ function renderBranches() {
   const drill = Openings.mode === 'drill';
   box.appendChild(el('h4', null, 'When they leave the line'));
   box.appendChild(el('p', 'note', drill
-    ? 'Each branch is a different reply you will actually meet. Pick one and the test continues from where it departs; the moves stay hidden until you play them.'
+    ? 'Each branch is a reply you will actually meet. Pick one and the test carries on from where it splits.'
     : 'Each branch is a different reply you will actually meet. Pick one and the walk-through continues from where it departs.'));
   const list = el('div', 'branches');
 
@@ -669,16 +669,15 @@ function renderReviewResult() {
   const summary = el('div', 'panel');
   const blunders = mistakes.filter((m) => m.severity === 'blunder').length;
   summary.innerHTML = `<h3>${esc(h.White ?? '?')} vs ${esc(h.Black ?? '?')}</h3>
-    <p class="note">You played ${esc(Review.side)}. ${Review.parsed.plies.length} plies, ${Review.result.counted} of your moves judged.</p>
+    <p class="note">You played ${esc(Review.side)}. ${Math.ceil(Review.parsed.plies.length / 2)} moves, ${Review.result.counted} of your moves judged.</p>
     <div class="readout">
       <div><span class="k">Rough accuracy</span><span class="v">${accuracy === null ? '—' : `${accuracy}%`}</span></div>
       <div><span class="k">Mistakes found</span><span class="v">${mistakes.length}</span></div>
     </div>
     <p class="note">${blunders} of them ${blunders === 1 ? 'was' : 'were'} a blunder. ${accuracy === null
       ? `No accuracy: only ${Review.result.counted} of your moves were judged and ${Review.result.minJudged} are needed before an average means anything.`
-      : `Accuracy here is average
-    centipawn loss turned into a percentage — it is this engine's own figure and is not comparable with
-    the number Chess.com or Lichess shows you.`}</p>`;
+      : `Accuracy here is your average loss per move, turned into a percentage. It is this engine's own
+    figure and will not match the one Chess.com or Lichess shows you.`}</p>`;
   box.appendChild(summary);
 
   // The estimate, with what it is and is not, every time. A number on its
@@ -691,9 +690,9 @@ function renderReviewResult() {
         <div><span class="k">Estimated strength</span><span class="v">${estimateWords(est)}</span></div>
         <div><span class="k">Played like the band</span><span class="v">${est.ceilingHit ? `${est.ceiling}+` : esc(est.band)}</span></div>
       </div>
-      ${est.floorHit && Number.isFinite(est.floorLoss) ? `<p class="note"><strong>Why not a number:</strong> the weakest opponent this app has measured loses about ${(est.floorLoss / 100).toFixed(2)} pawns a move at this setting, and this game lost ${(Review.result.meanLoss / 100).toFixed(2)}. There is nothing below that on the scale — the ladder has no weaker rung to have measured — so this is where the measurement stops, not a statement about how strong you are. The figure gets useful as your loss per move comes down towards ${(est.floorLoss / 100).toFixed(2)}.</p>` : ''}
+      ${est.floorHit && Number.isFinite(est.floorLoss) ? `<p class="note"><strong>Why not a number:</strong> the weakest opponent this app has measured loses about ${(est.floorLoss / 100).toFixed(2)} points a move at this setting, and this game lost ${(Review.result.meanLoss / 100).toFixed(2)}. There is nothing below that on the scale — the ladder has no weaker rung to have measured — so this is where the measurement stops, not a statement about how strong you are. The figure gets useful as your loss per move comes down towards ${(est.floorLoss / 100).toFixed(2)}.</p>` : ''}
       ${est.ceilingHit ? `<p class="note"><strong>Why not a number:</strong> above ${est.ceiling} this app's own opponents all look the same to its reviewer — they play the moves it would play, and lose next to nothing — so the measurement cannot separate them, and a figure up there would be invented. Use a slower review setting for a little more range.</p>` : ''}
-      <p class="note">Worked out from your average loss per move (${(Review.result.meanLoss / 100).toFixed(2)} pawns)
+      <p class="note">Worked out from your average loss per move (${(Review.result.meanLoss / 100).toFixed(2)} points)
       by comparing it with games this app's own opponents played against each other, walked by the same reviewer at
       the same setting. <strong>It is a comparison with this app's ladder, not a rating.</strong> The ladder's numbers
       are targets rather than measured strengths, so treat this as "which band you played like today", not as your
@@ -722,7 +721,7 @@ function renderReviewResult() {
   // one puts the position on the board with both arrows and the eval bar.
   const all = el('div', 'panel');
   all.appendChild(el('h3', null, 'Every move'));
-  all.appendChild(el('p', 'note', 'Your moves are bold. ★ is the engine’s own choice, ?! lost half a pawn, ? a pawn and a half, ?? three or more, #? a mate missed or allowed. Tap a move to see it.'));
+  all.appendChild(el('p', 'note', 'Your moves are bold. ★ the engine’s own choice, ?! half a point, ? a point and a half, ?? three or more, #? a mate missed or allowed. Tap one to see it.'));
   const list = el('div', 'movelist');
   list.id = 'reviewMoves';
   for (const j of judged) {
@@ -739,7 +738,7 @@ function renderReviewResult() {
   box.appendChild(all);
 
   if (!mistakes.length) {
-    box.appendChild(el('p', 'note', 'Nothing crossed the threshold. At this search depth that means no move of yours lost half a pawn or more.'));
+    box.appendChild(el('p', 'note', 'Nothing crossed the threshold. At this search depth that means no move of yours lost half a point or more.'));
     return;
   }
 
@@ -748,7 +747,7 @@ function renderReviewResult() {
 
   for (const m of mistakes) {
     const row = el('button', 'mistake ' + m.severity);
-    const cost = m.loss === null ? m.label : `lost ${(m.loss / 100).toFixed(1)} pawns`;
+    const cost = m.loss === null ? m.label : `lost ${(m.loss / 100).toFixed(1)} points`;
     row.innerHTML = `<span class="mistake-move">${esc(moveLabel(m))}</span>
       <span class="mistake-sev">${esc(m.severity)}</span>
       <span class="mistake-note">${esc(cost)}${m.best ? ` · the engine wanted ${esc(m.best.san)}` : ''}</span>
@@ -786,8 +785,8 @@ function describeJudged(j) {
   if (j.mates) return `${moveLabel(j)} — checkmate.`;
   if (j.cls === 'best') return `${moveLabel(j)} — the engine's own move.`;
   if (j.kind !== 'material') return `${moveLabel(j)} — ${j.label} The engine wanted ${j.best?.san ?? 'something else'}.`;
-  if (j.cls === 'good') return `${moveLabel(j)} — fine. ${who} lost ${(j.loss / 100).toFixed(2)} pawns against ${j.best?.san ?? 'the engine’s move'}.`;
-  return `${moveLabel(j)} — ${j.cls}: lost ${(j.loss / 100).toFixed(1)} pawns. The engine wanted ${j.best?.san ?? 'something else'}.`;
+  if (j.cls === 'good') return `${moveLabel(j)} — fine. ${who} lost ${(j.loss / 100).toFixed(2)} points against ${j.best?.san ?? 'the engine’s move'}.`;
+  return `${moveLabel(j)} — ${j.cls}: lost ${(j.loss / 100).toFixed(1)} points. The engine wanted ${j.best?.san ?? 'something else'}.`;
 }
 
 function showJudged(j) {
@@ -840,7 +839,7 @@ function showMistake(m) {
   Review.view.setFen(m.fen, { arrows: arrowsFor(m.uci, m.best?.uci) });
   $('reviewBoardNote').textContent = m.loss === null
     ? `${moveLabel(m)} — ${m.label} The engine wanted ${m.best?.san ?? 'something else'}.`
-    : `${moveLabel(m)} lost ${(m.loss / 100).toFixed(1)} pawns. The engine wanted ${m.best?.san ?? 'something else'}.`;
+    : `${moveLabel(m)} lost ${(m.loss / 100).toFixed(1)} points. The engine wanted ${m.best?.san ?? 'something else'}.`;
   $('reviewBoardWrap').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -1277,7 +1276,7 @@ function renderProgress() {
         <div><span class="k">Middle of your last ${rated.length}</span><span class="v">${middle}</span></div>
         <div><span class="k">Played like the band</span><span class="v">${esc(measuredBandLabel(measuredIndex, measured))}</span></div>
       </div>
-      ${atFloor > rated.length / 2 && Number.isFinite(rated[rated.length - 1].estimate?.floorLoss) ? `<p class="note"><strong>The scale has run out below you, which is not the same as a low number.</strong> ${atFloor} of these ${rated.length} games lost more per move than the weakest opponent this app has ever measured — about ${(rated[rated.length - 1].estimate.floorLoss / 100).toFixed(2)} pawns a move. The ladder has no weaker rung, so there is nothing to compare them against and the figure cannot separate them. Mistakes a game, above, is the measure that still works here.</p>` : ''}
+      ${atFloor > rated.length / 2 && Number.isFinite(rated[rated.length - 1].estimate?.floorLoss) ? `<p class="note"><strong>The scale has run out below you, which is not the same as a low number.</strong> ${atFloor} of these ${rated.length} games lost more per move than the weakest opponent this app has ever measured — about ${(rated[rated.length - 1].estimate.floorLoss / 100).toFixed(2)} points a move. The ladder has no weaker rung, so there is nothing to compare them against and the figure cannot separate them. Mistakes a game, above, is the measure that still works here.</p>` : ''}
       <p class="note">The middle value of the per-game estimates from your last ${rated.length} reviewed ${rated.length === 1 ? 'game' : 'games'} (they ranged ${range}). Each one compares your average loss per move with this app's own ladder, whose numbers are targets rather than measured ratings — so this says which band your recent games resemble, and nothing about your rating anywhere else. The band named is one the calibration actually played, measured at ${step}-point steps${atFloor > rated.length / 2 ? '' : `; the button below picks the nearest rung the ladder offers, the ${esc(play.label)} band`}.</p>`;
     // NO BAND BUTTON OFF A FLOORED ESTIMATE. The nearest rung to an estimate
     // pinned at the bottom is the weakest band there is — an opponent that
@@ -1286,7 +1285,7 @@ function renderProgress() {
     // number it has just finished explaining it does not have. The record of
     // what you have actually beaten is a measurement; this is not.
     if (atFloor > rated.length / 2) {
-      panel.appendChild(el('p', 'note', 'No band is suggested from this. The nearest rung to a floored estimate is the weakest opponent on the ladder, which is not what these games say you should be playing — pick the band by your record against it on the Today page, where the wins and losses are real.'));
+      panel.appendChild(el('p', 'note', 'No band suggested. The nearest rung to a floored estimate is the weakest bot on the ladder, which is not what these games say you should play. Pick by your record on the Today page, where the wins and losses are real.'));
     } else {
       const go = el('button', 'btn', `Play the ${play.label} band`);
       go.addEventListener('click', () => { Play.band = BANDS[play.index]; renderBandPicker(); show('play'); newPlayGame(); });
@@ -1322,7 +1321,7 @@ function renderProgress() {
   if (themes.length) {
     const panel = el('div', 'panel');
     panel.appendChild(el('h3', null, 'What your mistakes have in common'));
-    panel.appendChild(el('p', 'note', 'Every one of these was demonstrated on the board by replaying the moves that punished you, not guessed from how much the move cost. They describe what was done TO you.'));
+    panel.appendChild(el('p', 'note', 'Each one was shown on the board by replaying the moves that punished you, not guessed from what the move cost. They describe what was done TO you.'));
     const bars = el('div', 'bars');
     const worst = Math.max(...themes.map(([, n]) => n));
     for (const [theme, count] of themes) {

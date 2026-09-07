@@ -428,7 +428,7 @@ function trapGate(board, plyNumber, pliesSinceLastProblem, options = {}) {
 
   if (pliesSinceLastProblem !== null && pliesSinceLastProblem !== undefined
     && pliesSinceLastProblem < opts.spacing) {
-    return `spacing: ${pliesSinceLastProblem} plies since the last problem, and they are ${opts.spacing} apart at the closest`;
+    return `spacing: the last problem was ${Math.ceil(pliesSinceLastProblem / 2)} moves ago, and they are ${Math.ceil(opts.spacing / 2)} apart at the closest`;
   }
 
   // The decided gate needs an evaluation, and a search is what this gate

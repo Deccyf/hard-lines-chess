@@ -167,7 +167,7 @@ function nextPuzzleDue() {
 function puzzlePrize(p) {
   if (p.mate !== null && p.mate !== undefined) return `mate in ${p.mate}`;
   if (p.edge === null || p.edge === undefined) return 'a winning position';
-  return `${(p.edge / 100).toFixed(1)} pawns up`;
+  return `${(p.edge / 100).toFixed(1)} points up`;
 }
 
 function renderPuzzleList() {

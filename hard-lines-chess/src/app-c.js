@@ -290,7 +290,7 @@ async function boot() {
     // in a copy opened from the Files app is the page not knowing where it is.
     $('downloadTitle').textContent = 'Your copy';
     $('downloadBlurb').hidden = true;
-    $('downloadNote').textContent = 'This is your own copy of the app, already saved and running from your device. It needs no connection, and its progress is kept by this browser — separately from any other copy.';
+    $('downloadNote').textContent = 'Your own copy, saved and running from your device. No connection needed. Progress is kept by this browser, separately from any other copy.';
     // Said once, plainly, because "why is there no install option" is the
     // obvious next question and the answer is a browser rule rather than
     // anything this page could do differently.
@@ -302,7 +302,7 @@ async function boot() {
     // its progress somewhere else — and there is nowhere here to open it.
     $('downloadTitle').textContent = 'Your copy';
     $('downloadBlurb').hidden = true;
-    $('downloadNote').textContent = 'This is the Android app. The whole trainer is inside it — engine, openings, review and all — and it never asks the network for anything: it holds no permission to. Your progress is kept on this device.';
+    $('downloadNote').textContent = 'The whole trainer is inside this app — engine, openings, review and all. It holds no internet permission, so it never asks the network for anything. Your progress stays on this device.';
   }
   (async () => {
     try { App.downloads = await window.claude?.use?.('downloads') ?? null; } catch { App.downloads = null; }

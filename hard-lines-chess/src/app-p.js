@@ -43,7 +43,7 @@ async function runImport() {
   // else in it trustworthy — so there is no request to make and no error worth
   // showing. Pasting a game still works there, and so does everything else.
   if (IN_ANDROID_APP) {
-    importNote('The Android app holds no internet permission, so it cannot fetch anything — that is what lets it promise nothing leaves your device. Import your games in the web version at the same address you installed this from, or paste a game below.', 'note');
+    importNote('The Android app has no internet permission, which is what lets it promise nothing leaves your device. Import in the web version — same address you installed this from — or paste a game below.', 'note');
     return;
   }
 
@@ -109,7 +109,7 @@ async function runImport() {
     // request never arriving: a browser extension, an offline phone, or a
     // network that blocks the host. Saying "check your connection" is more use
     // than printing the exception.
-    importNote(`Could not reach Chess.com. That is usually a connection, an extension blocking the request, or the page being opened from a file rather than a web address. Pasting a game below always works. (${error?.message ?? 'no detail'})`, 'note bad-note');
+    importNote(`Could not reach Chess.com. Usually a connection, an extension blocking it, or the page opened from a file rather than a web address. Pasting below always works. (${error?.message ?? 'no detail'})`, 'note bad-note');
   } finally {
     Import.running = false;
     $('importRun').hidden = false;

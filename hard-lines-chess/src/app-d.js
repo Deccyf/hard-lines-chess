@@ -43,7 +43,7 @@ function makeEvalBar(host) {
       blackLabel.textContent = whiteWinning ? '' : label;
       host.title = label === '#'
         ? `Checkmate — ${whiteWinning ? 'Black' : 'White'} is checkmated`
-        : `${whiteWinning ? 'White' : 'Black'} ${Math.abs(whiteCp) > 29000 ? 'mates in ' + label.slice(1) : 'ahead by ' + label + ' pawns'}`;
+        : `${whiteWinning ? 'White' : 'Black'} ${Math.abs(whiteCp) > 29000 ? 'mates in ' + label.slice(1) : 'ahead by ' + label}`;
     },
   };
   bar.set(null);
@@ -248,10 +248,12 @@ function renderPracticeLines(result, board) {
 
   const best = result.lines[0];
   const bestSan = toSan(board, best.move);
-  const depthNote = result.depth ? ` (looked ${result.depth} plies ahead)` : '';
+  // Moves, not plies. A ply is half a move and is engine vocabulary; nobody
+  // playing chess counts in them.
+  const depthNote = result.depth ? ` (looked about ${Math.max(1, Math.round(result.depth / 2))} moves ahead)` : '';
   $('practiceVerdict').textContent = Math.abs(best.score) > 29000
     ? `${bestSan} — a forced mate${depthNote}.`
-    : `${bestSan} is its choice. Scores are in pawns from White's side${depthNote}.`;
+    : `${bestSan} is its choice. Scores are from White's side, in points${depthNote}.`;
 }
 
 /**
@@ -535,7 +537,7 @@ async function downloadApp() {
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 30000);
-    note.textContent = 'Asked your browser to save it. If nothing happened, this page is running somewhere that blocks downloads — the same file is attached in your chat with Claude.';
+    note.textContent = 'Asked your browser to save it. If nothing happened, downloads are blocked here — use the browser’s own Save Page instead.';
   } catch (e) {
     note.textContent = 'This page cannot save a file here. The same file is attached in your chat with Claude — download it from there.';
   }

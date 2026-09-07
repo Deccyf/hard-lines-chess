@@ -111,7 +111,7 @@ function narrateCoach(bundle, question) {
   // sentences later. The coach's own rules tell the model to open with one
   // sentence that answers the question before any explanation; the function
   // has to do the same or it is a worse coach than the one it replaces.
-  const depth = bundle.depth ? ` (searched ${bundle.depth} plies deep)` : '';
+  const depth = bundle.depth ? ` (looking about ${Math.max(1, Math.round(bundle.depth / 2))} moves ahead)` : '';
   const checkNote = bundle.check ? ` ${bundle.mover} is in check, so the only moves are the ones that answer it.` : '';
   const best = bundle.lines[0];
 

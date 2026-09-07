@@ -78,9 +78,9 @@ function plainEval(cp, mover) {
   const pawns = Math.abs(cp) / 100;
   const leader = cp < 0 ? other : mover;
   if (pawns < 0.5) return 'roughly equal';
-  if (pawns < 1.5) return `${leader} is slightly better (about ${pawns.toFixed(1)} of a pawn)`;
-  if (pawns < 3.0) return `${leader} is clearly better (about ${pawns.toFixed(1)} pawns ahead)`;
-  return `${leader} is winning (about ${pawns.toFixed(1)} pawns ahead)`;
+  if (pawns < 1.5) return `${leader} is slightly better (about ${pawns.toFixed(1)} of a point)`;
+  if (pawns < 3.0) return `${leader} is clearly better (about ${pawns.toFixed(1)} points ahead)`;
+  return `${leader} is winning (about ${pawns.toFixed(1)} points ahead)`;
 }
 
 const severityFor = (loss) => SEVERITY.find((s) => loss >= s.at)?.name ?? null;

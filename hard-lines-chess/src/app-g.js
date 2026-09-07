@@ -110,7 +110,7 @@ function refreshBook() {
     ? ` ${Book.skipped} ${Book.skipped === 1 ? 'game' : 'games'} from a set-up position ${Book.skipped === 1 ? 'is' : 'are'} not used.`
     : '';
   if (!Book.games) {
-    note.textContent = `No games stored yet, so there is no book. Play a few, or paste some into Review, and its opening moves will start coming from what your opponents actually played against you.${unused}`;
+    note.textContent = `No games yet, so no book. Play a few or bring some in, and the opening moves will start coming from what your opponents actually played against you.${unused}`;
     toggle.disabled = true;
     return;
   }

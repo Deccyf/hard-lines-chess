@@ -10,7 +10,7 @@
 
   <!-- TODAY -->
   <section id="section-today">
-    <p class="lede">What is worth doing right now. A row only appears when there is something to act on.</p>
+    <p class="lede">What to do next. Rows only appear when there is something to act on.</p>
     <div id="todayList" class="tasks"></div>
     <div id="todayRecord" class="panel"></div>
     <div class="panel">
@@ -19,9 +19,8 @@
     </div>
     <div class="panel" id="downloadWrap">
       <h3 id="downloadTitle">Take it with you</h3>
-      <p class="note" style="margin:0" id="downloadBlurb">The whole app is one file, and it works with no connection once
-        it has loaded. Save a copy and it opens from your Files app, a USB stick or a desktop, with no server at all.
-        Your progress in that copy is kept by the browser you open it in.</p>
+      <p class="note" style="margin:0" id="downloadBlurb">The whole app is one file and works offline. Save a copy and it opens from your Files app, a USB
+        stick or a desktop. Progress in that copy stays in the browser you open it in.</p>
       <div class="row" style="margin-top:10px" id="installRow" hidden><button class="btn primary" id="installApp" type="button">Install as an app</button></div>
       <p class="note" id="installNote"></p>
       <div class="row" style="margin-top:10px" id="downloadRow"><button class="btn" id="downloadApp" type="button">Save a copy of the app</button></div>
@@ -51,9 +50,9 @@
             <div class="status teach" id="teachStatus"><b id="teachHead">Nothing set</b><span id="teachBody"></span></div>
             <div id="teachListWrap" hidden style="margin-top:8px"><h4>This game's problems</h4><div class="record" id="teachList"></div></div>
           </div>
-          <p class="note" id="playFrom" hidden>Playing from a set-up position. This game will be saved but not counted in your record against the band.</p>
+          <p class="note" id="playFrom" hidden>Set-up position. Saved, but not counted in your record.</p>
           <div id="playAfter" hidden class="after">
-            <p class="note" id="playAfterText">The game is saved. Its moves are in your record on the Today page.</p>
+            <p class="note" id="playAfterText">Saved. The moves are on your Today page.</p>
             <div class="row" style="margin-top:8px"><button class="btn" id="playAnalyse" type="button">Look at the final position</button></div>
           </div>
         </div>
@@ -109,7 +108,7 @@
         <div class="panel">
           <h2>Its evaluation</h2>
           <div class="readout">
-            <div><span class="k">In pawns, from your side</span><span class="v" id="playEval">—</span></div>
+            <div><span class="k">In points, from your side</span><span class="v" id="playEval">—</span></div>
           </div>
           <p class="note">The engine's own opinion, not a fact about the position. A positive number means it thinks you are better.</p>
         </div>
@@ -136,7 +135,7 @@
           <span><i class="k-threat"></i> what they threaten</span>
         </div>
         <div class="panel">
-          <div class="status"><b id="practiceTurn">White to move.</b><span>Move either side. Right-click or long-press a square to mark it; right-drag to draw an arrow.</span></div>
+          <div class="status"><b id="practiceTurn">White to move.</b><span>Move either side. Long-press a square to mark it, or drag with the right button for an arrow.</span></div>
           <div class="row" style="margin-top:12px">
             <button class="btn primary" id="practiceSuggest" type="button">Suggest a move</button>
             <button class="btn" id="practiceUndo" type="button">Undo</button>
@@ -234,7 +233,7 @@
         </ol>
 
         <p class="note">Every line below, and every branch, has been checked move by move against this app's own
-          engine, and none of them leaves you worse than about half a pawn. Where the text counts something —
+          engine, and none of them leaves you worse than about half a point. Where the text counts something —
           attackers on a square, a piece with one move — the count was made on the board, not from memory.</p>
       </details>
 
@@ -246,11 +245,9 @@
         <h2>Where you leave the book</h2>
         <p class="note" id="deviationSummary"></p>
         <div id="deviationList"></div>
-        <p class="note">Every game you have played here or pasted into Review, walked against the lines below. The
-          opening named is the one the game followed furthest — nobody records what they meant to play, and the moves
-          are what there is. A move that transposes into another line you know is not counted as leaving anything.
-          What each one cost is two searches of the same depth, one after your move and one after the book's, and the
-          answer is allowed to be nothing: leaving your preparation is not automatically a mistake.</p>
+        <p class="note">Your games walked against the lines below. The opening named is the one the game followed furthest, and
+          transposing into another line you know does not count as leaving. The cost is two searches of equal depth,
+          one after your move and one after the book's — and it is allowed to be nothing.</p>
       </div>
 
       <div id="openingList"></div>
@@ -304,10 +301,8 @@
          it. -->
     <div class="panel">
       <h2>Bring in your Chess.com games</h2>
-      <p class="note">Chess.com publishes every public game through an endpoint that needs no password and no
-        account to connect. Type your username and this reads your archives, newest month first, and stores the
-        games here. The request goes from this browser to Chess.com and back; there is no server in this app for
-        anything to be sent to.</p>
+      <p class="note">No password needed — Chess.com publishes public games openly. Your username reads your archives,
+        newest month first. The request goes from this browser to Chess.com and back; this app has no server.</p>
       <div class="fields">
         <label class="field"><span>Chess.com username</span>
           <input type="text" id="importUser" autocomplete="username" spellcheck="false" placeholder="the name in your profile address">
@@ -327,13 +322,13 @@
       </div>
       <p class="note" id="importNote"></p>
       <p class="note" id="importState"></p>
-      <p class="note">Importing is not reviewing. The games arrive with their moves, which is everything the
-        repertoire report needs — an accuracy and a list of mistakes need the engine to walk the game.</p>
+      <p class="note">Importing brings the moves, which is all the repertoire report needs. An accuracy and a mistake list
+        need the engine to walk the game.</p>
 
       <div class="after" style="margin-top:14px">
         <h3>Walk them with the engine</h3>
-        <p class="note">Oldest first, one at a time, saved after each — so stopping keeps what it has done and
-          pressing it again carries on. A game already walked is never walked twice.</p>
+        <p class="note">Oldest first, saved after each — stop any time and press again to carry on. Mistakes worth drilling
+          are added to Drills as it goes.</p>
         <div class="fields">
           <label class="field"><span>How hard it looks</span>
             <select id="walkDepth">
@@ -355,8 +350,8 @@
     <div class="panel">
       <h2>Review a game you played</h2>
       <p class="note">
-        Or paste one. Lichess games have to come across this way — that site does not send the header a browser
-        needs to read its games from another page — and so does any game from anywhere else.
+        Or paste one. Lichess games have to come this way — that site will not let a browser read them from
+        another page — and so does anything from elsewhere.
       </p>
       <details class="how">
         <summary>Where to find the PGN</summary>
@@ -424,10 +419,8 @@
   <section id="section-puzzles" hidden>
     <div class="panel">
       <h2>Tactics from your own games</h2>
-      <p class="note" style="margin:0 0 10px">Every one of these is a moment your opponent went wrong in a game you
-        actually played, and exactly one move took it. The engine walks the game, finds where they gave something
-        away, then checks with a second, deeper search that one move is clearly best — a position where two moves
-        win equally is thrown away rather than asked as a puzzle.</p>
+      <p class="note" style="margin:0 0 10px">Moments your opponent slipped in your own games, where one move punished it. A second, deeper search
+        confirms a single move is clearly best; anything with two equal answers is dropped rather than asked.</p>
       <p class="note" style="margin:0 0 12px"><strong>Not the same as Drills.</strong> A drill is a position where
         <em>you</em> went wrong. A puzzle is a chance that was on the board for you.</p>
       <div id="puzzleHead" hidden></div>
@@ -476,13 +469,12 @@
 
   <!-- STORM -->
   <section id="section-storm" hidden>
-    <p class="lede" id="stormLede">Three minutes. One position after another. The only way to go faster is to see faster.</p>
+    <p class="lede" id="stormLede">Three minutes, one position after another. The only way to go faster is to see faster.</p>
 
     <div class="panel" id="stormSetup">
-      <p class="note" style="margin:0 0 10px">Everything else here is untimed on purpose — a drill you rush is a drill you
-        did not do. Recognition is the exception: you already know what a fork looks like, and what you do not have is
-        finding it in four seconds. A wrong move costs ten seconds rather than ending the run, because the thing that
-        improves is how many positions you get through.</p>
+      <p class="note" style="margin:0 0 10px">Everything else here is untimed on purpose — a drill you rush is a drill you did not do. Recognition is
+        the exception: you know what a fork looks like, what you lack is finding it in four seconds. A wrong move
+        costs ten seconds rather than ending the run.</p>
       <p class="note" id="stormSource"></p>
       <div class="row">
         <button class="btn primary" id="stormStart" type="button">Start</button>
@@ -519,7 +511,7 @@
 
   <!-- ENDGAMES -->
   <section id="section-endgames" hidden>
-    <p class="lede">Positions with a technique attached, played out against a defence that will not help you.</p>
+    <p class="lede">Techniques worth owning, against a defence that will not help you.</p>
 
     <div id="endgameBoardWrap" hidden>
       <div class="layout">
@@ -557,17 +549,16 @@
 
     <div class="panel">
       <h3>Why these are graded and your games are not</h3>
-      <p class="note">King and pawn against king is not estimated here, it is solved: every one of the
-        393,216 positions is a win or a draw, worked out once and looked up after every move. That is
-        why the app can tell you the move a win turned into a draw rather than only that it did. The
-        search cannot do this — shown the drawn opposition it is confident White is winning — and where
-        the search is the referee instead, the panel above says so.</p>
+      <p class="note">King and pawn against king is not estimated here, it is solved — all 393,216 positions worked out once
+        and looked up after every move. That is how the app can name the exact move a win turned into a draw. The
+        search cannot: shown the drawn opposition it is sure White is winning. Where the search referees instead, the
+        panel above says so.</p>
     </div>
   </section>
 
   <!-- WATCH -->
   <section id="section-watch" hidden>
-    <p class="lede">Somebody else's game, a move at a time, with the engine saying what it makes of each one.</p>
+    <p class="lede">Somebody else's game, a move at a time, with the engine on every move.</p>
 
     <div class="panel">
       <div class="row">
@@ -580,9 +571,8 @@
           </select>
         </label>
       </div>
-      <p class="note" style="margin:10px 0 0" id="watchBlurb">Two bands off the ladder, drawn at random, given opposite
-        colours and an opening neither of them picked. Inside the search each side chooses freely among the moves it
-        rates equal, so the same two bands do not play the same game twice. Press it again for another one.</p>
+      <p class="note" style="margin:10px 0 0" id="watchBlurb">Two bots off the ladder, drawn at random, with an opening neither of them picked. Press it again for
+        a different game — it is never the same twice.</p>
     </div>
 
     <div id="watchStage" hidden>
@@ -622,27 +612,24 @@
 
     <div class="panel">
       <h3>Games worth watching</h3>
-      <p class="note">Every move below is replayed through this app's own move generator before it ships, so a game
-        here is the game it says it is. Where the record says checkmate, the final position has to be checkmate or the
-        build fails. Where a player resigned, nothing here can check that — a resignation is a fact about a room, not
-        about a position — and the screen says so rather than pretending the board proves it.</p>
+      <p class="note">Every move is replayed on a real board before it ships, so these are the games they say they are.
+        A recorded checkmate has to be checkmate or the build fails. A resignation is a fact about a room, not a
+        position, and the screen says so rather than pretending the board proves it.</p>
     </div>
     <div id="watchGames"></div>
 
     <div class="panel">
       <h3>What the commentary is, and what it is not</h3>
-      <p class="note">Three sources, in this order. While the moves are still in one of the app's openings, you get
-        that opening's own note for the move just played — the same prose the Openings screen uses, already checked
-        against a board. On a famous game, at the moves that have one, you get a sentence somebody wrote about that
-        exact move. And after every move, a search deeper than the one that played it: if it wanted something else,
-        the gap between the two is printed in pawns.</p>
-      <p class="note">What you will not get is what the player was thinking. This app cannot know that, and a
-        confident guess dressed as commentary would be the one thing here that is not measured.</p>
+      <p class="note">Three sources. While the game is still in one of the app's openings, you get that opening's own note
+        for the move just played. On a famous game, at the moves that have one, a sentence somebody wrote about that
+        exact move. And after every move, a search deeper than the one that played it — if it wanted something else,
+        the gap is printed in points.</p>
+      <p class="note">What you will not get is what the player was thinking. Nothing here can know that.</p>
     </div>
   </section>
   <!-- NOTATION -->
   <section id="section-notation" hidden>
-    <p class="lede">How a move is written down — worked out from the board in front of you, character by character.</p>
+    <p class="lede">How moves are written down, worked out from the board in front of you.</p>
 
     <div id="notationStage">
       <div class="layout">
@@ -714,22 +701,20 @@
 
     <div class="panel">
       <h3>One rule at a time</h3>
-      <p class="note">Each of these sets the board up and asks for one move. The notation beside it is not typed into
-        this app — it is written by the same code that writes the moves in your own games, from the position, at the
-        moment you open the list. A lesson whose notation stopped being true would fail the build rather than teach
-        you the wrong rule.</p>
+      <p class="note">Each sets the board up and asks for one move. The notation beside it is written from the position by
+        the same code that writes the moves in your own games, so a lesson that stopped being true would fail the
+        build rather than teach you the wrong rule.</p>
     </div>
     <div id="notationLessons"></div>
   </section>
   <!-- VISION -->
   <section id="section-vision" hidden>
-    <p class="lede" id="visionLede">Where the squares are, without counting up from a1.</p>
+    <p class="lede" id="visionLede">Know every square without counting up from a1.</p>
 
     <div class="panel" id="visionSetup">
-      <p class="note" style="margin:0 0 10px">Every other part of this app assumes you can do this. The
-        openings talk about d4 and c5, the review says the mistake was on f7, and the coach answers in
-        algebraic — all of it is noise until the letters and numbers are somewhere you can reach without
-        thinking. Thirty seconds a round.</p>
+      <p class="note" style="margin:0 0 10px">Everything else here assumes you can do this. The openings talk about d4 and c5, the review says the
+        mistake was on f7 — all noise until the letters and numbers are somewhere you can reach without thinking.
+        Thirty seconds a round.</p>
       <div class="fields">
         <label class="field"><span>Questions</span>
           <select id="visionMode">
@@ -787,13 +772,12 @@
   <!-- DRILLS -->
   <section id="section-drills" hidden>
     <div class="panel">
-      <h2>Your own mistakes, again later</h2>
-      <p class="note" style="margin:0 0 10px">Positions where <em>you</em> went wrong, from games you reviewed. The
-        chances your opponent handed you are on the Puzzles tab instead.</p>
+      <h2>Your mistakes, again later</h2>
+      <p class="note" style="margin:0 0 10px">Positions where <em>you</em> went wrong. Chances your opponent handed you are under Puzzles.</p>
       <p class="note" id="drillCount"></p>
       <p class="note" id="drillEmpty">
-        Nothing here yet. Review a game and add its mistakes — then the positions you got wrong come back
-        after a day, then a week, then longer, for as long as you keep getting them right.
+        Nothing here yet. Review a game and its mistakes land here, coming back after a day, a week, then
+        longer, for as long as you keep getting them right.
       </p>
       <div class="row">
         <button class="btn primary" id="drillStart" hidden>Start</button>

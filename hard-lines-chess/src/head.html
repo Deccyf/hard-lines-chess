@@ -280,6 +280,20 @@
   .coords span { text-align: center; }
 
   .panel { border: 2px solid var(--line); background: var(--panel); box-shadow: var(--shadow); padding: 14px; }
+
+  /* ── VERTICAL RHYTHM, and why it is not just .panel + .panel ─────────────
+     That rule was the whole spacing system, and it only fires between two
+     panels that are literally siblings. Anything separated by a board, a list
+     or a wrapper got nothing — measured at 390px, six screens had blocks
+     sitting flush against each other with a zero pixel gap, so two boxes read
+     as one box with a line through it.
+
+     A type selector has less weight than a class, so every element that
+     declares its own margin — .note, .lede, .row — keeps it, and this reaches
+     only the blocks that never had one. */
+  section > * + *,
+  section > div > * + *,
+  .layout > div > * + * { margin-top: 16px; }
   .panel + .panel { margin-top: 16px; }
   .panel h2 { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin: 0 0 10px; font-weight: 700; }
 

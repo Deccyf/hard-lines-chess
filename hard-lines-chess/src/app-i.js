@@ -110,7 +110,7 @@ function startEndgame(entry) {
   // has.
   $('endgameReferee').textContent = entry.referee === 'table'
     ? 'This ending is solved exactly, so every move is graded as you play it — the app can tell you the move the win went, not just that it went.'
-    : 'The defence is the app’s own engine. It will not help you, but it cannot grade a single move here the way a solved ending can — the goal below is the test.';
+    : 'The engine defends. It will not help you, but it cannot grade each move the way the solved table does, so the verdict comes at the end.';
 
   $('endgameGoal').textContent = goalSentence(entry);
   $('endgameVerdict').textContent = '';
