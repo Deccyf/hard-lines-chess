@@ -795,7 +795,15 @@
         Nothing here yet. Review a game and add its mistakes — then the positions you got wrong come back
         after a day, then a week, then longer, for as long as you keep getting them right.
       </p>
-      <div class="row"><button class="btn primary" id="drillStart" hidden>Start</button></div>
+      <div class="row">
+        <button class="btn primary" id="drillStart" hidden>Start</button>
+        <!-- FOR GAMES ALREADY WALKED. The bulk walk creates drills as it goes,
+             but games reviewed before it did are sitting there with their
+             mistakes and no drills — and nothing would ever walk them again,
+             because they are already marked reviewed. -->
+        <button class="btn" id="drillCatchUp" type="button" hidden>Add from reviewed games</button>
+      </div>
+      <p class="note" id="drillCatchUpNote"></p>
     </div>
 
     <div id="drillBoardWrap" hidden>

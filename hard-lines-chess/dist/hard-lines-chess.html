@@ -455,7 +455,14 @@
   .bar-label { text-transform: capitalize; color: var(--ink-soft); }
   .bar { border: 2px solid var(--line); height: 15px; background: var(--sunk); }
   .bar-fill { display: block; height: 100%; background: var(--accent); }
-  .bar-fill.inaccuracy { background: var(--ink-faint); }
+  /* PREFIXED, BECAUSE THE BARE NAMES ARE TAKEN. The fill used to carry the
+     severity as a bare class — "bar-fill mistake" — and .mistake is the review
+     list's row: a grid with nine pixels of padding and a bottom border. The
+     mistake bar inherited all of it and rendered twenty pixels tall inside an
+     eleven pixel track, while blunder and inaccuracy, which have no such rule,
+     looked fine. A stylesheet where one bar in three is malformed is worse than
+     one where all three are, because it reads as data rather than as a bug. */
+  .bar-fill.sev-inaccuracy { background: var(--ink-faint); }
   .bar-count { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
 
   .after { border-top: 2px solid var(--line); margin-top: 12px; padding-top: 10px; }
@@ -1550,7 +1557,15 @@
         Nothing here yet. Review a game and add its mistakes — then the positions you got wrong come back
         after a day, then a week, then longer, for as long as you keep getting them right.
       </p>
-      <div class="row"><button class="btn primary" id="drillStart" hidden>Start</button></div>
+      <div class="row">
+        <button class="btn primary" id="drillStart" hidden>Start</button>
+        <!-- FOR GAMES ALREADY WALKED. The bulk walk creates drills as it goes,
+             but games reviewed before it did are sitting there with their
+             mistakes and no drills — and nothing would ever walk them again,
+             because they are already marked reviewed. -->
+        <button class="btn" id="drillCatchUp" type="button" hidden>Add from reviewed games</button>
+      </div>
+      <p class="note" id="drillCatchUpNote"></p>
     </div>
 
     <div id="drillBoardWrap" hidden>
@@ -11444,7 +11459,13 @@ function renderReviewResult() {
     add.disabled = true;
     // The confirmation lands NEXT TO THE BUTTON. It used to go to the status
     // line at the top of the page, which on a phone was two screens away.
-    said.textContent = await addMistakesToDrills(mistakes);
+    const added = await addMistakesToDrills(mistakes);
+    // A BARE NUMBER IS NOT AN ANSWER. This printed "7" next to the button and
+    // left you to work out what seven meant.
+    said.textContent = added === 0
+      ? 'Already in your drills.'
+      : `${added} added — they are on the Drills screen.`;
+    renderDrills();
   });
   row.appendChild(add);
   row.appendChild(said);
@@ -11534,10 +11555,23 @@ function arrowsFor(playedUci, bestUci) {
   return arrows;
 }
 
-async function addMistakesToDrills(mistakes) {
+/**
+ * Turn mistakes into drills.
+ *
+ * `worstOnly` leaves inaccuracies out. A single game's review adds everything,
+ * because six drills is six drills — but walking a hundred imported games at
+ * once produced two hundred and thirty-one mistakes, and a drill list nobody
+ * can finish is a drill list nobody starts. Blunders and mistakes are the ones
+ * that decide games; the half-pawn inaccuracies are not what to spend an
+ * evening on.
+ *
+ * Deduplicated by position, so the same mistake in four games is one drill.
+ */
+async function addMistakesToDrills(mistakes, { worstOnly = false } = {}) {
   let added = 0;
   for (const m of mistakes) {
     if (!m.best) continue;
+    if (worstOnly && m.severity === 'inaccuracy') continue;
     if (App.drills.items.some((d) => d.fen === m.fen)) continue;
     App.drills.items.push({
       id: `${Date.now()}-${added}`,
@@ -11554,18 +11588,57 @@ async function addMistakesToDrills(mistakes) {
     added++;
   }
   await Store.set('drills', App.drills);
-  return added
-    ? `${added} added to your drills. They are due now.`
-    : 'Those are already in your drills.';
+  // A COUNT, NOT A SENTENCE. This used to return English, which is fine for the
+  // one caller that put it straight on screen and wrong for any caller that
+  // wants to add it up — the bulk walk did `+= ` on it and produced
+  // "0Those are already in your drills. new positions added". A function that
+  // changes data should hand back what it did, and let each screen say it.
+  return added;
 }
 
 // ── drills ─────────────────────────────────────────────────────────────────
 const Drill = { current: null, view: null, answered: false };
 
+/**
+ * Mistakes from games already reviewed that have never become drills.
+ *
+ * Every reviewed game carries its mistakes, so this needs no engine and no
+ * re-walk: it is a set difference between what the reviews found and what the
+ * drill list holds.
+ */
+function drillsOwed() {
+  const have = new Set(App.drills.items.map((d) => d.fen));
+  const owed = [];
+  const seen = new Set();
+  for (const game of App.reviews.games) {
+    for (const m of game.mistakes ?? []) {
+      if (!m.best || !m.fen) continue;
+      if (m.severity === 'inaccuracy') continue;
+      if (have.has(m.fen) || seen.has(m.fen)) continue;
+      seen.add(m.fen);
+      owed.push(m);
+    }
+  }
+  return owed;
+}
+
+async function catchUpDrills() {
+  const owed = drillsOwed();
+  const added = await addMistakesToDrills(owed, { worstOnly: true });
+  $('drillCatchUpNote').textContent = added
+    ? `${added} added from games you had already reviewed.`
+    : 'Nothing left to add.';
+  renderDrills();
+}
+
 function renderDrills() {
   if (Drill.current) return;
   const due = dueDrills();
   $('drillEmpty').hidden = App.drills.items.length > 0;
+  // THE CATCH-UP BUTTON, only when there is something to catch up on.
+  const owed = drillsOwed().length;
+  $('drillCatchUp').hidden = owed === 0;
+  $('drillCatchUp').textContent = `Add ${owed} from reviewed games`;
   $('drillStart').hidden = due.length === 0;
   $('drillCount').textContent = App.drills.items.length === 0
     ? ''
@@ -11921,7 +11994,7 @@ function renderProgress() {
   for (const [name, count] of Object.entries(bySeverity)) {
     const row = el('div', 'bar-row');
     row.innerHTML = `<span class="bar-label">${esc(name)}</span>
-      <span class="bar"><span class="bar-fill ${esc(name)}" style="width:${Math.round((count / worst) * 100)}%"></span></span>
+      <span class="bar"><span class="bar-fill sev-${esc(name)}" style="width:${Math.round((count / worst) * 100)}%"></span></span>
       <span class="bar-count">${count}</span>`;
     bars.appendChild(row);
   }
@@ -15912,7 +15985,7 @@ function renderImport() {
 // depth, so a shallower walk is not a worse measurement, it is a measurement
 // of a different thing, and the depth is stored beside the result.
 
-const Walk = { running: false, cancelled: false, done: 0, total: 0, failed: 0 };
+const Walk = { running: false, cancelled: false, done: 0, total: 0, failed: 0, drills: 0 };
 
 /** The imported games with no review behind them, oldest first. */
 function unwalkedGames() {
@@ -15933,7 +16006,7 @@ async function walkImported() {
 
   Walk.running = true;
   Walk.cancelled = false;
-  Walk.done = 0; Walk.failed = 0; Walk.total = queue.length;
+  Walk.done = 0; Walk.failed = 0; Walk.drills = 0; Walk.total = queue.length;
   $('walkRun').hidden = true;
   $('walkStop').hidden = false;
   $('walkBar').hidden = false;
@@ -15963,6 +16036,12 @@ async function walkImported() {
       game.tactics = result.tactics.length;
       game.depth = depth;
       game.estimate = result.meanLoss === null ? null : estimateRating(result.meanLoss, depth);
+      // AND THE MISTAKES BECOME DRILLS, which is the whole point of walking
+      // them. This did not happen: addMistakesToDrills had exactly one caller,
+      // a button on the single-game review screen, so importing and walking
+      // thirty-six games produced two hundred and thirty-one mistakes and not
+      // one drill. Inaccuracies are left out here — see the function.
+      Walk.drills += await addMistakesToDrills(result.mistakes, { worstOnly: true });
     } catch {
       // A game that will not walk is MARKED so the queue does not offer it
       // again for ever, and counted so the summary is not silently short.
@@ -15985,9 +16064,11 @@ async function walkImported() {
 
   const left = unwalkedGames().length;
   walkNote(`${Walk.done} walked${Walk.failed ? `, ${Walk.failed} of them would not read` : ''}.`
-    + (left ? ` ${left} still to go — press it again to carry on.` : ' Progress and the drills now include them.'),
+    + (Walk.drills ? ` ${Walk.drills} new ${Walk.drills === 1 ? 'position' : 'positions'} added to your drills.` : '')
+    + (left ? ` ${left} still to go — press it again to carry on.` : ''),
     left ? 'note' : 'note good-note');
   renderImport();
+  renderDrills();
   refreshBook();
 }
 
@@ -16245,6 +16326,8 @@ async function boot() {
   $('stormStart').addEventListener('click', startStorm);
   $('stormStop').addEventListener('click', stopStorm);
   renderStorm();
+
+  $('drillCatchUp').addEventListener('click', catchUpDrills);
 
   // Vision
   $('visionStart').addEventListener('click', startVision);

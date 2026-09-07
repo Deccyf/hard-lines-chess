@@ -246,6 +246,8 @@ async function boot() {
   $('stormStop').addEventListener('click', stopStorm);
   renderStorm();
 
+  $('drillCatchUp').addEventListener('click', catchUpDrills);
+
   // Vision
   $('visionStart').addEventListener('click', startVision);
   $('visionStop').addEventListener('click', stopVision);

@@ -12,7 +12,7 @@
 // shell only ever changes when the worker does; a network-first one is fresh
 // whenever it can be and offline whenever it must be. The version-keyed cache
 // is still what lets an old shell be thrown away atomically on activate.
-const VERSION = 'hard-lines-85558fbb6731';
+const VERSION = 'hard-lines-4c753b4755f1';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
 self.addEventListener('install', (event) => {

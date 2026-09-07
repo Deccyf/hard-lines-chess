@@ -154,7 +154,7 @@ function renderImport() {
 // depth, so a shallower walk is not a worse measurement, it is a measurement
 // of a different thing, and the depth is stored beside the result.
 
-const Walk = { running: false, cancelled: false, done: 0, total: 0, failed: 0 };
+const Walk = { running: false, cancelled: false, done: 0, total: 0, failed: 0, drills: 0 };
 
 /** The imported games with no review behind them, oldest first. */
 function unwalkedGames() {
@@ -175,7 +175,7 @@ async function walkImported() {
 
   Walk.running = true;
   Walk.cancelled = false;
-  Walk.done = 0; Walk.failed = 0; Walk.total = queue.length;
+  Walk.done = 0; Walk.failed = 0; Walk.drills = 0; Walk.total = queue.length;
   $('walkRun').hidden = true;
   $('walkStop').hidden = false;
   $('walkBar').hidden = false;
@@ -205,6 +205,12 @@ async function walkImported() {
       game.tactics = result.tactics.length;
       game.depth = depth;
       game.estimate = result.meanLoss === null ? null : estimateRating(result.meanLoss, depth);
+      // AND THE MISTAKES BECOME DRILLS, which is the whole point of walking
+      // them. This did not happen: addMistakesToDrills had exactly one caller,
+      // a button on the single-game review screen, so importing and walking
+      // thirty-six games produced two hundred and thirty-one mistakes and not
+      // one drill. Inaccuracies are left out here — see the function.
+      Walk.drills += await addMistakesToDrills(result.mistakes, { worstOnly: true });
     } catch {
       // A game that will not walk is MARKED so the queue does not offer it
       // again for ever, and counted so the summary is not silently short.
@@ -227,9 +233,11 @@ async function walkImported() {
 
   const left = unwalkedGames().length;
   walkNote(`${Walk.done} walked${Walk.failed ? `, ${Walk.failed} of them would not read` : ''}.`
-    + (left ? ` ${left} still to go — press it again to carry on.` : ' Progress and the drills now include them.'),
+    + (Walk.drills ? ` ${Walk.drills} new ${Walk.drills === 1 ? 'position' : 'positions'} added to your drills.` : '')
+    + (left ? ` ${left} still to go — press it again to carry on.` : ''),
     left ? 'note' : 'note good-note');
   renderImport();
+  renderDrills();
   refreshBook();
 }
 

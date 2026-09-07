@@ -455,7 +455,14 @@
   .bar-label { text-transform: capitalize; color: var(--ink-soft); }
   .bar { border: 2px solid var(--line); height: 15px; background: var(--sunk); }
   .bar-fill { display: block; height: 100%; background: var(--accent); }
-  .bar-fill.inaccuracy { background: var(--ink-faint); }
+  /* PREFIXED, BECAUSE THE BARE NAMES ARE TAKEN. The fill used to carry the
+     severity as a bare class — "bar-fill mistake" — and .mistake is the review
+     list's row: a grid with nine pixels of padding and a bottom border. The
+     mistake bar inherited all of it and rendered twenty pixels tall inside an
+     eleven pixel track, while blunder and inaccuracy, which have no such rule,
+     looked fine. A stylesheet where one bar in three is malformed is worse than
+     one where all three are, because it reads as data rather than as a bug. */
+  .bar-fill.sev-inaccuracy { background: var(--ink-faint); }
   .bar-count { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
 
   .after { border-top: 2px solid var(--line); margin-top: 12px; padding-top: 10px; }

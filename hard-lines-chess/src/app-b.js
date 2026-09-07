@@ -767,7 +767,13 @@ function renderReviewResult() {
     add.disabled = true;
     // The confirmation lands NEXT TO THE BUTTON. It used to go to the status
     // line at the top of the page, which on a phone was two screens away.
-    said.textContent = await addMistakesToDrills(mistakes);
+    const added = await addMistakesToDrills(mistakes);
+    // A BARE NUMBER IS NOT AN ANSWER. This printed "7" next to the button and
+    // left you to work out what seven meant.
+    said.textContent = added === 0
+      ? 'Already in your drills.'
+      : `${added} added — they are on the Drills screen.`;
+    renderDrills();
   });
   row.appendChild(add);
   row.appendChild(said);
@@ -857,10 +863,23 @@ function arrowsFor(playedUci, bestUci) {
   return arrows;
 }
 
-async function addMistakesToDrills(mistakes) {
+/**
+ * Turn mistakes into drills.
+ *
+ * `worstOnly` leaves inaccuracies out. A single game's review adds everything,
+ * because six drills is six drills — but walking a hundred imported games at
+ * once produced two hundred and thirty-one mistakes, and a drill list nobody
+ * can finish is a drill list nobody starts. Blunders and mistakes are the ones
+ * that decide games; the half-pawn inaccuracies are not what to spend an
+ * evening on.
+ *
+ * Deduplicated by position, so the same mistake in four games is one drill.
+ */
+async function addMistakesToDrills(mistakes, { worstOnly = false } = {}) {
   let added = 0;
   for (const m of mistakes) {
     if (!m.best) continue;
+    if (worstOnly && m.severity === 'inaccuracy') continue;
     if (App.drills.items.some((d) => d.fen === m.fen)) continue;
     App.drills.items.push({
       id: `${Date.now()}-${added}`,
@@ -877,18 +896,57 @@ async function addMistakesToDrills(mistakes) {
     added++;
   }
   await Store.set('drills', App.drills);
-  return added
-    ? `${added} added to your drills. They are due now.`
-    : 'Those are already in your drills.';
+  // A COUNT, NOT A SENTENCE. This used to return English, which is fine for the
+  // one caller that put it straight on screen and wrong for any caller that
+  // wants to add it up — the bulk walk did `+= ` on it and produced
+  // "0Those are already in your drills. new positions added". A function that
+  // changes data should hand back what it did, and let each screen say it.
+  return added;
 }
 
 // ── drills ─────────────────────────────────────────────────────────────────
 const Drill = { current: null, view: null, answered: false };
 
+/**
+ * Mistakes from games already reviewed that have never become drills.
+ *
+ * Every reviewed game carries its mistakes, so this needs no engine and no
+ * re-walk: it is a set difference between what the reviews found and what the
+ * drill list holds.
+ */
+function drillsOwed() {
+  const have = new Set(App.drills.items.map((d) => d.fen));
+  const owed = [];
+  const seen = new Set();
+  for (const game of App.reviews.games) {
+    for (const m of game.mistakes ?? []) {
+      if (!m.best || !m.fen) continue;
+      if (m.severity === 'inaccuracy') continue;
+      if (have.has(m.fen) || seen.has(m.fen)) continue;
+      seen.add(m.fen);
+      owed.push(m);
+    }
+  }
+  return owed;
+}
+
+async function catchUpDrills() {
+  const owed = drillsOwed();
+  const added = await addMistakesToDrills(owed, { worstOnly: true });
+  $('drillCatchUpNote').textContent = added
+    ? `${added} added from games you had already reviewed.`
+    : 'Nothing left to add.';
+  renderDrills();
+}
+
 function renderDrills() {
   if (Drill.current) return;
   const due = dueDrills();
   $('drillEmpty').hidden = App.drills.items.length > 0;
+  // THE CATCH-UP BUTTON, only when there is something to catch up on.
+  const owed = drillsOwed().length;
+  $('drillCatchUp').hidden = owed === 0;
+  $('drillCatchUp').textContent = `Add ${owed} from reviewed games`;
   $('drillStart').hidden = due.length === 0;
   $('drillCount').textContent = App.drills.items.length === 0
     ? ''
@@ -1244,7 +1302,7 @@ function renderProgress() {
   for (const [name, count] of Object.entries(bySeverity)) {
     const row = el('div', 'bar-row');
     row.innerHTML = `<span class="bar-label">${esc(name)}</span>
-      <span class="bar"><span class="bar-fill ${esc(name)}" style="width:${Math.round((count / worst) * 100)}%"></span></span>
+      <span class="bar"><span class="bar-fill sev-${esc(name)}" style="width:${Math.round((count / worst) * 100)}%"></span></span>
       <span class="bar-count">${count}</span>`;
     bars.appendChild(row);
   }
