@@ -396,6 +396,30 @@
   .record-row:last-child { border-bottom: 0; }
   .record-band { color: var(--ink-soft); }
   .record-score { font-variant-numeric: tabular-nums; font-weight: 700; }
+  /* A row that opens the game it names. It is a <button>, so it arrives with a
+     button's chrome; everything here is undoing that, not adding to it — the
+     row should read exactly like the ones that do nothing, until you touch it. */
+  .record-open {
+    width: 100%; background: none; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 15%, transparent);
+    color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+    align-items: baseline;
+  }
+  .record-open:hover, .record-open:focus-visible { background: var(--sunk); }
+  .record-open:hover .record-band, .record-open:focus-visible .record-band { color: var(--ink); }
+
+  /* ── where the time goes ───────────────────────────────────────────────
+     A label, a bar, what it cost, and how many moves are behind it. The count
+     is deliberately last and faint: it is the thing that says whether to
+     believe the bar beside it, not a number to read across. */
+  .timebar {
+    display: grid; grid-template-columns: 7.5rem 1fr 3rem 2.5rem; gap: 8px;
+    align-items: center; padding: 3px 0; font-size: 12px;
+  }
+  .timebar-k { color: var(--ink-soft); }
+  .timebar-track { background: var(--sunk); height: 10px; border: 1px solid var(--line); overflow: hidden; }
+  .timebar-fill { display: block; height: 100%; background: var(--accent); }
+  .timebar-v { font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; }
+  .timebar-n { font-variant-numeric: tabular-nums; color: var(--ink-faint); text-align: right; }
 
   /* ── forms ─────────────────────────────────────────────────────────── */
   .field { display: grid; gap: 4px; margin-bottom: 10px; }
@@ -635,6 +659,64 @@
     vector-effect: non-scaling-stroke;
   }
 
+  /* ── the progress chart ─────────────────────────────────────────────────
+     THE TREND IS THE ONLY STRONG MARK. Every game used to be a seven-pixel dot
+     in the accent colour with the trend line underneath it: at nine games that
+     is a chart, at two hundred and forty-three it is a solid band of red with
+     the answer hidden inside it. The loudest thing on the screen was the noise.
+
+     So the order of emphasis is inverted. A hairline grid one shade off the
+     ground, the spread as a soft ink band, the trend at two pixels in the
+     accent, and individual games only while there are few enough to tell
+     apart — with the latest one always marked, because "where am I now" is the
+     other question this chart is asked. */
+  .chart-grid { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; opacity: .55; }
+  .chart-band { fill: color-mix(in srgb, var(--ink) 9%, transparent); stroke: none; }
+  .chart-trend {
+    fill: none; stroke: var(--accent); stroke-width: 2.5; vector-effect: non-scaling-stroke;
+    stroke-linejoin: round; stroke-linecap: round;
+  }
+  /* Recessive, and only drawn at all below the cap — see renderProgressChart. */
+  .chart-dot {
+    fill: none; stroke: color-mix(in srgb, var(--ink) 45%, transparent); stroke-width: 4px;
+    stroke-linecap: round; vector-effect: non-scaling-stroke;
+  }
+  /* Where you are now: a ring, so it reads as a marker rather than one more
+     data point, and it survives the dots being switched off. */
+  .chart-now {
+    fill: none; stroke: var(--accent); stroke-width: 8px; stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  /* The plot's geometry, stated once: everything that has to line up with a
+     gridline is measured from these two numbers rather than guessed at. */
+  .chart-plot { --plot-h: 120px; --plot-inset: 12px; /* 2px frame border + 10px padding */
+    display: flex; gap: 8px; align-items: stretch; }
+  .chart-plot .chart-frame { flex: 1 1 auto; min-width: 0; position: relative; }
+  .chart-plot .curve.chart { height: var(--plot-h); }
+  /* The vertical scale, outside the stretched viewBox — text inside one is
+     distorted by preserveAspectRatio="none", which is why it is here.
+     A LABEL THAT IS NOT ON ITS GRIDLINE IS THE WRONG LABEL. Spacing the three
+     out evenly puts the outer two a couple of pixels off, because the labels
+     have height and the rules do not, so each is pinned to the pixel its own
+     rule is drawn at instead. */
+  .chart-yaxis {
+    position: relative; font-size: 10.5px; font-family: var(--mono);
+    color: var(--ink-faint); text-align: right; flex: 0 0 auto; min-width: 2.6rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .chart-yaxis span { position: absolute; right: 0; line-height: 1; transform: translateY(-50%); }
+  /* The three rules sit at 4, 50 and 96 of the hundred-unit viewBox. */
+  .chart-yaxis span:nth-child(1) { top: calc(var(--plot-inset) + var(--plot-h) * 0.04); }
+  .chart-yaxis span:nth-child(2) { top: calc(var(--plot-inset) + var(--plot-h) * 0.50); }
+  .chart-yaxis span:nth-child(3) { top: calc(var(--plot-inset) + var(--plot-h) * 0.96); }
+  .chart-tip {
+    position: absolute; bottom: calc(100% + 6px); transform: translateX(-50%);
+    background: var(--panel); border: 2px solid var(--line); box-shadow: var(--shadow-sm);
+    padding: 3px 7px; font-size: 11px; font-family: var(--mono); white-space: nowrap;
+    pointer-events: none; z-index: 3; color: var(--ink);
+  }
+
   /* ── the coach ──────────────────────────────────────────────────────── */
   .coach-log { max-height: 320px; overflow-y: auto; display: grid; gap: 10px; }
   .coach-you {
@@ -743,10 +825,14 @@
   .readout-row:first-child { border-top: 0; }
   .readout-row .k { color: var(--ink-soft); font-size: 12px; }
   .readout-row .v { font-family: var(--display); font-variant-numeric: tabular-nums; }
-  /* Room for the half of an edge dot that falls outside the plot. */
-  .chart-frame { padding: 10px 9px; }
+  /* Room for the half of an edge dot that falls outside the plot. The vertical
+     half is --plot-inset less the 2px border, so the scale labels beside it
+     stay on their gridlines when it changes. */
+  .chart-frame { padding: calc(var(--plot-inset, 12px) - 2px) 9px; }
   .chart { overflow: visible; }
-  .chart-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-faint); font-family: var(--mono); padding: 4px 2px 0; }
+  .chart-scale { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; color: var(--ink-faint); font-family: var(--mono); padding: 4px 2px 0; }
+  .chart-scale span { white-space: nowrap; }
+  .chart-key { margin-top: 6px; }
 
   /* ── the tab strip runs off the edge, and now says so ───────────────────
      Twelve sections do not fit across a phone. The strip has always scrolled;

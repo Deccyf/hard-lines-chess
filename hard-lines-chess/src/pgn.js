@@ -184,3 +184,72 @@ function fenProblem(fen) {
   }
   return null;
 }
+
+// ── the clock, which is in the movetext and not in the moves ───────────────
+//
+// Both Chess.com and Lichess write the clock into the game as a comment after
+// each move — `{[%clk 0:02:57]}` — and parsePgn strips it along with every
+// other comment, because a comment is not a move. For most of this app that is
+// the right call. For the question "where does the time go", it is the whole
+// answer being thrown away, so these read it back out.
+
+/**
+ * Seconds left on the mover's clock after each ply, or null.
+ *
+ * IT RETURNS NULL RATHER THAN GUESS. The clocks are matched to the plies by
+ * counting, which is only sound when there is exactly one for every move: a
+ * game with clocks on some moves and not others, or with variations carrying
+ * clocks of their own, would line up shifted by however many are missing or
+ * spare. A clock on the wrong move is worse than no clock at all — it reports
+ * time trouble in the wrong half of the game — so a count that does not match
+ * is no answer instead of a wrong one.
+ */
+function clocksFrom(text, plyCount) {
+  const found = [...String(text ?? '').matchAll(/\[%clk\s+(\d+):(\d+):(\d+(?:\.\d+)?)\]/g)]
+    .map((m) => Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]));
+  if (!found.length) return null;
+  if (Number.isFinite(plyCount) && found.length !== plyCount) return null;
+  return found;
+}
+
+/**
+ * A TimeControl header as seconds, `{ base, increment }`, or null.
+ *
+ * "600" is ten minutes with no increment, "180+2" is three minutes plus two a
+ * move. "1/86400" is a day a move — correspondence, where the clock says
+ * nothing about how long anybody actually thought, so it is refused rather
+ * than reported as a twenty-four-hour think.
+ */
+function timeControlOf(header) {
+  const raw = String(header ?? '').trim();
+  if (!raw || raw === '-' || raw.includes('/')) return null;
+  const [base, inc] = raw.split('+');
+  const seconds = Number(base);
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  return { base: seconds, increment: Number(inc) || 0 };
+}
+
+/**
+ * How long each move took, in seconds — null where it cannot be known.
+ *
+ * A player's clock only moves on their own turn, so a move is timed against
+ * that player's PREVIOUS move, two plies back, not against the reply in
+ * between. The first move of each side is timed against the starting time,
+ * which only the TimeControl header knows; without it those two are null
+ * rather than reported as having taken the whole clock.
+ *
+ * A negative result means the clock went up by more than the increment, which
+ * happens with added time and on games whose headers do not describe them.
+ * Those are null too: this is a measurement, and a move that took less than no
+ * time is a sign the measurement does not apply, not a fast move.
+ */
+function timeSpent(clocks, control) {
+  if (!Array.isArray(clocks) || !clocks.length) return null;
+  const inc = control?.increment ?? 0;
+  return clocks.map((left, i) => {
+    const before = i >= 2 ? clocks[i - 2] : (control ? control.base : null);
+    if (before === null || before === undefined) return null;
+    const spent = before + inc - left;
+    return spent >= 0 && spent <= 86400 ? spent : null;
+  });
+}

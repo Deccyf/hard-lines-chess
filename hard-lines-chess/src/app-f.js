@@ -58,7 +58,7 @@ How to write:
 - Open with one sentence that answers the question in plain words, before any explanation.
 - Short sentences. Everyday words. Explain any chess term the moment you use it — "a passed pawn (one with no enemy pawns left to stop it)".
 - Name pieces and squares in words: "the bishop on d7", "White's king walks to f6". Never leave bare notation sitting in a sentence for the reader to decode.
-- Describe evaluations the way the data does — "White is winning by about five pawns". Never quote raw signed numbers like -4.96 at the reader.
+- Describe evaluations the way the data does — "White is winning by about five points". Never quote raw signed numbers like -4.96 at the reader, and never call the unit anything but points.
 - A few sentences, up to two short paragraphs. No headings, no bullet lists.
 
 Showing moves (this is how the reader actually follows you):

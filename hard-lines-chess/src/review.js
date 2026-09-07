@@ -75,15 +75,93 @@ function plainEval(cp, mover) {
       ? `${mover} forces checkmate in ${moves} ${moves === 1 ? 'move' : 'moves'}`
       : `${other} forces checkmate in ${moves} ${moves === 1 ? 'move' : 'moves'}`;
   }
-  const pawns = Math.abs(cp) / 100;
+  const points = Math.abs(cp) / 100;
   const leader = cp < 0 ? other : mover;
-  if (pawns < 0.5) return 'roughly equal';
-  if (pawns < 1.5) return `${leader} is slightly better (about ${pawns.toFixed(1)} of a point)`;
-  if (pawns < 3.0) return `${leader} is clearly better (about ${pawns.toFixed(1)} points ahead)`;
-  return `${leader} is winning (about ${pawns.toFixed(1)} points ahead)`;
+  if (points < 0.5) return 'roughly equal';
+  if (points < 1.5) return `${leader} is slightly better (about ${points.toFixed(1)} of a point)`;
+  if (points < 3.0) return `${leader} is clearly better (about ${points.toFixed(1)} points ahead)`;
+  return `${leader} is winning (about ${points.toFixed(1)} points ahead)`;
 }
 
 const severityFor = (loss) => SEVERITY.find((s) => loss >= s.at)?.name ?? null;
+
+/**
+ * A reviewed game's judgement, one character a move, so it survives storage.
+ *
+ * THE CURVE ALONE IS NOT ENOUGH. What a move cost can be read straight off the
+ * evaluation either side of it, but three things cannot: that the move was the
+ * engine's OWN choice — which is not a mistake however two searches score it —
+ * and that it allowed or missed a forced mate, which are not a number of
+ * points at all. Those are decisions the reviewer made with a search in front
+ * of it, and they cost one byte a move to keep.
+ *
+ * The alternative was storing every judged move whole, with the position it
+ * was played in. That is about five kilobytes a game, and this app keeps its
+ * games in local storage, which holds about five megabytes in total — two
+ * hundred games of it would have filled the lot and started silently dropping
+ * everything else. A curve and a string is about half a kilobyte.
+ */
+const CLS_CHAR = {
+  best: '*', good: '.', inaccuracy: '?', mistake: '!', blunder: 'X',
+  missed_mate: 'M', allowed_mate: 'A',
+};
+const CHAR_CLS = Object.fromEntries(Object.entries(CLS_CHAR).map(([k, v]) => [v, k]));
+
+/** The judgement of a whole game as one string, for storing beside its curve. */
+const marksOf = (judged) => judged.map((j) => CLS_CHAR[j.cls] ?? '.').join('');
+
+/**
+ * A stored game read back into the shape the review screen already draws.
+ *
+ * `parsed` is its PGN parsed again — which is where every move, its notation
+ * and the position it was played in come from, so none of those are stored
+ * twice. The curve supplies what each move cost and the marks supply what the
+ * reviewer called it.
+ *
+ * WHAT IS DELIBERATELY MISSING is the engine's own move for each position.
+ * It is the one thing neither the curve nor the marks carry, and keeping one
+ * for every ply of every game is the cost this whole format exists to avoid.
+ * The screen searches for it when you tap a move — one position, not eighty —
+ * and every line that prints it already copes with it being absent.
+ */
+function judgedFromStore(parsed, curve, marks, side) {
+  const out = [];
+  if (!Array.isArray(curve) || typeof marks !== 'string') return out;
+  for (let i = 0; i < parsed.plies.length; i++) {
+    const ply = parsed.plies[i];
+    if (i + 1 >= curve.length) break;
+    const cls = CHAR_CLS[marks[i]] ?? 'good';
+    const mate = cls === 'missed_mate' || cls === 'allowed_mate';
+    // The curve is from White's side the whole way along, so a loss for the
+    // mover is a FALL in it when White moved and a RISE when Black did.
+    const drop = ply.colour === 'white' ? curve[i] - curve[i + 1] : curve[i + 1] - curve[i];
+    out.push({
+      ply: ply.ply,
+      moveNumber: Math.ceil(ply.ply / 2),
+      san: ply.san,
+      uci: ply.uci,
+      colour: ply.colour,
+      fen: ply.fenBefore,
+      fenAfter: parsed.plies[i + 1]?.fenBefore ?? null,
+      best: null,
+      // A mate is not a number of points and is not given one; the engine's
+      // own move cost nothing whatever the two searches either side of it say.
+      loss: mate ? null : (cls === 'best' ? 0 : Math.max(0, drop)),
+      kind: mate ? cls : 'material',
+      label: cls === 'missed_mate' ? 'You had a forced mate and let it go.'
+        : (cls === 'allowed_mate' ? 'This allowed a forced mate.' : null),
+      cls,
+      // Read off the notation, where it has been all along: a move that
+      // delivers checkmate is written with a # after it. Without this a
+      // reopened game called its own mating move "the engine's own move",
+      // which is true and is not what anybody wants told about a mate.
+      mates: /#\s*$/.test(ply.san),
+      whiteCpAfter: curve[i + 1],
+      mine: ply.colour === side,
+    });
+  }
+  return out;
+}
 
 // Mate scores are not centipawns and a difference between them is not a number
 // of pawns. A move that allows mate, or misses one, is reported as that rather
@@ -546,4 +624,222 @@ function nearestPlayableBand(elo) {
   const bands = BANDS.map((b) => b.elo);
   const index = Math.max(0, bands.findIndex((b, i) => elo < (bands[i + 1] ?? Infinity)));
   return { index, elo: BANDS[index].elo, label: bandLabel(BANDS[index], index, BANDS) };
+}
+
+// ── what your own games say, rather than what the ladder says ──────────────
+//
+// estimateRating above compares a game's loss per move with games this app's
+// own opponents played against each other. That is a real measurement and it
+// has two problems that no amount of care in the code can fix.
+//
+//   ITS LADDER IS FOUR NUMBERS A RUNG. Two games, two sides, at each of eight
+//   bands — and above 1200 the rungs are not in order, because the difference
+//   between them is smaller than the noise in four games.
+//
+//   AND IT IS NOT ABOUT YOU. It answers "which of this app's bots does this
+//   game resemble", which is a fact about the bots.
+//
+// A player who has imported their games has something far better sitting in
+// them: their own rating, from Chess.com, on the day, for that game. This
+// compares a game against those — no ladder, no model, no line fitted through
+// anything. It finds the games of yours that lost about as much per move as
+// this one, and reports what you were actually rated in them.
+//
+// WHY NEAREST NEIGHBOURS AND NOT A FITTED CURVE. A curve has to be
+// extrapolated to answer anything outside the range it was fitted on, and the
+// range here is one player's rating over one season — a few hundred points at
+// best. Asked about a game far outside it, a fitted line answers confidently
+// and wrongly. This cannot: outside the range it returns the nearest games it
+// has, which is the honest answer, and it says how far away they were.
+
+/** How many neighbours to read, given how many games there are to read from. */
+const NEIGHBOURS = (n) => Math.max(5, Math.min(25, Math.round(n / 5)));
+
+/** Fewer than this and the neighbours are one afternoon, not a measurement. */
+const RATING_POOL_MIN = 8;
+
+/**
+ * What you were rated in your own games that lost about this much a move.
+ *
+ * Returns null when there is not enough to say — which is the common case
+ * until games have been imported AND walked, and is not an error.
+ */
+function ratingNear(meanLoss, games) {
+  if (!Number.isFinite(meanLoss)) return null;
+  const pool = (games ?? []).filter((g) =>
+    Number.isFinite(g?.myRating) && Number.isFinite(g?.meanLoss) && g?.reviewed !== false);
+  if (pool.length < RATING_POOL_MIN) return { short: true, have: pool.length, need: RATING_POOL_MIN };
+
+  const k = Math.min(pool.length, NEIGHBOURS(pool.length));
+  const near = [...pool].sort((a, b) =>
+    Math.abs(a.meanLoss - meanLoss) - Math.abs(b.meanLoss - meanLoss)).slice(0, k);
+  const ratings = near.map((g) => g.myRating).sort((a, b) => a - b);
+  const at = (q) => ratings[Math.min(ratings.length - 1, Math.max(0, Math.round(q * (ratings.length - 1))))];
+  const losses = near.map((g) => g.meanLoss).sort((a, b) => a - b);
+
+  // How far the nearest games actually were. A game whose loss is nothing like
+  // anything you have played gets an answer built from games that are not like
+  // it, and the screen has to be able to say so instead of printing a number.
+  const gap = Math.min(...near.map((g) => Math.abs(g.meanLoss - meanLoss)));
+  return {
+    short: false,
+    elo: at(0.5),
+    lo: at(0.1),
+    hi: at(0.9),
+    n: k,
+    pool: pool.length,
+    lossLo: losses[0],
+    lossHi: losses[losses.length - 1],
+    // True when the nearest game of yours is more than half a point a move
+    // away from this one, which is a long way in this units.
+    faint: gap > 50,
+    gap,
+  };
+}
+
+/**
+ * What a given agreement is worth, given how many games produced it.
+ *
+ * A FIXED THRESHOLD GETS THIS BACKWARDS AT BOTH ENDS. A correlation of -0.105
+ * over sixty games is not weak evidence of a link, it is no evidence at all —
+ * chance alone clears that about half the time — while -0.5 over eight games,
+ * which sounds strong, is cleared by chance about one time in five. So the
+ * bar is the level a correlation has to beat to be distinguishable from chance
+ * AT THIS MANY GAMES, and the verdict gets stronger as the evidence does
+ * rather than as the number does.
+ *
+ * 'trust' | 'loose' | 'none'.
+ */
+function agreementVerdict(rho, n) {
+  if (!Number.isFinite(rho) || !Number.isFinite(n) || n < 3) return 'none';
+  const noise = 1.96 / Math.sqrt(n - 1);
+  if (rho <= -Math.max(0.5, noise)) return 'trust';
+  return rho <= -noise ? 'loose' : 'none';
+}
+
+/**
+ * Whether your rating and your loss per move move together at all.
+ *
+ * WORTH KNOWING BEFORE TRUSTING ANY OF THIS. If the games where you lose less
+ * are not the games where you are rated higher, then loss per move is not
+ * measuring your strength on your own evidence, and every estimate built on it
+ * — this app's ladder included — is describing something else. Spearman rather
+ * than Pearson: the question is whether they move together, not whether they
+ * do so in a straight line.
+ */
+function lossRatingAgreement(games) {
+  const pool = (games ?? []).filter((g) =>
+    Number.isFinite(g?.myRating) && Number.isFinite(g?.meanLoss) && g?.reviewed !== false);
+  if (pool.length < RATING_POOL_MIN) return null;
+  const rank = (values) => {
+    const order = values.map((v, i) => [v, i]).sort((a, b) => a[0] - b[0]);
+    const out = new Array(values.length);
+    for (let i = 0; i < order.length;) {
+      let j = i;
+      while (j + 1 < order.length && order[j + 1][0] === order[i][0]) j++;
+      const shared = (i + j) / 2;
+      for (let k = i; k <= j; k++) out[order[k][1]] = shared;
+      i = j + 1;
+    }
+    return out;
+  };
+  const a = rank(pool.map((g) => g.meanLoss));
+  const b = rank(pool.map((g) => g.myRating));
+  const mean = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
+  const ma = mean(a), mb = mean(b);
+  let top = 0, la = 0, lb = 0;
+  for (let i = 0; i < a.length; i++) {
+    top += (a[i] - ma) * (b[i] - mb);
+    la += (a[i] - ma) ** 2;
+    lb += (b[i] - mb) ** 2;
+  }
+  if (!la || !lb) return null;
+  return { rho: top / Math.sqrt(la * lb), n: pool.length };
+}
+
+// ── where the time goes ────────────────────────────────────────────────────
+//
+// The most useful thing anybody ever told a club player about their own games
+// is which of their moves were the fast ones. Everybody knows they blunder in
+// time trouble; almost nobody knows that half their lost points go on moves
+// they played in under five seconds with twenty minutes on the clock, because
+// nothing they use has ever put the two numbers side by side.
+//
+// Both numbers are already here. The clock is in the movetext of every game
+// Chess.com sends, and what each move cost is in the curve the review stored.
+// This joins them.
+
+/** Time spent on a move, and time left when it was played, in seconds. */
+const SPENT_BUCKETS = [
+  { upTo: 2, label: 'under 2s' },
+  { upTo: 5, label: '2–5s' },
+  { upTo: 10, label: '5–10s' },
+  { upTo: 30, label: '10–30s' },
+  { upTo: Infinity, label: 'over 30s' },
+];
+const LEFT_BUCKETS = [
+  { upTo: 10, label: 'under 10s left' },
+  { upTo: 30, label: '10–30s left' },
+  { upTo: 60, label: '30–60s left' },
+  { upTo: 300, label: '1–5 min left' },
+  { upTo: Infinity, label: 'over 5 min left' },
+];
+
+const bucketFor = (list, value) => list.find((b) => value < b.upTo) ?? list[list.length - 1];
+
+/**
+ * Every move of yours that has both a clock and a cost, grouped two ways.
+ *
+ * A GAME CONTRIBUTES NOTHING UNLESS BOTH ARE KNOWN for it — it needs to have
+ * been walked by the engine (for the cost) and to carry one clock per ply (for
+ * the time). Games that fail either are counted in `skipped` and said so on
+ * screen, because "your fast moves are fine" drawn from four of two hundred
+ * games is a different claim from the same sentence drawn from all of them.
+ *
+ * Mate moves have no cost in points and are left out of the averages rather
+ * than counted as nought, which would quietly reward getting mated quickly.
+ */
+function timeTrouble(games) {
+  const spentRows = SPENT_BUCKETS.map((b) => ({ ...b, n: 0, lost: 0, blunders: 0 }));
+  const leftRows = LEFT_BUCKETS.map((b) => ({ ...b, n: 0, lost: 0, blunders: 0 }));
+  let used = 0, skipped = 0, moves = 0;
+
+  for (const game of games ?? []) {
+    if (!game?.pgn || !Array.isArray(game.curve) || typeof game.marks !== 'string') { skipped++; continue; }
+    let parsed;
+    try { parsed = parsePgn(game.pgn); } catch { skipped++; continue; }
+    const clocks = clocksFrom(game.pgn, parsed.plies.length);
+    if (!clocks) { skipped++; continue; }
+    const control = timeControlOf(parsed.headers?.TimeControl ?? game.timeControl);
+    const spent = timeSpent(clocks, control);
+    if (!spent) { skipped++; continue; }
+    const judged = judgedFromStore(parsed, game.curve, game.marks, game.side ?? 'white');
+    if (!judged.length) { skipped++; continue; }
+
+    used++;
+    for (let i = 0; i < judged.length; i++) {
+      const j = judged[i];
+      if (!j.mine || !Number.isFinite(j.loss)) continue;
+      const took = spent[i];
+      if (!Number.isFinite(took)) continue;
+      moves++;
+      // The clock as it stood BEFORE the move: what was left afterwards plus
+      // what the move ate, less whatever the increment put back.
+      const before = clocks[i] + took - (control?.increment ?? 0);
+      for (const [rows, value] of [[spentRows, took], [leftRows, before]]) {
+        const row = bucketFor(rows, value);
+        row.n++;
+        row.lost += Math.min(300, j.loss);
+        if (j.loss >= 300) row.blunders++;
+      }
+    }
+  }
+
+  const finish = (rows) => rows.map((r) => ({
+    label: r.label,
+    n: r.n,
+    meanLoss: r.n ? r.lost / r.n : null,
+    blunderRate: r.n ? r.blunders / r.n : null,
+  }));
+  return { spent: finish(spentRows), left: finish(leftRows), used, skipped, moves };
 }

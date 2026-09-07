@@ -523,6 +523,17 @@ async function runReview() {
     tactics: result.tactics.length,
     meanLoss: result.meanLoss,
     depth,
+    // WHAT IT TOOK TO WORK ALL THAT OUT, kept so the game reopens without it
+    // being worked out again. A review is minutes of searching; before this
+    // the only thing that survived it was the list of mistakes, so every one
+    // of the games below was a dead row you could read and not open.
+    //
+    // The curve is the evaluation from White's side after every move, and the
+    // marks are what the reviewer called each one, a character apiece. See
+    // judgedFromStore() for why those two are enough and what they leave out.
+    curve: result.whiteCp,
+    marks: marksOf(result.judged),
+    counted: result.counted,
     estimate: result.meanLoss === null ? null : estimateRating(result.meanLoss, depth),
   });
   await Store.set('reviews', App.reviews);
@@ -705,6 +716,12 @@ function renderReviewResult() {
     box.appendChild(el('p', 'note', 'No strength estimate: the calibration for this setting has not been made, and a figure without one would be a guess with a number on it.'));
   }
 
+  // Beside the ladder's answer, the one built out of your own rated games.
+  const yours = Review.result.meanLoss === null
+    ? null
+    : renderPersonalEstimate(Review.result.meanLoss, { heading: 'What your own games say' });
+  if (yours) box.appendChild(yours);
+
   // COUNTED AND STATED, never dropped quietly. A mate moment is capped at one
   // of each kind so it cannot take every slot, and a page that knows how many
   // it left out and does not say is this project's most repeated fault.
@@ -717,25 +734,44 @@ function renderReviewResult() {
 
   renderCurve(box);
 
+  // A GAME REVIEWED BEFORE ANY OF THIS WAS KEPT has its mistakes and nothing
+  // else, and an empty move list under a heading reads like a fault. It says
+  // so, and says what to do about it.
+  if (Review.result.stored && !judged.length) {
+    const again = el('div', 'panel');
+    again.appendChild(el('h3', null, 'Every move'));
+    again.appendChild(el('p', 'note', 'This game was reviewed before the move-by-move record was kept, so only its mistakes survive. Review it again and the curve and the full move list come with it.'));
+    const btn = el('button', 'btn', 'Load it for another review');
+    btn.type = 'button';
+    btn.addEventListener('click', () => {
+      $('pgnInput').value = Review.result.pgn ?? '';
+      $('pgnInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    again.appendChild(btn);
+    box.appendChild(again);
+  }
+
   // Every move, both sides, with a glyph — the chess.com move list. Tapping
   // one puts the position on the board with both arrows and the eval bar.
-  const all = el('div', 'panel');
-  all.appendChild(el('h3', null, 'Every move'));
-  all.appendChild(el('p', 'note', 'Your moves are bold. ★ the engine’s own choice, ?! half a point, ? a point and a half, ?? three or more, #? a mate missed or allowed. Tap one to see it.'));
-  const list = el('div', 'movelist');
-  list.id = 'reviewMoves';
-  for (const j of judged) {
-    if (j.colour === 'white') list.appendChild(el('span', 'mn', `${j.moveNumber}.`));
-    const btn = el('button', 'mv' + (j.mine ? ' mine' : ''), j.san);
-    btn.type = 'button';
-    btn.dataset.class = j.cls;
-    btn.dataset.ply = j.ply;
-    btn.title = describeJudged(j);
-    btn.addEventListener('click', () => showJudged(j));
-    list.appendChild(btn);
+  if (judged.length) {
+    const all = el('div', 'panel');
+    all.appendChild(el('h3', null, 'Every move'));
+    all.appendChild(el('p', 'note', 'Your moves are bold. ★ the engine’s own choice, ?! half a point, ? a point and a half, ?? three or more, #? a mate missed or allowed. Tap one to see it.'));
+    const list = el('div', 'movelist');
+    list.id = 'reviewMoves';
+    for (const j of judged) {
+      if (j.colour === 'white') list.appendChild(el('span', 'mn', `${j.moveNumber}.`));
+      const btn = el('button', 'mv' + (j.mine ? ' mine' : ''), j.san);
+      btn.type = 'button';
+      btn.dataset.class = j.cls;
+      btn.dataset.ply = j.ply;
+      btn.title = describeJudged(j);
+      btn.addEventListener('click', () => showJudged(j));
+      list.appendChild(btn);
+    }
+    all.appendChild(list);
+    box.appendChild(all);
   }
-  all.appendChild(list);
-  box.appendChild(all);
 
   if (!mistakes.length) {
     box.appendChild(el('p', 'note', 'Nothing crossed the threshold. At this search depth that means no move of yours lost half a point or more.'));
@@ -780,6 +816,80 @@ function renderReviewResult() {
   box.appendChild(panel);
 }
 
+/**
+ * A game you reviewed before, opened again without reviewing it again.
+ *
+ * Every row under "Games reviewed" used to be text you could read and not act
+ * on. The review that produced it is minutes of searching, and the only thing
+ * that survived it was the list of mistakes — the curve, the move list and the
+ * board were gone the moment you left the screen, so a history of two hundred
+ * games was two hundred dead rows.
+ *
+ * Games now keep the two small things that cannot be worked out again from
+ * their moves alone, and this puts the whole review back from them: same
+ * curve, same move list, same board, no searching. See judgedFromStore for
+ * what those two things are and the one thing they leave out.
+ */
+function openStoredReview(game) {
+  let parsed = null;
+  try { parsed = parsePgn(game.pgn ?? ''); } catch { parsed = null; }
+  if (!parsed || !parsed.plies.length) {
+    show('review');
+    $('reviewStatus').textContent = 'That game was stored without readable moves, so there is nothing to open.';
+    return;
+  }
+  Review.side = game.side ?? 'white';
+  Review.parsed = parsed;
+  const judged = judgedFromStore(parsed, game.curve, game.marks, Review.side);
+  Review.result = {
+    mistakes: game.mistakes ?? [],
+    accuracy: game.accuracy ?? null,
+    meanLoss: game.meanLoss ?? null,
+    depth: game.depth ?? 9,
+    counted: game.counted ?? judged.filter((j) => j.mine).length,
+    minJudged: MIN_JUDGED,
+    judged,
+    whiteCp: Array.isArray(game.curve) ? game.curve : null,
+    capped: null,
+    pgn: game.pgn ?? '',
+    // Read back rather than just measured. Two things behave differently:
+    // the engine's own move is filled in one position at a time as you tap,
+    // and a game stored before any of this was kept says so instead of
+    // showing an empty move list.
+    stored: true,
+  };
+  show('review');
+  $('reviewStatus').textContent = '';
+  renderReviewResult();
+  $('reviewOut').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/**
+ * The engine's own move for one position, worked out the first time it is
+ * asked for.
+ *
+ * A stored game carries no best move for any of its plies, so without this
+ * every move of a reopened game would say "the engine wanted something else".
+ * One position takes a fraction of a second; keeping eighty of them per game
+ * is the thing this format exists not to do.
+ */
+function fillBestMove(j, depth) {
+  if (j.best || j.noBest) return false;
+  const budget = REVIEW_BUDGET[depth] ?? REVIEW_BUDGET[9];
+  try {
+    const at = new Board(j.fen);
+    if (at.outcome()) { j.noBest = true; return false; }
+    App.engine.reset();
+    const found = App.engine.search(at, { movetime: budget.movetime, maxDepth: depth });
+    if (!found?.move) { j.noBest = true; return false; }
+    j.best = { uci: moveToUci(found.move), san: toSan(new Board(j.fen), found.move) };
+    return true;
+  } catch {
+    j.noBest = true;
+    return false;
+  }
+}
+
 function describeJudged(j) {
   const who = j.mine ? 'You' : 'They';
   if (j.mates) return `${moveLabel(j)} — checkmate.`;
@@ -790,6 +900,10 @@ function describeJudged(j) {
 }
 
 function showJudged(j) {
+  // A reopened game has no engine move stored for this position; it is worked
+  // out now, before anything is drawn, so the arrow and the sentence under the
+  // board agree with each other.
+  if (Review.result?.stored) fillBestMove(j, Review.result.depth);
   $('reviewBoardWrap').hidden = false;
   Review.view.orientation = Review.side === 'white' ? WHITE : BLACK;
   Review.view.interactive = false;
@@ -1054,7 +1168,34 @@ const THEME_LABEL = {
 // was ever shown against time. Nothing new is computed here and nothing is
 // smoothed away: the dots are the games, and the line through them is a
 // rolling median, which one collapse cannot drag the way a mean can.
-const Progress = { measure: 'accuracy' };
+const Progress = { measure: 'accuracy', timeClass: 'all' };
+
+/**
+ * Bullet, blitz and rapid are different games and were being averaged.
+ *
+ * A minute of bullet and a half-hour rapid game are not two samples of the
+ * same skill: everybody blunders more with ten seconds left, and pooling them
+ * means a month of bullet drags the rapid line down and neither number
+ * describes anything you actually played. Lichess splits its whole insights
+ * page this way, and it is the first thing to reach for when a figure looks
+ * wrong for no reason.
+ *
+ * The classes offered are the ones the games ACTUALLY HAVE, in a fixed order,
+ * so a filter never offers a category that would come back empty — and games
+ * with no class at all (pasted by hand, or played on this app's ladder) are
+ * their own group rather than being quietly dropped or filed under blitz.
+ */
+const TIME_CLASSES = ['bullet', 'blitz', 'rapid', 'daily'];
+const TIME_CLASS_LABEL = {
+  all: 'All', bullet: 'Bullet', blitz: 'Blitz', rapid: 'Rapid', daily: 'Daily', other: 'Not from Chess.com',
+};
+const classOf = (game) => (TIME_CLASSES.includes(game?.timeClass) ? game.timeClass : 'other');
+
+function timeClassCounts(games) {
+  const counts = new Map();
+  for (const g of games ?? []) counts.set(classOf(g), (counts.get(classOf(g)) ?? 0) + 1);
+  return [...TIME_CLASSES, 'other'].filter((k) => counts.get(k)).map((k) => ({ key: k, n: counts.get(k) }));
+}
 
 const PROGRESS_MEASURES = {
   accuracy: {
@@ -1063,6 +1204,8 @@ const PROGRESS_MEASURES = {
     better: 'up',
     value: (game) => (Number.isFinite(game.accuracy) ? game.accuracy : null),
     format: (v) => `${Math.round(v)}%`,
+    noun: 'an accuracy',
+    caveat: 'Both halves are your own games at whatever setting you reviewed them with, so a change of setting shows up here as a change in you.',
   },
   mistakes: {
     label: 'Mistakes a game',
@@ -1070,6 +1213,8 @@ const PROGRESS_MEASURES = {
     better: 'down',
     value: (game) => (game.mistakes ?? []).length,
     format: (v) => v.toFixed(1),
+    noun: 'a mistake count',
+    caveat: 'Both halves are your own games at whatever setting you reviewed them with, so a change of setting shows up here as a change in you.',
   },
   estimate: {
     label: 'Strength estimate',
@@ -1077,6 +1222,26 @@ const PROGRESS_MEASURES = {
     better: 'up',
     value: (game) => (Number.isFinite(game.estimate?.elo) ? game.estimate.elo : null),
     format: (v) => String(Math.round(v)),
+    noun: 'a strength estimate',
+    caveat: 'Both halves are your own games at whatever setting you reviewed them with, so a change of setting shows up here as a change in you.',
+  },
+  // THE ONLY LINE ON THIS SCREEN THAT IS NOT THIS APP'S OPINION. Everything
+  // else here is something the engine worked out about your moves; this is the
+  // number Chess.com gave you at the time, for that game, and it is the one you
+  // actually want to move.
+  rating: {
+    label: 'Your rating',
+    note: 'Your Chess.com rating after each game, as Chess.com recorded it. Nothing in this app produced these numbers and nothing in it can move them — which is exactly why they are worth plotting beside the ones it did produce.',
+    better: 'up',
+    value: (game) => (Number.isFinite(game.myRating) ? game.myRating : null),
+    format: (v) => String(Math.round(v)),
+    noun: 'a rating',
+    caveat: 'These are Chess.com\u2019s numbers rather than this app\u2019s: nothing you do here moves them, and how you reviewed a game cannot change what this line says.',
+    // EVERY game, not only the walked ones. Your rating moved on all of them,
+    // and plotting it over the handful the engine happened to review would be
+    // a different chart wearing this one's name.
+    pick: (all) => all,
+    unit: 'game',
   },
 };
 
@@ -1089,6 +1254,206 @@ function rollingMedian(values, window = 5) {
     const sorted = [...slice].sort((a, b) => a - b);
     return sorted[Math.floor(sorted.length / 2)];
   });
+}
+
+/**
+ * A rolling window that suits the number of games.
+ *
+ * FIVE WAS FIXED, AND FIVE OVER TWO HUNDRED GAMES IS NOT A TREND LINE, it is
+ * the noise redrawn slightly smoother. The window grows with the sample so the
+ * line answers the question the screen asks — is this going anywhere — rather
+ * than tracing every good and bad afternoon.
+ */
+const trendWindow = (n) => Math.max(5, Math.min(25, Math.round(n / 12)) | 1);
+
+/** The rolling low and high of the same window, for the spread behind the line. */
+function rollingSpread(values, window) {
+  const lo = [], hi = [];
+  for (let i = 0; i < values.length; i++) {
+    const from = Math.max(0, i - Math.floor(window / 2));
+    const slice = values.slice(from, from + window).filter((v) => v !== null);
+    if (!slice.length) { lo.push(null); hi.push(null); continue; }
+    lo.push(Math.min(...slice));
+    hi.push(Math.max(...slice));
+  }
+  return { lo, hi };
+}
+
+/**
+ * How your games have gone, over however many of them there are.
+ *
+ * WHAT WAS WRONG WITH THE OLD ONE. Every game was a seven-pixel dot in the
+ * accent colour, with the trend line underneath. At nine games that is a chart.
+ * At two hundred and forty-three it is a solid band of red with a line hidden
+ * somewhere inside it: the loudest mark on the screen was the noise, and the
+ * one thing worth reading was behind it.
+ *
+ * So the emphasis is the other way round now. The trend is the only strong
+ * mark. The spread it was drawn from is a soft band behind it, which says the
+ * same thing two hundred dots were trying to say — how much the games vary —
+ * without drawing two hundred of anything. Individual games are only drawn
+ * while there are few enough of them to tell apart.
+ *
+ * And it has an axis. "0 to 1400" underneath was the whole vertical scale; now
+ * there are gridlines and three labels, and hovering names the game.
+ */
+/**
+ * What your own rated games say about a game that lost this much a move.
+ *
+ * Sits beside the ladder estimate rather than replacing it, because the two
+ * answer different questions and only one of them is about you: the ladder
+ * says which of this app's opponents the game resembles, and this says what
+ * you were actually rated in your own games that went about as well.
+ *
+ * Returns null when there is nothing to show at all.
+ */
+function renderPersonalEstimate(meanLoss, { heading = 'What your own games say', from } = {}) {
+  const games = from ?? App.reviews.games;
+  const near = ratingNear(meanLoss, games);
+  if (!near) return null;
+
+  const panel = el('div', 'panel');
+  panel.appendChild(el('h3', null, heading));
+
+  if (near.short) {
+    panel.appendChild(el('p', 'note',
+      `Not yet. This compares a game with your own rated games, and needs ${near.need} that have both a Chess.com rating and a review — there ${near.have === 1 ? 'is' : 'are'} ${near.have}. Import your games, then walk some of them, and this fills in with the one number on this screen that is not this app's opinion.`));
+    return panel;
+  }
+
+  const points = (cp) => `${(cp / 100).toFixed(2)}`;
+  const readout = el('div', 'readout');
+  readout.innerHTML = `
+    <div><span class="k">You were rated about</span><span class="v">${Math.round(near.elo)}</span></div>
+    <div><span class="k">Across those games</span><span class="v">${Math.round(near.lo)}–${Math.round(near.hi)}</span></div>`;
+  panel.appendChild(readout);
+
+  panel.appendChild(el('p', 'note',
+    `Of your ${near.pool} reviewed games that carry a Chess.com rating, the ${near.n} that lost closest to ${points(meanLoss)} points a move were rated between ${Math.round(near.lo)} and ${Math.round(near.hi)}, with ${Math.round(near.elo)} in the middle. No ladder and no curve: those are games you played, and that is what you were rated in them.`));
+
+  // A GAME UNLIKE ANYTHING YOU HAVE PLAYED gets an answer built out of games
+  // that are not like it, and saying the number without saying that is how a
+  // reader ends up trusting it most where it is weakest.
+  if (near.faint) {
+    panel.appendChild(el('p', 'note',
+      `Read this one loosely. Nothing in your history lost anything like ${points(meanLoss)} points a move — the closest was ${points(near.gap)} away — so the games behind this figure are the nearest available rather than comparable ones.`));
+  }
+
+  const agree = lossRatingAgreement(games);
+  if (agree) {
+    // How much a correlation is worth depends on how many games made it — see
+    // agreementVerdict, which is where that judgement lives.
+    const verdict = agreementVerdict(agree.rho, agree.n);
+    panel.appendChild(el('p', 'note', verdict === 'trust'
+      ? `Worth trusting: across ${agree.n} of your games, the ones where you lost less per move really are the ones where you were rated higher, so loss per move is measuring something about you.`
+      : (verdict === 'loose'
+        ? `Read it loosely: across ${agree.n} of your games the link between losing less per move and being rated higher is there but weak, so a single game's figure will bounce around.`
+        : `A warning rather than a figure: across ${agree.n} of your games there is no clear link between losing less per move and being rated higher. Until there is, treat every strength number in this app — this one and the ladder's — as describing the moves, not you.`)));
+  }
+  return panel;
+}
+
+/**
+ * Where your time goes, and what it costs you.
+ *
+ * MEMOISED, because it is the only thing on this screen that has to parse and
+ * replay every game it looks at — a couple of hundred games is a few hundred
+ * milliseconds, and this screen repaints on every click of a filter. The key
+ * is what the answer depends on, so a changed filter recomputes and a repaint
+ * does not.
+ */
+const timeTroubleMemo = { key: null, value: null };
+function timeTroubleFor(games) {
+  // THE KEY HAS TO NOTICE A GAME BEING WALKED. Counting the games and looking
+  // at the first and last dates does not: walking one changes nothing about
+  // the length of the list or its ends, so the panel went on showing the
+  // answer from before the walk. What changes is how many of them carry a
+  // judgement and how long those judgements are, so that is what is counted.
+  let walked = 0, plies = 0;
+  for (const g of games) if (typeof g?.marks === 'string') { walked++; plies += g.marks.length; }
+  const key = `${games.length}|${walked}|${plies}|${games[0]?.at ?? 0}|${games[games.length - 1]?.at ?? 0}|${Progress.timeClass}`;
+  if (timeTroubleMemo.key !== key) {
+    timeTroubleMemo.key = key;
+    timeTroubleMemo.value = timeTrouble(games);
+  }
+  return timeTroubleMemo.value;
+}
+
+/** A row of bars, one per bucket, with what each cost. */
+function renderTimeTrouble(games) {
+  const found = timeTroubleFor(games);
+  if (!found.moves) {
+    // Only worth saying anything at all once there are games it COULD have
+    // used; before that it is a feature announcement, not a finding.
+    if (!found.skipped) return null;
+    const panel = el('div', 'panel');
+    panel.appendChild(el('h3', null, 'Where your time goes'));
+    panel.appendChild(el('p', 'note', `Nothing to show yet. This needs games that carry a clock on every move — which the ones imported from Chess.com do — AND that the engine has walked, and none of your ${found.skipped} stored ${found.skipped === 1 ? 'game has' : 'games have'} both yet. Import, then walk some of them, and this fills in.`));
+    return panel;
+  }
+
+  const panel = el('div', 'panel');
+  panel.appendChild(el('h3', null, 'Where your time goes'));
+  panel.appendChild(el('p', 'note', `${found.moves} of your moves across ${found.used} ${found.used === 1 ? 'game' : 'games'}, grouped by how long you spent on them. The bar is what the average move in that group cost you.${found.skipped ? ` ${found.skipped} other ${found.skipped === 1 ? 'game was' : 'games were'} left out: no clock in the moves, or not walked by the engine yet.` : ''}`));
+
+  const worst = Math.max(...found.spent.map((r) => r.meanLoss ?? 0), ...found.left.map((r) => r.meanLoss ?? 0), 1);
+  const bars = (rows, title) => {
+    // A HEADING OVER ONE ROW IS NOT A COMPARISON. When every move falls in the
+    // same group — a long game nobody ever got short of time in — the cut has
+    // nothing to say and is left out rather than drawn as a single bar under a
+    // title promising a breakdown.
+    if (rows.filter((r) => r.n).length < 2) return null;
+    const wrap = el('div');
+    wrap.appendChild(el('h4', null, title));
+    for (const row of rows) {
+      if (!row.n) continue;
+      const line = el('div', 'timebar');
+      line.innerHTML = `<span class="timebar-k">${esc(row.label)}</span>
+        <span class="timebar-track"><span class="timebar-fill" style="width:${Math.round((row.meanLoss / worst) * 100)}%"></span></span>
+        <span class="timebar-v">${(row.meanLoss / 100).toFixed(2)}</span>
+        <span class="timebar-n">${row.n}</span>`;
+      wrap.appendChild(line);
+    }
+    return wrap;
+  };
+  let drawn = 0;
+  for (const [rows, title] of [[found.spent, 'By how long you thought'], [found.left, 'By what was left on the clock']]) {
+    const block = bars(rows, title);
+    if (block) { panel.appendChild(block); drawn++; }
+  }
+  if (!drawn) {
+    panel.appendChild(el('p', 'note', 'Every one of those moves took about the same time and left about the same on the clock, so there is nothing here to compare yet.'));
+    return panel;
+  }
+  panel.appendChild(el('p', 'note', 'Points lost on the average move, then how many moves are behind each figure. A group of six moves is not a finding.'));
+
+  // THE SENTENCE IS THE POINT. A table of numbers is something to read; the
+  // comparison is something to act on — and it is only drawn where both groups
+  // have enough moves in them to be worth comparing.
+  const enough = (r) => r && r.n >= 20;
+  const fast = found.spent.slice(0, 2).filter(enough);
+  const slow = found.spent.slice(3).filter(enough);
+  if (fast.length && slow.length) {
+    const fastLoss = fast.reduce((s, r) => s + r.meanLoss * r.n, 0) / fast.reduce((s, r) => s + r.n, 0);
+    const slowLoss = slow.reduce((s, r) => s + r.meanLoss * r.n, 0) / slow.reduce((s, r) => s + r.n, 0);
+    // THE DIFFERENCE DECIDES IT, NOT THE RATIO. A ratio needs a denominator,
+    // and the strongest finding this can make — quick moves throwing away
+    // material while the slow ones cost nothing at all — is exactly the case
+    // where there isn't one. Guarding the division by falling back to a ratio
+    // of 1 reported that case as "about the same", which is the opposite of
+    // what it is. Points a move is what the bars are drawn in anyway.
+    const gap = fastLoss - slowLoss;
+    const worthSaying = 10;
+    const points = (cp) => `${(cp / 100).toFixed(2)}`;
+    // Only quoted where it means something: "three times nothing" does not.
+    const times = slowLoss >= 5 ? ` — ${(fastLoss / slowLoss).toFixed(1)} times as much` : '';
+    panel.appendChild(el('p', 'note', gap >= worthSaying
+      ? `Your quick moves cost you ${points(fastLoss)} points each against ${points(slowLoss)} for your slow ones${times}. That is the cheapest thing on this page to fix: it is not calculation, it is the moves you played without stopping.`
+      : (gap <= -worthSaying
+        ? `Your quick moves cost you LESS than your slow ones: ${points(fastLoss)} points each against ${points(slowLoss)}. That usually means the long thinks are the hard positions rather than the wasted ones, so the time is going where it should.`
+        : `Your quick moves and your slow ones cost about the same (${points(fastLoss)} against ${points(slowLoss)}). Whatever is losing you points here, thinking longer is not what stops it.`)));
+  }
+  return panel;
 }
 
 function renderProgressChart(games) {
@@ -1112,65 +1477,162 @@ function renderProgressChart(games) {
   // games always slopes, and the slope is noise; saying so is more use than
   // a chart that implies otherwise.
   if (scored.length < 3) {
+    const unit = measure.unit ?? 'reviewed game';
     panel.appendChild(el('p', 'note',
-      `${scored.length} of your ${games.length} reviewed ${games.length === 1 ? 'game has' : 'games have'} a ${measure.label.toLowerCase()} to plot. Three are needed before a line through them means anything.`));
+      `${scored.length} of your ${games.length} ${unit}${games.length === 1 ? '' : 's'} ${games.length === 1 ? 'has' : 'have'} ${measure.noun} to plot. Three are needed before a line through them means anything.`));
     return panel;
   }
 
   const lo = Math.min(...scored), hi = Math.max(...scored);
+  // EVERY GAME THE SAME NUMBER IS A REAL HISTORY, not a broken one. It is what
+  // a run of games pinned to the bottom of the strength estimate looks like,
+  // which is the shape a lot of real histories have. Dividing by a made-up
+  // span of 1 drew a scale that does not exist: a hundred and twenty games all
+  // worth 300 came out labelled "300 / 301 / 300", with the top of the axis
+  // BELOW its own middle. When nothing varies the line goes down the middle
+  // and the axis says the one number there is.
+  const flat = hi === lo;
   const span = hi - lo || 1;
-  const trend = rollingMedian(values);
+  const window = trendWindow(scored.length);
+  const trend = rollingMedian(values, window);
+  const spread = rollingSpread(values, window);
   const width = Math.max(2, values.length - 1);
-  const y = (v) => 96 - ((v - lo) / span) * 92;
+  const y = (v) => (flat ? 50 : 96 - ((v - lo) / span) * 92);
 
   const NS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('class', 'curve');
+  svg.setAttribute('class', 'curve chart');
   svg.setAttribute('viewBox', `0 0 ${width} 100`);
   svg.setAttribute('preserveAspectRatio', 'none');
   svg.setAttribute('role', 'img');
-  svg.setAttribute('aria-label', `${measure.label} across ${games.length} reviewed games`);
+  svg.setAttribute('aria-label', flat
+    ? `${measure.label} across ${games.length} reviewed games, every one of them ${measure.format(hi)}`
+    : `${measure.label} across ${games.length} reviewed games, from ${measure.format(lo)} to ${measure.format(hi)}`);
 
-  // The trend first, so the dots sit on top of it.
+  // ── the grid, one shade off the ground and behind everything ─────────────
+  for (const frac of [0, 0.5, 1]) {
+    const rule = document.createElementNS(NS, 'line');
+    const at = 4 + frac * 92;
+    rule.setAttribute('x1', 0); rule.setAttribute('x2', width);
+    rule.setAttribute('y1', at); rule.setAttribute('y2', at);
+    rule.setAttribute('class', 'chart-grid');
+    svg.appendChild(rule);
+  }
+
+  // ── the spread the trend was drawn from ──────────────────────────────────
+  //
+  // The band is what replaces two hundred dots: it is the highest and lowest
+  // game inside the same rolling window, so its thickness IS how much the
+  // games vary, drawn once instead of once per game.
+  const top = [], bottom = [];
+  for (let i = 0; i < values.length; i++) {
+    if (spread.hi[i] === null) continue;
+    top.push(`${i},${y(spread.hi[i])}`);
+    bottom.unshift(`${i},${y(spread.lo[i])}`);
+  }
+  if (top.length > 1) {
+    const band = document.createElementNS(NS, 'polygon');
+    band.setAttribute('points', [...top, ...bottom].join(' '));
+    band.setAttribute('class', 'chart-band');
+    svg.appendChild(band);
+  }
+
+  // ── the trend, which is the point of the chart ───────────────────────────
   const points = trend.map((v, i) => (v === null ? null : `${i},${y(v)}`)).filter(Boolean);
   if (points.length > 1) {
     const line = document.createElementNS(NS, 'polyline');
     line.setAttribute('points', points.join(' '));
-    line.setAttribute('class', 'curve-line');
+    line.setAttribute('class', 'chart-trend');
     svg.appendChild(line);
   }
-  // A DOT DRAWN AS A CIRCLE IN THIS VIEWBOX IS NOT A DOT. The chart is stretched
-  // to the width of the panel with preserveAspectRatio="none", so one unit
-  // across is nothing like one unit down — with nine games the x axis is
-  // scaled about ninety times more than the y, and every circle came out as a
-  // red ellipse the width of the panel. A zero-length line with a round cap
-  // and a non-scaling stroke is a circle in SCREEN units, which is the only
-  // place a dot is round.
-  for (let i = 0; i < values.length; i++) {
-    if (values[i] === null) continue;
-    const dot = document.createElementNS(NS, 'line');
-    dot.setAttribute('x1', i); dot.setAttribute('x2', i);
-    dot.setAttribute('y1', y(values[i])); dot.setAttribute('y2', y(values[i]));
-    dot.setAttribute('class', 'curve-dot');
-    svg.appendChild(dot);
+
+  // ── and the games themselves, ONLY while they can be told apart ──────────
+  //
+  // A DOT DRAWN AS A CIRCLE IN THIS VIEWBOX IS NOT A DOT. The chart is
+  // stretched to the width of the panel with preserveAspectRatio="none", so a
+  // zero-length line with a round cap and a non-scaling stroke is the only way
+  // to get a circle measured in screen pixels. Above the cap they are not
+  // drawn at all: at one dot per pixel they stop being dots.
+  const DOT_CAP = 40;
+  const showDots = values.length <= DOT_CAP;
+  if (showDots) {
+    for (let i = 0; i < values.length; i++) {
+      if (values[i] === null) continue;
+      const dot = document.createElementNS(NS, 'line');
+      dot.setAttribute('x1', i); dot.setAttribute('x2', i);
+      dot.setAttribute('y1', y(values[i])); dot.setAttribute('y2', y(values[i]));
+      dot.setAttribute('class', 'chart-dot');
+      svg.appendChild(dot);
+    }
   }
 
-  // PADDED, because a dot is drawn in screen pixels and the first and last of
-  // them sit on x=0 and x=width. Without room outside the plot they are sliced
-  // in half by the frame, which reads as data running off the edge.
-  svg.classList.add('chart');
+  // The one dot that is always drawn: where you are now.
+  const lastAt = values.length - 1 - [...values].reverse().findIndex((v) => v !== null);
+  if (Number.isFinite(values[lastAt])) {
+    const now = document.createElementNS(NS, 'line');
+    now.setAttribute('x1', lastAt); now.setAttribute('x2', lastAt);
+    now.setAttribute('y1', y(values[lastAt])); now.setAttribute('y2', y(values[lastAt]));
+    now.setAttribute('class', 'chart-now');
+    svg.appendChild(now);
+  }
+
+  // ── the frame, with the vertical scale beside it ─────────────────────────
+  const plot = el('div', 'chart-plot');
+  const axis = el('div', 'chart-yaxis');
+  // The blanks keep the one label on the middle rule: the three spans are
+  // pinned to the three gridlines by position, not by order.
+  for (const v of (flat ? [null, hi, null] : [hi, lo + span / 2, lo])) {
+    axis.appendChild(el('span', null, v === null ? '' : measure.format(v)));
+  }
+  plot.appendChild(axis);
   const frame = el('div', 'curve-frame chart-frame');
   frame.appendChild(svg);
-  panel.appendChild(frame);
+  plot.appendChild(frame);
+
+  // ── hovering names the game, because a trend line hides the games ────────
+  //
+  // Nearest-point rather than a hit area on each mark: at this density the
+  // marks are a pixel apart and there is nothing to aim at.
+  const tip = el('div', 'chart-tip');
+  tip.hidden = true;
+  frame.appendChild(tip);
+  const at = (event) => {
+    const box = frame.getBoundingClientRect();
+    const frac = Math.min(1, Math.max(0, (event.clientX - box.left) / (box.width || 1)));
+    return Math.round(frac * (values.length - 1));
+  };
+  const showTip = (event) => {
+    const i = at(event);
+    const value = values[i];
+    tip.hidden = false;
+    tip.textContent = value === null
+      ? `Game ${i + 1} of ${values.length} — not scored`
+      : `Game ${i + 1} of ${values.length} — ${measure.format(value)}`;
+    const box = frame.getBoundingClientRect();
+    tip.style.left = `${Math.min(Math.max(6, event.clientX - box.left), box.width - 6)}px`;
+  };
+  frame.addEventListener('pointermove', showTip);
+  frame.addEventListener('pointerdown', showTip);
+  frame.addEventListener('pointerleave', () => { tip.hidden = true; });
+  panel.appendChild(plot);
 
   // Two facts, not four muddled together: the left-to-right axis is time, and
-  // the up-and-down one is the measure. The first version wrote
-  // "oldest · 62%" at one end and "86% · newest" at the other, which reads as
-  // though the oldest game scored 62%.
+  // the up-and-down one is the measure — which now has its own labels, so this
+  // line only has to carry the time axis and what the marks mean.
   const scale = el('div', 'chart-scale');
-  scale.appendChild(el('span', null, `${games.length} games, oldest at the left`));
-  scale.appendChild(el('span', null, `${measure.format(lo)} to ${measure.format(hi)}`));
+  scale.appendChild(el('span', null, `${games.length} games · oldest left`));
+  // The rolling middle of a flat run is the same number, so naming the window
+  // there would be a fact about nothing.
+  if (!flat) scale.appendChild(el('span', null, `line: middle of ${window}`));
   panel.appendChild(scale);
+  // What the marks are, on its own line — this wrapped into the axis label when
+  // the two were crammed onto one row on a phone. A flat line needs none of it:
+  // the sentence under the chart already says the one thing there is to say,
+  // and saying it twice in a row reads like a stutter.
+  if (!flat) {
+    panel.appendChild(el('p', 'note chart-key',
+      `The line is the middle of every ${window} games in a row, and the band is the best and worst of the same ${window} — so how thick the band is, is how much your games vary.${showDots ? ' Each dot is one game.' : ` Single games are only dotted up to ${DOT_CAP} of them; all ${values.length} would be one solid block. Touch the chart to name one.`}`));
+  }
 
   // ── and what it amounts to, in a sentence ────────────────────────────────
   const half = Math.floor(scored.length / 2);
@@ -1182,13 +1644,16 @@ function renderProgressChart(games) {
   // A difference smaller than this is not worth a word either way, and the
   // number of games here is never large enough to prove one.
   const meaningful = Math.abs(change) >= (measure.better === 'up' ? Math.max(1, span * 0.08) : 0.3);
+  const halves = `First ${half} games: ${measure.format(earlier)}. Last ${scored.length - half}: ${measure.format(later)}.`;
 
   const verdict = el('p', 'note');
-  verdict.textContent = scored.length < 6
-    ? `${measure.format(earlier)} across the first ${half}, ${measure.format(later)} across the last ${scored.length - half}. With ${scored.length} scored games that is a difference, not a trend — it takes many more before one bad afternoon stops moving the line.`
+  verdict.textContent = flat
+    ? `Every one of your ${scored.length} scored games came out at ${measure.format(hi)}. That is not a flat run of form — it is the measure itself running out of room, so nothing it says here can move until the games move off it.`
+    : scored.length < 6
+    ? `${halves} With ${scored.length} scored games that is a difference, not a trend — it takes many more before one bad afternoon stops moving the line.`
     : !meaningful
-      ? `${measure.format(earlier)} across the first ${half}, ${measure.format(later)} across the last ${scored.length - half}. That is flat: the two halves are close enough that the order of the games would change which was higher.`
-      : `${measure.format(earlier)} across the first ${half}, ${measure.format(later)} across the last ${scored.length - half} — ${improving ? 'the right way' : 'the wrong way'}. Both halves are your own games at whatever search setting you reviewed them with, so a change of setting shows up here as a change in you.`;
+      ? `${halves} That is flat: the two halves are close enough that the order of the games would change which was higher.`
+      : `${halves} Going ${improving ? 'the right way' : 'the wrong way'}. ${measure.caveat}`;
   panel.appendChild(verdict);
   panel.appendChild(el('p', 'note', measure.note));
   return panel;
@@ -1207,18 +1672,45 @@ function renderProgress() {
   //
   // A row with no `reviewed` field at all was stored before importing existed,
   // and every one of those WAS a review, so absent means reviewed.
-  const games = App.reviews.games.filter((g) => g.reviewed !== false);
-  const waiting = App.reviews.games.length - games.length;
+  // ONE FILTER, APPLIED ONCE, at the top. Every panel below reads from `pool`
+  // and `games`, so a screen filtered to rapid is filtered to rapid all the
+  // way down rather than in the places somebody remembered.
+  const kinds = timeClassCounts(App.reviews.games);
+  if (kinds.length < 2 && Progress.timeClass !== 'all') Progress.timeClass = 'all';
+  const pool = Progress.timeClass === 'all'
+    ? App.reviews.games
+    : App.reviews.games.filter((g) => classOf(g) === Progress.timeClass);
+
+  const games = pool.filter((g) => g.reviewed !== false);
+  const waiting = pool.length - games.length;
   const allMistakes = games.flatMap((g) => g.mistakes ?? []);
 
-  if (!games.length) {
-    if (waiting) {
-      box.innerHTML = `<p class="note">${waiting} imported ${waiting === 1 ? 'game is' : 'games are'} stored and none of them has been walked by the engine yet. Review one and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.</p>`;
-      return;
+  // Offered only when there is more than one kind to choose between: a filter
+  // whose every setting shows the same games is furniture.
+  if (kinds.length > 1) {
+    const filter = el('div', 'panel');
+    filter.appendChild(el('h3', null, 'Which games'));
+    const row = el('div', 'row');
+    for (const { key, n } of [{ key: 'all', n: App.reviews.games.length }, ...kinds]) {
+      const button = el('button', key === Progress.timeClass ? 'btn primary' : 'btn',
+        `${TIME_CLASS_LABEL[key]} (${n})`);
+      button.type = 'button';
+      button.dataset.timeClass = key;
+      button.addEventListener('click', () => { Progress.timeClass = key; renderProgress(); });
+      row.appendChild(button);
     }
+    filter.appendChild(row);
+    filter.appendChild(el('p', 'note', 'Bullet, blitz and rapid are different games. Everybody blunders more with ten seconds left, so a month of bullet averaged in with your rapid drags every number on this page and none of them describes what you played.'));
+    box.appendChild(filter);
   }
+
   if (!games.length) {
-    box.innerHTML = '<p class="note">Review a game and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.</p>';
+    // APPENDED, NOT ASSIGNED. Wiping the box here also wiped the filter that
+    // caused the empty screen, leaving no way back to the games.
+    const where = Progress.timeClass === 'all' ? '' : ` in your ${TIME_CLASS_LABEL[Progress.timeClass].toLowerCase()} games`;
+    box.appendChild(el('p', 'note', waiting
+      ? `${waiting} imported ${waiting === 1 ? 'game is' : 'games are'} stored${where} and none of them has been walked by the engine yet. Review one and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.`
+      : `Review a game${where} and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.`));
     return;
   }
 
@@ -1243,7 +1735,27 @@ function renderProgress() {
       <div><span class="k">Mean accuracy</span><span class="v">${accuracy === null ? '—' : `${accuracy}%`}</span></div>
     </div>${scored.length < games.length ? `<p class="note">${games.length - scored.length} of these ${games.length - scored.length === 1 ? 'was' : 'were'} too short to score and ${games.length - scored.length === 1 ? 'is' : 'are'} left out of the mean.</p>` : ''}`;
   box.appendChild(summary);
-  box.appendChild(renderProgressChart(games));
+  // A measure can ask for a different set of games than the reviewed ones —
+  // your rating moved on every game you played, not only the walked ones.
+  const forChart = PROGRESS_MEASURES[Progress.measure]?.pick?.(pool) ?? games;
+  box.appendChild(renderProgressChart(forChart));
+
+  // What your own rated games say, using the loss per move of your recent
+  // ones. Above the ladder's panel, because it is the better answer of the
+  // two when there is enough to give it.
+  const losses = games.map((g) => g.meanLoss).filter(Number.isFinite).slice(-8);
+  if (losses.length) {
+    const recent = [...losses].sort((a, b) => a - b)[Math.floor(losses.length / 2)];
+    const yours = renderPersonalEstimate(recent, { heading: 'What your own rating says', from: pool });
+    if (yours) box.appendChild(yours);
+  }
+
+  // AFTER the chart, not before it. "How am I doing" is the question this
+  // screen is opened with and the chart is the answer; where the time goes is
+  // the follow-up, and a panel this tall in front of the chart pushed the
+  // answer off the bottom of a phone.
+  const clock = renderTimeTrouble(pool);
+  if (clock) box.appendChild(clock);
 
   // A rolling estimate over recent reviewed games — the MEDIAN, so one
   // collapse or one lucky game does not drag it — and the band it points at.
@@ -1346,7 +1858,7 @@ function renderProgress() {
   if (mates > 0) {
     breakdown.appendChild(el('p', 'note',
       `${byKind.allowed_mate ?? 0} of your moves allowed a forced mate and ${byKind.missed_mate ?? 0} missed one. `
-      + 'Those are counted separately because a mate is not a number of pawns and cannot be averaged with one.'));
+      + 'Those are counted separately because a mate is not a number of points and cannot be averaged with one.'));
   }
   box.appendChild(breakdown);
 
@@ -1369,11 +1881,17 @@ function renderProgress() {
 
   const recent = el('div', 'panel');
   recent.appendChild(el('h3', null, 'Games reviewed'));
+  recent.appendChild(el('p', 'note', 'Tap one to open it again — the curve, every move and the board, without reviewing it a second time.'));
   const list = el('div', 'record');
   for (const g of [...games].reverse().slice(0, 12)) {
-    const row = el('div', 'record-row');
+    // A BUTTON, because it does something. These were <div>s: a history of two
+    // hundred games you could read and not open.
+    const row = el('button', 'record-row record-open');
+    row.type = 'button';
+    const when = new Date(g.at).toLocaleDateString();
     row.innerHTML = `<span class="record-band">${esc(g.white)} vs ${esc(g.black)}</span>
-      <span class="record-score">${(g.mistakes ?? []).length} found · ${Number.isFinite(g.accuracy) ? `${g.accuracy}%` : 'too short to score'}${estimateWords(g.estimate, { short: true }) ? ` · looked like ${estimateWords(g.estimate, { short: true })}` : ''}</span>`;
+      <span class="record-score">${esc(when)} · ${(g.mistakes ?? []).length} found · ${Number.isFinite(g.accuracy) ? `${g.accuracy}%` : 'too short to score'}${estimateWords(g.estimate, { short: true }) ? ` · looked like ${estimateWords(g.estimate, { short: true })}` : ''}</span>`;
+    row.addEventListener('click', () => openStoredReview(g));
     list.appendChild(row);
   }
   recent.appendChild(list);
