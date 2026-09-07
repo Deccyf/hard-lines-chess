@@ -27,6 +27,7 @@ function coachIntent(question) {
   if (/\bwhy not\b|\bwhat about\b|\bis \w+ (good|bad|any good|playable|safe)\b|\bcan i (play|go)\b/.test(q)) return 'about-move';
   if (/\bthreat|\bthreaten|\bdanger|\battack(ing)?\b|\bwhat is (he|she|they|it) (doing|up to)\b/.test(q)) return 'threat';
   if (/\bwho is (better|winning)\b|\bam i (better|winning|losing|lost)\b|\bhow (bad|good) is\b|\bevaluat/.test(q)) return 'assess';
+  if (/\btalk me through\b|\bwalk me through\b|\bexplain (the |this )?position\b|\bwhat is going on\b|\bwhats going on\b/.test(q)) return 'walkthrough';
   if (/\bplan\b|\bidea\b|\bwhat should i (do|play)\b|\bbest move\b|\bwhat next\b/.test(q)) return 'best';
   return 'general';
 }
@@ -125,6 +126,43 @@ function narrateCoach(bundle, question) {
     } else {
       parts.push(`No threat can be measured here — ${bundle.threat?.blocked ?? 'the turn cannot be passed'}.`);
     }
+  }
+
+  // ── THE WALKTHROUGH ──────────────────────────────────────────────────────
+  //
+  // Everything else here answers a question. This one is for when you do not
+  // have a question, which is most of the time and especially when you are new:
+  // it reads the position in the order a coach sitting next to you would.
+  // Material, then anything hanging, then what they are about to do, then what
+  // to play and what it does. Every line of it is a field of the bundle — the
+  // walkthrough chooses the order and says nothing extra.
+  if (intent === 'walkthrough') {
+    parts.push(`${bundle.mover} to move. ${bundle.material}.`);
+    if (bundle.check) parts.push(`${bundle.mover} is in check, so every move has to answer it.`);
+    parts.push(`The engine's read${depth}: ${bundle.positionEval}.`);
+
+    // `hanging` is { white: [...], black: [...] } of phrases already written by
+    // coachHanging — "knight on f6" — so the side to move picks the list.
+    const mineKey = bundle.mover === 'White' ? 'white' : 'black';
+    const mine = bundle.hanging?.[mineKey] ?? [];
+    const theirs = bundle.hanging?.[mineKey === 'white' ? 'black' : 'white'] ?? [];
+    if (mine.length) {
+      parts.push(`Loose: your ${mine.join(', your ')} ${mine.length === 1 ? 'is' : 'are'} attacked and undefended. Check that first against any move you are considering.`);
+    }
+    if (theirs.length) {
+      parts.push(`Theirs too: the ${theirs.join(', the ')} ${theirs.length === 1 ? 'has' : 'have'} nothing defending ${theirs.length === 1 ? 'it' : 'them'}.`);
+    }
+    if (!mine.length && !theirs.length) parts.push('Nothing is hanging on either side.');
+
+    if (bundle.threat?.san) {
+      parts.push(`If you passed, ${other} would play ${bundle.threat.san} — ${bundle.threat.eval}. That is the move to have an answer for.${coachLine(bundle.threat.line)}`);
+    }
+    if (best) {
+      parts.push(`The engine would play ${best.san}: ${best.eval}.${coachLine(best.line)}`);
+      const rest = bundle.lines.slice(1, 3);
+      if (rest.length) parts.push(`Its next choices were ${rest.map((l) => `${l.san} (${l.eval})`).join(' and ')}, so ${best.san} is ${rest.length && best.eval === rest[0].eval ? 'one of several' : 'a clear first choice'}.`);
+    }
+    return parts.join('\n\n');
   }
 
   if ((intent === 'best' || intent === 'general' || intent === 'assess') && best) {

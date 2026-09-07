@@ -97,8 +97,9 @@ function materialLine(board) {
     if (colourOf(piece) === WHITE) white += value; else black += value;
   }
   const gap = white - black;
-  if (gap === 0) return `level (${white} points each, counting a pawn as 1, knight and bishop 3, rook 5, queen 9)`;
-  return `${gap > 0 ? 'White' : 'Black'} is ${Math.abs(gap)} points up (White ${white}, Black ${black})`;
+  if (gap === 0) return `material is level (${white} points each, counting a pawn 1, knight and bishop 3, rook 5, queen 9)`;
+  const by = Math.abs(gap);
+  return `${gap > 0 ? 'White' : 'Black'} is ${by} ${by === 1 ? 'point' : 'points'} up (White ${white}, Black ${black})`;
 }
 
 /**
@@ -524,7 +525,14 @@ function renderCoachSuggestions() {
   if (board.outcome()) return;
 
   const here = (text) => ({ text, run: () => { $('coachQuestion').value = text; askCoach(); } });
-  const asks = [here('What should I be thinking about here?'), here('What is my opponent threatening?')];
+  // TALK ME THROUGH IT comes first, because most of the time you do not have a
+  // question — you have a position and no idea where to start, which is the
+  // state a coach is actually for.
+  const asks = [
+    here('Talk me through this position'),
+    here('What should I be thinking about here?'),
+    here('What is my opponent threatening?'),
+  ];
   const best = Practice.lastLines?.lines?.[0];
   if (best) {
     try { asks.unshift(here(`Why is ${toSan(new Board(board.fen()), best.move)} the move?`)); } catch { /* position moved on */ }

@@ -161,6 +161,13 @@ async function boot() {
   $('playAnalyse').addEventListener('click', () => {
     openPractice(Play.view.board.fen());
   });
+  // The position as it stands, carried onto the analysis board, and the coach
+  // asked to read it — without you having to think of a question first.
+  $('playCoach').addEventListener('click', () => {
+    const fen = Play.view.board.fen();
+    openPractice(fen);
+    askCoachAbout(fen, 'Talk me through this position');
+  });
 
   // Practice board
   $('practiceSuggest').addEventListener('click', suggestPractice);
