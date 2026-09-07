@@ -248,7 +248,7 @@ const FULL = JSON.parse(require('fs').readFileSync('selfplay.json', 'utf8')).pgn
   const dead = await page.$eval('#importNote', (e) => e.textContent);
   say('an unreachable network', dead.slice(0, 90));
   check('a dead network is explained, not thrown', dead.includes('Could not reach Chess.com'), true);
-  check('and it points at what still works', dead.includes('Pasting a game below always works'), true);
+  check('and it points at what still works', dead.includes('Pasting below always works'), true);
 
   console.log(errors.length ? 'ERRORS ' + errors.join(' | ') : 'no page errors');
   if (errors.length) failures.push('page errors');

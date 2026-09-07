@@ -73,7 +73,7 @@ const { launch, serve, DIST, gotoSection } = require('./browser.cjs');
 
   // ── and the panel explains why there is no number ────────────────────────
   check('the scale says it has run out', progress.includes('The scale has run out below you'), true);
-  check('with the measured loss in it', progress.includes(`${(floorLoss / 100).toFixed(2)} pawns a move`), true);
+  check('with the measured loss in it', progress.includes(`${(floorLoss / 100).toFixed(2)} points a move`), true);
   check('and points at the measure that still works', progress.includes('Mistakes a game, above'), true);
   check('the middle readout is not a bare zero', progress.includes('Middle of your last 5under 300') || progress.includes('under 300'), true);
 
@@ -85,7 +85,7 @@ const { launch, serve, DIST, gotoSection } = require('./browser.cjs');
   check('no band button off a floored estimate',
     await page.$$eval('#progressOut button', (b) => b.map((x) => x.textContent).some((t) => /^Play the /.test(t))), false);
   check('and it says why, pointing at the real record',
-    progress.includes('pick the band by your record against it'), true);
+    progress.includes('Pick by your record on the Today page'), true);
 
   // ── a player inside the scale still gets a number, and no lecture ────────
   await page.evaluate(() => {
