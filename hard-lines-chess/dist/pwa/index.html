@@ -340,6 +340,17 @@
   .btn.primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
   .btn.danger { background: var(--danger); color: #ffffff; border-color: var(--danger); }
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+  /* A segmented control: one choice from a few, drawn the way the second
+     level of the navigation is, so a setting looks like a setting everywhere. */
+  .seg-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .seg-label { font-size: 13px; color: var(--ink-soft); font-weight: 500; }
+  .segmented { display: inline-flex; background: var(--sunk); border-radius: 10px; padding: 3px; gap: 2px; }
+  .seg {
+    border: 0; background: transparent; color: var(--ink-soft); border-radius: 8px;
+    padding: 6px 12px; font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+  .seg.on { background: var(--panel); color: var(--ink); box-shadow: var(--shadow-sm); font-weight: 600; }
   /* A button beside a labelled field lines up with the field's control, not
      with the middle of label-plus-control. */
   .row.align-end { align-items: flex-end; }
@@ -1239,15 +1250,17 @@
     <p class="lede">A game a move at a time, with the engine's view of each.</p>
 
     <div class="panel">
-      <div class="row align-end">
-        <button class="btn primary" id="watchBots" type="button">Watch two bots play</button>
-        <label class="field" style="margin:0"><span>Speed</span>
-          <select id="watchSpeed">
-            <option value="2600">Slow</option>
-            <option value="1600" selected>Normal</option>
-            <option value="700">Fast</option>
-          </select>
-        </label>
+      <button class="btn primary" id="watchBots" type="button">Watch two bots play</button>
+      <!-- A segmented control rather than a drop-down beside the button: a
+           label floating over a small select next to a wide button, with dead
+           space after it, read as a layout that had not been finished. -->
+      <div class="seg-row">
+        <span class="seg-label">Speed</span>
+        <div class="segmented" id="watchSpeed" role="group" aria-label="Playback speed">
+          <button class="seg" type="button" data-speed="2600">Slow</button>
+          <button class="seg on" type="button" data-speed="1600">Normal</button>
+          <button class="seg" type="button" data-speed="700">Fast</button>
+        </div>
       </div>
       <p class="note" style="margin:10px 0 0" id="watchBlurb">Two opponents drawn at random, with an opening neither of them chose. Every game is different.</p>
     </div>
@@ -17226,7 +17239,12 @@ async function boot() {
 
   // Watch
   $('watchBots').addEventListener('click', () => { startWatchBots(); playWatch(); });
-  $('watchSpeed').addEventListener('change', (e) => { Watch.speed = Number(e.target.value); });
+  for (const seg of document.querySelectorAll('#watchSpeed .seg')) {
+    seg.addEventListener('click', () => {
+      Watch.speed = Number(seg.dataset.speed);
+      for (const other of document.querySelectorAll('#watchSpeed .seg')) other.classList.toggle('on', other === seg);
+    });
+  }
   $('watchPlay').addEventListener('click', playWatch);
   $('watchPause').addEventListener('click', stopWatch);
   $('watchBack').addEventListener('click', () => stepWatch(false));

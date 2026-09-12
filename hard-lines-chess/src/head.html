@@ -334,6 +334,17 @@
   .btn.primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
   .btn.danger { background: var(--danger); color: #ffffff; border-color: var(--danger); }
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+  /* A segmented control: one choice from a few, drawn the way the second
+     level of the navigation is, so a setting looks like a setting everywhere. */
+  .seg-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .seg-label { font-size: 13px; color: var(--ink-soft); font-weight: 500; }
+  .segmented { display: inline-flex; background: var(--sunk); border-radius: 10px; padding: 3px; gap: 2px; }
+  .seg {
+    border: 0; background: transparent; color: var(--ink-soft); border-radius: 8px;
+    padding: 6px 12px; font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+  .seg.on { background: var(--panel); color: var(--ink); box-shadow: var(--shadow-sm); font-weight: 600; }
   /* A button beside a labelled field lines up with the field's control, not
      with the middle of label-plus-control. */
   .row.align-end { align-items: flex-end; }
