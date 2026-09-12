@@ -16392,6 +16392,14 @@ function renderNotation() {
 
   const parts = $('notationParts');
   parts.innerHTML = '';
+  // Before a move there is nothing to take apart, and a panel with a dash in
+  // it and nothing else read as a box that had failed to load. It says what
+  // it is waiting for.
+  if (!done) {
+    parts.appendChild(el('p', 'note', lesson
+      ? 'Make the move the lesson asks for and it is written here, then taken apart symbol by symbol.'
+      : 'Make any move on the board and it is written here, then taken apart symbol by symbol.'));
+  }
   if (done) {
     for (const part of done.parts) {
       const row = el('div', 'san-part');
