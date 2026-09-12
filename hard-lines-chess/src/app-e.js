@@ -173,7 +173,10 @@ function puzzlePrize(p) {
 function renderPuzzleList() {
   const box = $('puzzleList');
   box.innerHTML = '';
-  if (!App.puzzles.items.length) return;
+  // An empty panel is an empty box with a border round it, which reads as a
+  // fault. It is hidden until there is a list to put in it.
+  box.hidden = !App.puzzles.items.length;
+  if (box.hidden) return;
 
   box.appendChild(el('h3', null, 'Every tactic found'));
   box.appendChild(el('p', 'note', 'Newest first. Tap one to try it again now — that does not change when it is next due.'));

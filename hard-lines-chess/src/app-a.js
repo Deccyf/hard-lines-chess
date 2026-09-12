@@ -51,7 +51,7 @@ const esc = (text) => String(text ?? '')
 // board through CSS rather than through each screen remembering to ask.
 const DEFAULT_PREFS = {
   pieces: 'hardlines',   // hardlines | classic | letters
-  board: 'vermilion',    // vermilion | walnut | green | slate | ink | sand
+  board: 'green',        // green | walnut | slate | ink | sand | vermilion
   theme: 'system',       // system | light | dark
   dots: true,            // legal-move dots
   coords: true,
@@ -70,7 +70,7 @@ function applyPrefs() {
   const p = App.prefs;
   const root = document.documentElement;
   PieceStyle.current = p.pieces;
-  if (p.board === 'vermilion') delete root.dataset.board; else root.dataset.board = p.board;
+  root.dataset.board = p.board;
   root.dataset.pieces = p.pieces;
   root.dataset.coords = p.coords ? 'on' : 'off';
   if (p.theme === 'system') delete root.dataset.theme; else root.dataset.theme = p.theme;
@@ -103,11 +103,11 @@ const el = (tag, className, text) => {
 const SECTIONS = [
   ['today', 'Today'],
   ['play', 'Play'],
-  ['board', 'Board'],
+  ['board', 'Analysis'],
   ['openings', 'Openings'],
-  ['review', 'Review'],
+  ['review', 'Game review'],
   ['puzzles', 'Puzzles'],
-  ['storm', 'Clock'],
+  ['storm', 'Timed'],
   ['endgames', 'Endgames'],
   ['watch', 'Watch'],
   ['notation', 'Notation'],
@@ -142,7 +142,7 @@ const GROUPS = [
   { id: 'learn', label: 'Learn', sections: ['notation', 'openings', 'endgames', 'drills', 'vision'] },
   { id: 'train', label: 'Train', sections: ['puzzles', 'storm'] },
   { id: 'watch', label: 'Watch', sections: ['watch'] },
-  { id: 'you', label: 'You', sections: ['progress', 'settings'] },
+  { id: 'you', label: 'Profile', sections: ['progress', 'settings'] },
 ];
 
 const sectionLabel = (id) => SECTIONS.find(([s]) => s === id)?.[1] ?? id;
@@ -259,7 +259,7 @@ function renderToday() {
     rows.push({
       kind: 'Puzzles',
       title: `${n} ${n === 1 ? 'game has' : 'games have'} not been searched for tactics`,
-      note: 'The engine walks each game and keeps the moments your opponent went wrong.',
+      note: 'The engine analyses each game and keeps the moments your opponent went wrong.',
       action: 'Search',
       go: () => { show('puzzles'); scanGamesForTactics(); },
     });
@@ -273,10 +273,10 @@ function renderToday() {
   if (!reviewed.length) {
     rows.push({
       kind: 'Review',
-      title: waiting ? `${waiting} imported ${waiting === 1 ? 'game' : 'games'}, none walked yet` : 'No games reviewed yet',
+      title: waiting ? `${waiting} imported ${waiting === 1 ? 'game' : 'games'}, none reviewed yet` : 'No games reviewed yet',
       note: waiting
-        ? 'Importing brings the moves. An accuracy and a list of mistakes need the engine to walk the game.'
-        : 'Bring your games in from Chess.com, or paste one, and the engine will walk it and name the mistakes.',
+        ? 'Importing brings the moves. Accuracy and a list of mistakes come from reviewing the game.'
+        : 'Import your games from Chess.com, or paste one, and the engine will review it and list the mistakes.',
       action: waiting ? 'Walk one' : 'Bring them in',
       go: () => show('review'),
     });
@@ -596,7 +596,7 @@ async function finishPlay(key) {
     pgn,
   });
   $('playAfterText').textContent = game.startFen
-    ? 'The game is saved with its moves. Games from a set-up position are not counted in your record against the band.'
+    ? 'The game is saved with its moves. Games from a set-up position are not counted in your record at that level.'
     : 'The game is saved. It is in your record on the Today page.';
 
   const generation = Play.generation;

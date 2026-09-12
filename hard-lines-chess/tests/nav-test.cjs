@@ -43,9 +43,10 @@ const { launch, serve, DIST, gotoSection } = require('./browser.cjs');
     return { content: Math.ceil(content), client: nav.clientWidth };
   });
   say('strip width', `${fits.content}px of buttons in ${fits.client}px`);
-  // Ten pixels of slack, so a font that renders a shade wider does not put the
-  // row back to scrolling without anybody noticing.
-  check('the top row fits a 390px phone with room to spare', fits.content <= fits.client - 10, true);
+  // The bar fills the width of a phone by design — six buttons that flex to
+  // share it — so the question is no longer whether there is room to spare
+  // but whether it overflows. A pixel over is the row scrolling again.
+  check('the top row fits a 390px phone without overflowing', fits.content <= fits.client, true);
 
   // ── every screen is reachable, and every screen reached is a real one ─────
   const reached = new Set();

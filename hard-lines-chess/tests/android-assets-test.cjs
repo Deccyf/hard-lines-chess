@@ -27,9 +27,12 @@ const ANDROID_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 
 // Kept in step with MainActivity.fontStylesheet(). If the two drift, the faces
 // below stay "unloaded" and this fails.
 const FACES = [
-  { file: 'archivo-black-400', family: 'Archivo Black', weight: 400 },
-  { file: 'space-mono-400', family: 'Space Mono', weight: 400 },
-  { file: 'space-mono-700', family: 'Space Mono', weight: 700 },
+  { file: 'inter-400', family: 'Inter', weight: 400 },
+  { file: 'inter-500', family: 'Inter', weight: 500 },
+  { file: 'inter-600', family: 'Inter', weight: 600 },
+  { file: 'inter-700', family: 'Inter', weight: 700 },
+  { file: 'jetbrains-mono-400', family: 'JetBrains Mono', weight: 400 },
+  { file: 'jetbrains-mono-600', family: 'JetBrains Mono', weight: 600 },
 ];
 const FONT_CSS = FACES.map(({ file, family, weight }) =>
   `@font-face{font-family:'${family}';font-style:normal;font-weight:${weight};font-display:swap;`
@@ -89,6 +92,12 @@ function check(what, got, want) {
   await page.goto(`https://${DOMAIN}/assets/index.html`);
   await page.waitForSelector('#tab-today', { timeout: 20000 });
   await page.evaluate(() => document.fonts.ready);
+  // A face the current screen does not render stays "unloaded" however well
+  // it is bundled — the monospace faces are only used on move lists and
+  // notation, and the page opens on Today. Asking for each one outright makes
+  // the browser fetch and decode it, which is the thing being checked.
+  await page.evaluate((faces) => Promise.all(faces.map(([f, w]) => document.fonts.load(`${w} 12px "${f}"`))),
+    FACES.map(({ family, weight }) => [family, weight]));
 
   for (const { family, weight } of FACES) {
     const status = await page.evaluate(([f, w]) =>
@@ -98,7 +107,7 @@ function check(what, got, want) {
   }
   // Not just loaded — actually the face the interface resolves to.
   check('h1 is set in', await page.evaluate(() =>
-    getComputedStyle(document.querySelector('h1')).fontFamily.split(',')[0].replace(/"/g, '')), 'Archivo Black');
+    getComputedStyle(document.querySelector('h1')).fontFamily.split(',')[0].replace(/"/g, '')), 'Inter');
 
   // THE POINT OF THE WHOLE THING. Anything here is a request the app cannot
   // make, so it would fail silently on a phone.

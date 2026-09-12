@@ -6,237 +6,238 @@
 <title>Hard Lines Chess</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Chess">
-<meta name="theme-color" content="#14110d">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap">
+<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
-  /* Hard Lines — the identity of the Chess Coach app this belongs to.
-     Ink-black 2px rules, hard 4px offset shadows, nothing rounded, Archivo
-     Black numerals over a Space Mono body, bone-white cards on a warm
-     off-white ground, and vermilion carrying the accent AND the board's dark
-     squares. */
+  /* ── the design system ────────────────────────────────────────────────
+     Quiet surfaces, one accent, hairline rules, soft corners. The board is the
+     loudest thing on any screen and everything else is built to sit behind it.
+     Text is a sans-serif; monospace is reserved for notation, where fixed-width
+     glyphs actually earn their place. */
   :root {
-    /* Native controls — the selects, the scrollbars, the text cursor — follow
-       THIS, not the operating system. Without it a select on the dark theme
-       renders as white-on-white in some browsers, and picking "Light" while
-       the phone is dark left the drop-downs black. */
     color-scheme: light;
-    --page: #f2efe6;
+    --page: #f4f5f7;
     --panel: #ffffff;
-    --sunk: #e7e2d5;
-    --line: #14110d;
-    --ink: #14110d;
-    --ink-soft: #4d463c;
-    --ink-faint: #6f665a;
-    --accent: #e8412a;
-    --accent-deep: #c22f1c;
-    --accent-tint: #fdeae6;
+    --sunk: #f0f2f5;
+    --line: #e3e6eb;
+    --line-strong: #c9ced6;
+    --ink: #16191f;
+    --ink-soft: #464c57;
+    --ink-faint: #6b7280;
+    --accent: #1f5eab;
+    --accent-deep: #174a89;
+    --accent-tint: #e9f0fb;
     --on-accent: #ffffff;
-    --good: #0d7d4d;
-    --mark: #ffd23f;
-    --board-light: #ffffff;
-    --board-dark: #e8412a;
-    /* Blue: a move played AT you. Distinct from the accent and from green, and
-       it survives every colour-vision deficiency against both of them because
-       it differs in luminance as well as hue. */
-    --threat: #1d6fd0;
-    /* White in daylight, ink at night — the inverse of the arrow colours. */
+    --good: #1b8a4c;
+    --good-tint: #e6f4ec;
+    --warn: #b7791f;
+    --danger: #c93b2f;
+    --danger-tint: #fbe9e7;
+    --mark: #f2d15c;
+    /* The board keeps its daylight colours at night: a board is a board, and
+       every serious chess product leaves it alone when the interface darkens. */
+    --board-light: #eeeed2;
+    --board-dark: #769656;
+    --threat: #2469c8;
     --arrow-halo: #ffffff;
-    /* A PIECE'S COLOURS DO NOT FOLLOW THE THEME, and that is the whole fix.
-       These were --line and the board tokens, which flip at night — so in dark
-       mode a white piece was #efeae0 on an #efeae0 square with an #efeae0
-       outline, and half the board simply was not there. A white piece needs a
-       dark edge and a dark piece needs a light edge on EVERY square of EVERY
-       theme, so both pairs are fixed values. */
+    /* A PIECE'S COLOURS DO NOT FOLLOW THE THEME. A white piece needs a dark
+       edge and a dark piece a light one on every square of every theme, so
+       both pairs are fixed. */
     --piece-light: #fbfaf7;
-    --piece-dark: #14110d;
-    --piece-edge-on-light: #14110d;
+    --piece-dark: #1b1f27;
+    --piece-edge-on-light: #1b1f27;
     --piece-edge-on-dark: #fbfaf7;
-    --shadow: 4px 4px 0 0 var(--line);
-    --shadow-sm: 2px 2px 0 0 var(--line);
-    --display: "Archivo Black", "Arial Black", Impact, sans-serif;
-    --mono: "Space Mono", ui-monospace, Menlo, Consolas, monospace;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 2px 6px rgba(16, 24, 40, .06);
+    --shadow-sm: 0 1px 2px rgba(16, 24, 40, .06);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --radius-xs: 6px;
+    --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --display: var(--sans);
+    --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    --nav-h: 64px;
   }
-  /* Night. The structure is unchanged — same 2px rules, same hard shadows,
-     same vermilion dark square — because that IS the identity. Only the
-     ground and the ink swap roles. */
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       color-scheme: dark;
-      --page: #15120e;
-      --panel: #201c17;
-      --sunk: #2b261f;
-      --line: #efeae0;
-      --ink: #efeae0;
-      --ink-soft: #cfc7b8;
-      --ink-faint: #a49b8b;
-      --accent: #ff5a41;
-      --accent-deep: #e8412a;
-      --accent-tint: #3a1a14;
-      --on-accent: #15120e;
-      --good: #4fd08f;
-      /* The light square darkens a little so a white piece still reads as a
-         piece rather than as a hole; the piece colours themselves are
-         deliberately absent here — see the note in :root. */
-      --board-light: #d9d3c6;
-      --board-dark: #c22f1c;
-      --threat: #5aa9ff;
-      --arrow-halo: #14110d;
+      --page: #0e1116; --panel: #161a20; --sunk: #1d222a;
+      --line: #262c36; --line-strong: #384050;
+      --ink: #e7e9ec; --ink-soft: #b6bcc6; --ink-faint: #8b929d;
+      --accent: #6f9ff0; --accent-deep: #5a8ae0; --accent-tint: #1c2a42; --on-accent: #0e1116;
+      --good: #48c37f; --good-tint: #163224; --warn: #d9a441;
+      --danger: #e2574a; --danger-tint: #3a1f1c; --mark: #d9b93f;
+      --threat: #5aa0ff; --arrow-halo: #0e1116;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3); --shadow-sm: 0 1px 1px rgba(0, 0, 0, .25);
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --page: #15120e; --panel: #201c17; --sunk: #2b261f; --line: #efeae0;
-    --ink: #efeae0; --ink-soft: #cfc7b8; --ink-faint: #a49b8b;
-    --accent: #ff5a41; --accent-deep: #e8412a; --accent-tint: #3a1a14;
-    --on-accent: #15120e; --good: #4fd08f;
-    --board-light: #d9d3c6; --board-dark: #c22f1c; --threat: #5aa9ff; --arrow-halo: #14110d;
+    --page: #0e1116; --panel: #161a20; --sunk: #1d222a;
+    --line: #262c36; --line-strong: #384050;
+    --ink: #e7e9ec; --ink-soft: #b6bcc6; --ink-faint: #8b929d;
+    --accent: #6f9ff0; --accent-deep: #5a8ae0; --accent-tint: #1c2a42; --on-accent: #0e1116;
+    --good: #48c37f; --good-tint: #163224; --warn: #d9a441;
+    --danger: #e2574a; --danger-tint: #3a1f1c; --mark: #d9b93f;
+    --threat: #5aa0ff; --arrow-halo: #0e1116;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3); --shadow-sm: 0 1px 1px rgba(0, 0, 0, .25);
   }
-
   :root[data-theme="light"] { color-scheme: light; }
 
   * { box-sizing: border-box; }
+  html { -webkit-tap-highlight-color: transparent; }
   body {
-    margin: 0;
-    background: var(--page);
-    color: var(--ink);
-    font-family: var(--mono);
-    font-size: 15px;
-    line-height: 1.55;
-    -webkit-text-size-adjust: 100%;
+    margin: 0; background: var(--page); color: var(--ink);
+    font-family: var(--sans); font-size: 15px; line-height: 1.55;
+    -webkit-text-size-adjust: 100%; -webkit-font-smoothing: antialiased;
   }
   button { font: inherit; color: inherit; }
-  :focus-visible { outline: 3px solid var(--mark); outline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-xs); }
+  a { color: var(--accent); }
 
-  .wrap { max-width: 1000px; margin: 0 auto; padding: 20px 16px 64px; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 16px 16px 64px; }
 
-  header { border-bottom: 2px solid var(--line); padding-bottom: 14px; margin-bottom: 20px; }
+  /* ── header and navigation ───────────────────────────────────────────
+     One nav element serves both layouts. On a wide screen it is a row of text
+     tabs under the brand; on a phone the same buttons become a bar fixed to the
+     bottom of the screen with an icon over each label, which is where a thumb
+     already is. The second level is a segmented control at the top of the
+     content in both. */
+  header { display: grid; gap: 12px; margin-bottom: 18px; }
   .brand { display: flex; align-items: center; gap: 10px; }
-  .mark { display: grid; grid-template-columns: 1fr 1fr; width: 28px; height: 28px; border: 2px solid var(--line); flex: none; }
+  .mark {
+    display: grid; grid-template-columns: 1fr 1fr; width: 28px; height: 28px; flex: none;
+    border-radius: 7px; overflow: hidden; border: 1px solid var(--line-strong);
+  }
   .mark i { display: block; }
-  .mark i:nth-child(1), .mark i:nth-child(4) { background: var(--panel); }
-  .mark i:nth-child(2), .mark i:nth-child(3) { background: var(--accent); }
-  h1 { font-family: var(--display); font-weight: 400; font-size: 20px; letter-spacing: -0.01em; margin: 0; text-transform: uppercase; }
-  .sub { margin: 8px 0 0; font-size: 13px; color: var(--ink-soft); max-width: 62ch; }
+  .mark i:nth-child(1), .mark i:nth-child(4) { background: var(--board-light); }
+  .mark i:nth-child(2), .mark i:nth-child(3) { background: var(--board-dark); }
+  h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
+  .sub { margin: 6px 0 0; font-size: 13px; color: var(--ink-soft); max-width: 62ch; }
 
-  .layout { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); }
-  @media (min-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr) 20rem; align-items: start; } }
+  .tabs-wrap { position: relative; }
+  .tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--line); }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex: none; display: inline-flex; align-items: center; gap: 6px;
+    border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+    background: transparent; color: var(--ink-soft);
+    padding: 8px 12px 10px; font-size: 14px; font-weight: 500; cursor: pointer;
+  }
+  .tab:hover { color: var(--ink); }
+  .tab.on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+  .tab svg { width: 20px; height: 20px; flex: none; }
+  .tab-label { white-space: nowrap; }
 
-  /* Board. The checker is a gradient rather than a sprite, exactly as the app
-     does it, because a saturated dark square cannot be a tint of the light one. */
-  /* `container-type: inline-size` makes the board's own width available to the
-     pieces as cqw, so a glyph is a fraction of a SQUARE rather than of the
-     viewport. Sized off vw, a board in a narrow column gets viewport-sized
-     pieces and a board on a wide screen gets pieces that do not grow with it. */
-  /* `position: relative` is what makes this the box the arrow overlay measures
-     itself against. Without it the overlay's `inset: 0` resolves against the
-     page instead, and the arrows are drawn full-screen — pointing at squares
-     that are nowhere near where they land. */
+  /* The second level: a segmented control. Quieter than the first, because it
+     is where you are inside a place you have already chosen. */
+  .subtabs-wrap { margin-top: 2px; }
+  .tabs.subtabs {
+    border-bottom: 0; background: var(--sunk); border-radius: 10px; padding: 3px; gap: 2px;
+    width: max-content; max-width: 100%;
+  }
+  .subtab {
+    border: 0; margin: 0; border-radius: 8px; padding: 6px 12px;
+    font-size: 13px; font-weight: 500; color: var(--ink-soft);
+  }
+  .subtab.on { background: var(--panel); color: var(--ink); box-shadow: var(--shadow-sm); border-bottom: 0; font-weight: 600; }
+
+  /* The fade that says "more to the right" — only drawn while there is. */
+  .tabs-wrap::after {
+    content: ""; position: absolute; top: 0; bottom: 0; right: 0; width: 22px;
+    background: linear-gradient(to right, transparent, var(--page) 85%);
+    pointer-events: none; opacity: 0; transition: opacity .15s;
+  }
+  .tabs { scroll-padding-inline: 28px; }
+  .tabs-wrap.more::after { opacity: 1; }
+
+  @media (max-width: 859px) {
+    .wrap { padding-bottom: calc(var(--nav-h) + 24px); }
+    #tabsWrap {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+      background: color-mix(in srgb, var(--panel) 97%, transparent);
+      -webkit-backdrop-filter: saturate(160%) blur(12px); backdrop-filter: saturate(160%) blur(12px);
+      border-top: 1px solid var(--line);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    #tabsWrap::after { display: none; }
+    #tabsWrap .tabs { border-bottom: 0; gap: 0; height: var(--nav-h); overflow: visible; }
+    #tabsWrap .tab {
+      flex: 1 1 0; flex-direction: column; justify-content: center; gap: 3px;
+      padding: 6px 2px; margin: 0; border-bottom: 0; font-size: 11px; font-weight: 500; min-width: 0;
+      color: var(--ink-faint); border-radius: 0;
+    }
+    #tabsWrap .tab svg { width: 22px; height: 22px; }
+    #tabsWrap .tab.on { color: var(--accent); }
+    .tabs.subtabs { width: 100%; }
+    .subtab { flex: 1 1 0; padding: 6px 4px; font-size: 12px; text-align: center; white-space: nowrap; }
+  }
+  @media (min-width: 860px) {
+    .tab svg { display: none; }
+  }
+
+  .layout { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr) 21rem; align-items: start; } }
+
+  /* ── the board ────────────────────────────────────────────────────────
+     `container-type: inline-size` makes the board's own width available to
+     the pieces as cqw, so a glyph is a fraction of a square. `position:
+     relative` is what the arrow overlay measures itself against. */
   .board-frame {
-    position: relative;
-    border: 2px solid var(--line); box-shadow: var(--shadow);
+    position: relative; border-radius: var(--radius-sm); overflow: hidden;
+    box-shadow: 0 0 0 1px var(--line-strong), var(--shadow);
     width: 100%; max-width: 520px; container-type: inline-size;
   }
-
-  /* BOTH axes are declared. With only the columns set, the rows fall back to
-     auto — they size to the tallest thing in them, which is the piece glyph —
-     so every square came out 44 wide by 63 tall and the board overflowed its
-     own frame. A square board is not enough to make square squares. */
+  /* BOTH axes declared: rows left to auto size to the tallest glyph and every
+     square came out 44 wide by 63 tall. */
   .board {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    grid-template-rows: repeat(8, 1fr);
-    aspect-ratio: 1;
-    width: 100%; touch-action: manipulation; user-select: none;
+    display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
+    aspect-ratio: 1; width: 100%; touch-action: manipulation; user-select: none;
   }
   .sq {
-    position: relative; display: flex; align-items: center; justify-content: center;
-    cursor: pointer;
-    /* A grid item's automatic minimum size is its content, which would let a
-       tall glyph push its row open again and undo the line above. NOT
-       overflow:hidden — that clipped a sliding piece for most of its journey,
-       so it vanished from its square and popped into existence part-way. */
+    position: relative; display: flex; align-items: center; justify-content: center; cursor: pointer;
+    /* NOT overflow:hidden — that clipped a sliding piece for most of its journey. */
     min-width: 0; min-height: 0;
   }
-  /* The square a piece is sliding out of, or into, paints above its
-     neighbours for the duration — otherwise the sibling squares drawn later
-     in the DOM cover the moving piece. */
   .sq:has(.sliding) { z-index: 3; }
   .sq.light { background: var(--board-light); }
   .sq.dark { background: var(--board-dark); }
-  /* SOLID GLYPHS FOR BOTH SIDES, coloured — not Unicode's outline set for
-     White and its solid set for Black. Two different shapes for the same piece
-     is what made a knight read as a different kind of thing depending on whose
-     it was, and an outline glyph has no fill to carry a colour at this size. */
   .piece {
-    /* A square is 12.5cqw, so this is about three-quarters of one and scales
-       with the board at any size. The vw value is the fallback for browsers
-       without container queries. */
-    font-size: min(9.5vw, 46px);
-    font-size: 9.2cqw;
-    line-height: 1; pointer-events: none;
-    /* The moving piece is lifted above its neighbours while it slides. */
-    position: relative; z-index: 1;
+    font-size: min(9.5vw, 46px); font-size: 9.2cqw;
+    line-height: 1; pointer-events: none; position: relative; z-index: 1;
   }
-
-  /* Sliding, not teleporting. A piece that appears on its new square gives no
-     sense of what moved — especially the opponent's, which you did not watch
-     happen. The transform is set to where the piece CAME FROM and then removed,
-     so the browser animates the difference. */
   .piece.sliding { transition: transform 190ms cubic-bezier(0.22, 0.61, 0.36, 1); }
-  @media (prefers-reduced-motion: reduce) {
-    .piece.sliding { transition: none; }
-  }
+  @media (prefers-reduced-motion: reduce) { .piece.sliding { transition: none; } }
   :root[data-animate="off"] .piece.sliding { transition: none; }
-
-  /* The promotion picker holds real pieces, which must not inherit the board's
-     container-relative size — there is no board container above them. */
-  /* pointer-events is turned back ON: the board's pieces are inert so taps
-     fall through to the square, but these ARE the buttons. Without this the
-     promotion picker could not be dismissed on a phone at all. */
   .promo .piece { font-size: 30px; position: static; pointer-events: auto; }
 
-  /* Arrows sit over the squares and under nothing — they are the point of the
-     screen they appear on. `pointer-events: none` so the board underneath is
-     still tappable through them. */
-  .arrows {
-    position: absolute; inset: 0; width: 100%; height: 100%;
-    pointer-events: none; z-index: 2;
-  }
+  .arrows { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
   .arrow { stroke-linecap: round; fill: none; }
-  /* The halo is the opposite lightness to the arrow colours in each theme, so
-     between the two of them every square is covered. See drawArrows(). */
-  .arrow-halo { stroke: var(--arrow-halo); }
-  /* The halo under a dashed arrow stays solid, so the shape reads as one arrow
-     rather than as a row of separate marks. */
-  .arrow-halo { stroke-dasharray: none; }
+  .arrow-halo { stroke: var(--arrow-halo); stroke-dasharray: none; }
   .arrow-halo-head { fill: var(--arrow-halo); stroke: var(--arrow-halo); stroke-linejoin: round; }
-  /* ONE MEANING EVERYWHERE. Red is the move you played, green is the move the
-     engine wanted, blue is a move played at you. The same three colours the
-     training app uses, so there is one vocabulary rather than two. */
-  /* DASHED, not just red. Red and green sit 1.29:1 apart in luminance, so to a
-     red-green colour-blind reader they are the same arrow twice — and this
-     app's own rule is that a difference carried only by hue does not survive.
-     The dash says "yours" without needing colour at all. */
-  .arrow-played { stroke: var(--accent); stroke-dasharray: 0.3 0.17; }
-  .arrow-played.arrow-head { fill: var(--accent); stroke: none; }
+  /* ONE MEANING EVERYWHERE: red dashed is what you played, green is what the
+     engine wanted, blue is a move played at you. The dash carries "yours"
+     without needing colour. */
+  .arrow-played { stroke: var(--danger); stroke-dasharray: 0.3 0.17; }
+  .arrow-played.arrow-head { fill: var(--danger); stroke: none; }
   .arrow-best { stroke: var(--good); }
   .arrow-best.arrow-head { fill: var(--good); stroke: none; }
   .arrow-threat { stroke: var(--threat); }
   .arrow-threat.arrow-head { fill: var(--threat); stroke: none; }
-  /* An ink edge, because a green arrow crosses both a white square and a
-     vermilion one and needs to read on both. */
+  .arrow-user { stroke: #f0a020; }
+  .arrow-user.arrow-head { fill: #f0a020; stroke: none; }
   .arrow, .arrow-head { paint-order: stroke fill; }
 
-  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 11px; color: var(--ink-soft); }
-  .legend span { display: inline-flex; align-items: center; gap: 5px; }
-  .legend i { width: 18px; height: 3px; display: inline-block; border-radius: 0; }
-  /* The key shows the dash too, or it explains only half of what is on screen. */
-  .legend .k-played {
-    background: repeating-linear-gradient(to right, var(--accent) 0 5px, transparent 5px 8px);
-  }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 12px; color: var(--ink-soft); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 18px; height: 3px; display: inline-block; border-radius: 2px; }
+  .legend .k-played { background: repeating-linear-gradient(to right, var(--danger) 0 5px, transparent 5px 8px); }
   .legend .k-best { background: var(--good); }
+  .legend .k-threat { background: var(--threat); }
+  .legend .k-user { background: #f0a020; }
+
   .piece.w {
     color: var(--piece-light);
     text-shadow:
@@ -253,612 +254,423 @@
       0 1px 0 var(--piece-edge-on-dark), 0 -1px 0 var(--piece-edge-on-dark),
       1px 0 0 var(--piece-edge-on-dark), -1px 0 0 var(--piece-edge-on-dark);
   }
-  /* EVERY MARK IS DRAWN ON TOP OF A THEME-INDEPENDENT SOURCE: the yellow
-     `--mark` for selection and the last move, an ink ring plus a white ring
-     for check, and a two-tone dot for legal moves. A single colour at low
-     opacity was measured at 1.2:1 against the dark theme's light square — a
-     mark nobody could see on half the board. */
-  .sq.sel::after { content: ""; position: absolute; inset: 0; border: 3px solid var(--mark); box-shadow: inset 0 0 0 1px rgba(0,0,0,.45); z-index: 2; pointer-events: none; }
+  /* EVERY MARK IS DRAWN FROM A THEME-INDEPENDENT SOURCE, so it reads on both
+     squares of every board. */
+  .sq.sel::after { content: ""; position: absolute; inset: 0; border: 3px solid var(--mark); box-shadow: inset 0 0 0 1px rgba(0,0,0,.35); z-index: 2; pointer-events: none; }
   .sq.last { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--mark) 55%, transparent); }
   .sq.check::after {
     content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none;
-    border: 4px solid #14110d; box-shadow: inset 0 0 0 2px #ffffff, 0 0 0 1px #ffffff;
+    border: 4px solid #c93b2f; box-shadow: inset 0 0 0 2px #ffffff, 0 0 0 1px #ffffff;
   }
   .sq.mark::after { content: ""; position: absolute; inset: 0; border: 3px solid var(--good); box-shadow: inset 0 0 0 1px #ffffff; z-index: 2; pointer-events: none; }
   .dot {
     position: absolute; width: 28%; height: 28%; border-radius: 50%; pointer-events: none; z-index: 2;
-    background: rgba(20,17,13,.55); box-shadow: 0 0 0 2px rgba(255,255,255,.75);
+    background: rgba(20,20,20,.45); box-shadow: 0 0 0 2px rgba(255,255,255,.6);
   }
-  .sq.cap .dot { width: 84%; height: 84%; background: transparent; border: 4px solid rgba(20,17,13,.55); box-shadow: 0 0 0 2px rgba(255,255,255,.7), inset 0 0 0 2px rgba(255,255,255,.7); }
-  /* User highlights, chess.com style: long-press (or right-click) a square.
-     A RING WITH A WHITE INNER EDGE plus a light wash, not a fill: red on the
-     vermilion square is the same colour twice, and a fill there simply did
-     not exist. The white edge is what makes every ring read on every square. */
-  .sq.hl-1 { box-shadow: inset 0 0 0 5px #e8412a, inset 0 0 0 7px #ffffff, inset 0 0 0 100vmax color-mix(in srgb, #e8412a 40%, transparent); }
-  .sq.hl-2 { box-shadow: inset 0 0 0 5px #0d7d4d, inset 0 0 0 7px #ffffff, inset 0 0 0 100vmax color-mix(in srgb, #0d7d4d 40%, transparent); }
-  .sq.hl-3 { box-shadow: inset 0 0 0 5px #1d6fd0, inset 0 0 0 7px #ffffff, inset 0 0 0 100vmax color-mix(in srgb, #1d6fd0 40%, transparent); }
-  .sq.hl-4 { box-shadow: inset 0 0 0 5px #ffd23f, inset 0 0 0 7px #14110d, inset 0 0 0 100vmax color-mix(in srgb, #ffd23f 45%, transparent); }
-  /* One column per file, so a letter sits under its own file rather than
-     roughly near it. space-between gets the ends right and everything
-     between them wrong. */
-  .coords { display: grid; grid-template-columns: repeat(8, 1fr); max-width: 520px; padding: 3px 0 0; font-size: 10px; color: var(--ink-faint); letter-spacing: .1em; }
+  .sq.cap .dot { width: 84%; height: 84%; background: transparent; border: 4px solid rgba(20,20,20,.45); box-shadow: 0 0 0 2px rgba(255,255,255,.6), inset 0 0 0 2px rgba(255,255,255,.6); }
+  .sq.hl-1 { box-shadow: inset 0 0 0 5px #c93b2f, inset 0 0 0 7px #ffffff, inset 0 0 0 100vmax color-mix(in srgb, #c93b2f 40%, transparent); }
+  .sq.hl-2 { box-shadow: inset 0 0 0 5px #1b8a4c, inset 0 0 0 7px #ffffff, inset 0 0 0 100vmax color-mix(in srgb, #1b8a4c 40%, transparent); }
+  .sq.hl-3 { box-shadow: inset 0 0 0 5px #2469c8, inset 0 0 0 7px #ffffff, inset 0 0 0 100vmax color-mix(in srgb, #2469c8 40%, transparent); }
+  .sq.hl-4 { box-shadow: inset 0 0 0 5px #f2d15c, inset 0 0 0 7px #1b1f27, inset 0 0 0 100vmax color-mix(in srgb, #f2d15c 45%, transparent); }
+  .sq.hang::after {
+    content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+    border: 4px dashed #1b1f27; box-shadow: inset 0 0 0 2px #ffffff, 0 0 0 1px #ffffff;
+  }
+  .coords { display: grid; grid-template-columns: repeat(8, 1fr); max-width: 520px; padding: 4px 0 0; font-size: 11px; color: var(--ink-faint); }
   .coords span { text-align: center; }
+  :root[data-coords="off"] .coords { visibility: hidden; }
 
-  .panel { border: 2px solid var(--line); background: var(--panel); box-shadow: var(--shadow); padding: 14px; }
+  /* ── board themes ───────────────────────────────────────────────────── */
+  :root[data-board="green"]     { --board-light: #eeeed2; --board-dark: #769656; }
+  :root[data-board="walnut"]    { --board-light: #f0d9b5; --board-dark: #b58863; }
+  :root[data-board="slate"]     { --board-light: #dee3e6; --board-dark: #8ca2ad; }
+  :root[data-board="ink"]       { --board-light: #e7e2d5; --board-dark: #4d463c; }
+  :root[data-board="sand"]      { --board-light: #f5f0dc; --board-dark: #c9a86a; }
+  :root[data-board="vermilion"] { --board-light: #ffffff; --board-dark: #e8412a; }
 
-  /* ── VERTICAL RHYTHM, and why it is not just .panel + .panel ─────────────
-     That rule was the whole spacing system, and it only fires between two
-     panels that are literally siblings. Anything separated by a board, a list
-     or a wrapper got nothing — measured at 390px, six screens had blocks
-     sitting flush against each other with a zero pixel gap, so two boxes read
-     as one box with a line through it.
+  /* ── piece styles ───────────────────────────────────────────────────── */
+  :root[data-pieces="classic"] .piece.w,
+  :root[data-pieces="classic"] .piece.b {
+    color: var(--piece-dark); -webkit-text-stroke: 0.045em var(--piece-dark); paint-order: stroke fill;
+    text-shadow: 0 0 2px var(--piece-edge-on-dark), 0 0 2px var(--piece-edge-on-dark), 0 0 1px var(--piece-edge-on-dark);
+  }
+  :root[data-pieces="letters"] .piece {
+    font-family: var(--sans); font-weight: 700; font-size: 5.6cqw; width: 66%; height: 66%;
+    display: flex; align-items: center; justify-content: center; border-radius: 6px;
+    text-shadow: none; border: 1.5px solid #1b1f27; box-shadow: 0 1px 2px rgba(0,0,0,.35);
+  }
+  :root[data-pieces="letters"] .piece.w { background: #fbfaf7; color: #1b1f27; }
+  :root[data-pieces="letters"] .piece.b { background: #1b1f27; color: #fbfaf7; border-color: #fbfaf7; }
+  :root[data-pieces="letters"] .promo .piece { font-size: 20px; width: 44px; height: 44px; }
 
-     A type selector has less weight than a class, so every element that
-     declares its own margin — .note, .lede, .row — keeps it, and this reaches
-     only the blocks that never had one. */
-  section > * + *,
-  section > div > * + *,
-  .layout > div > * + * { margin-top: 16px; }
-  .panel + .panel { margin-top: 16px; }
-  .panel h2 { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin: 0 0 10px; font-weight: 700; }
+  /* ── surfaces ─────────────────────────────────────────────────────── */
+  .panel {
+    border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 16px;
+  }
+  /* Vertical rhythm for blocks that declare no margin of their own. A type
+     selector loses to any class, so .note, .lede and .row keep theirs. */
+  section > * + *, section > div > * + *, .layout > div > * + * { margin-top: 14px; }
+  .panel + .panel { margin-top: 14px; }
+  .panel h2 { font-size: 15px; font-weight: 600; margin: 0 0 10px; letter-spacing: -0.005em; }
+  h2 { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 10px; }
+  h3 { font-size: 14px; font-weight: 600; margin: 0 0 8px; }
+  h4 { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); margin: 12px 0 6px; font-weight: 600; }
+  .lede { color: var(--ink-soft); max-width: 62ch; margin: 0 0 14px; font-size: 14px; }
+  section { animation: none; }
 
   .btn {
-    border: 2px solid var(--line); background: var(--panel); color: var(--ink);
-    padding: 8px 12px; font-size: 12px; font-weight: 700; letter-spacing: .1em;
-    text-transform: uppercase; cursor: pointer; box-shadow: var(--shadow-sm);
-    transition: transform .08s, box-shadow .08s;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    border: 1px solid var(--line-strong); background: var(--panel); color: var(--ink);
+    padding: 9px 14px; font-size: 13.5px; font-weight: 500; line-height: 1.2; border-radius: var(--radius-sm);
+    cursor: pointer; box-shadow: var(--shadow-sm); transition: background .12s, border-color .12s, transform .06s;
   }
-  .btn:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0 0 var(--line); }
-  .btn:active { transform: translate(2px, 2px); box-shadow: none; }
-  .btn[disabled] { opacity: .4; cursor: not-allowed; transform: none; box-shadow: var(--shadow-sm); }
-  .btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--line); }
-  .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn:hover { background: var(--sunk); border-color: var(--line-strong); }
+  .btn:active { transform: translateY(1px); box-shadow: none; }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; transform: none; }
+  .btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .btn.primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+  .btn.danger { background: var(--danger); color: #ffffff; border-color: var(--danger); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
   .rungs { display: grid; gap: 8px; }
-  .rung { display: flex; gap: 10px; border: 2px solid var(--line); background: var(--panel); padding: 10px; cursor: pointer; text-align: left; }
-  .rung.on { background: var(--accent-tint); }
+  .rung { display: flex; gap: 10px; border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius-sm); padding: 10px 12px; cursor: pointer; text-align: left; }
+  .rung.on { background: var(--accent-tint); border-color: var(--accent); }
   .rung input { margin: 3px 0 0; accent-color: var(--accent); flex: none; }
-  .rung b { display: block; font-size: 13px; }
-  .rung span { display: block; font-size: 12px; color: var(--ink-soft); line-height: 1.45; }
+  .rung b { display: block; font-size: 13.5px; font-weight: 600; }
+  .rung span { display: block; font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; }
 
-  .status { border: 2px solid var(--line); background: var(--sunk); padding: 10px 12px; font-size: 13px; }
-  .status.over { background: var(--accent-tint); }
-  /* The coach's own voice: a mark-yellow rule, the colour that means "pending"
-     here and is never a fill behind text. */
-  .status.teach { border-left: 6px solid var(--mark); }
-  .status b { font-family: var(--display); font-weight: 400; text-transform: uppercase; display: block; font-size: 15px; }
+  .status { border: 1px solid var(--line); background: var(--sunk); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 13.5px; }
+  .status.over { background: var(--accent-tint); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+  .status.teach { border-left: 4px solid var(--mark); }
+  .status b { display: block; font-size: 15px; font-weight: 600; }
 
-  .moves { max-height: 220px; overflow-y: auto; font-size: 13px; }
+  .moves { max-height: 220px; overflow-y: auto; font-size: 13.5px; }
   .moves ol { margin: 0; padding: 0; list-style: none; }
-  .moves li { display: grid; grid-template-columns: 2.4rem 1fr 1fr; gap: 8px; padding: 3px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 15%, transparent); font-variant-numeric: tabular-nums; }
+  .moves li { display: grid; grid-template-columns: 2.4rem 1fr 1fr; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
   .moves li:last-child { border-bottom: 0; }
-  /* The empty-state sentence is one cell, not three: as a grid row it split
-     "No moves yet" one word per column. */
-  .moves li.empty { display: block; }
+  .moves li.empty { display: block; font-family: var(--sans); color: var(--ink-faint); }
   .moves .n { color: var(--ink-faint); }
 
-  .readout { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 12px; }
-  .readout div { border: 2px solid var(--line); background: var(--sunk); padding: 8px; }
-  .readout .k { display: block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); }
-  .readout .v { font-family: var(--display); font-size: 18px; font-variant-numeric: tabular-nums; }
+  .readout { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 12.5px; }
+  .readout div { border: 1px solid var(--line); background: var(--sunk); border-radius: var(--radius-sm); padding: 10px 12px; }
+  .readout .k { display: block; font-size: 12px; color: var(--ink-faint); font-weight: 500; margin-bottom: 2px; }
+  .readout .v { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 
-  .note { font-size: 12px; color: var(--ink-faint); line-height: 1.5; margin: 10px 0 0; }
-  .note strong { color: var(--ink-soft); }
+  .note { font-size: 13px; color: var(--ink-faint); line-height: 1.5; margin: 10px 0 0; }
+  .note strong { color: var(--ink-soft); font-weight: 600; }
+  .good-note { color: var(--good); }
+  .bad-note { color: var(--danger); }
+  .empty { color: var(--ink-faint); }
 
-  .promo { position: fixed; inset: 0; background: color-mix(in srgb, var(--page) 88%, transparent); display: flex; align-items: center; justify-content: center; z-index: 40; }
-  .promo div { border: 2px solid var(--line); background: var(--panel); box-shadow: var(--shadow); padding: 10px; display: flex; gap: 6px; }
-  .promo button { border: 2px solid var(--line); background: var(--sunk); font-size: 30px; padding: 6px 12px; cursor: pointer; line-height: 1; }
-  .promo button:hover { background: var(--accent); }
-
-  footer { margin-top: 28px; border-top: 2px solid var(--line); padding-top: 12px; font-size: 11px; color: var(--ink-faint); }
-
-  /* ── the app shell ─────────────────────────────────────────────────── */
-  .tabs { display: flex; gap: 6px; overflow-x: auto; margin-top: 14px; padding-bottom: 2px; }
-  .tab {
-    flex: none; border: 2px solid var(--line); background: var(--panel); color: var(--ink-soft);
-    padding: 6px 11px; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
-    cursor: pointer;
+  /* "More" — the long explanation, one tap away rather than in the way.
+     Everything this app knows about why a number means what it means is still
+     here; it just no longer sits between you and the button. */
+  details.more { margin-top: 10px; }
+  details.more > summary {
+    cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 5px;
+    font-size: 13px; font-weight: 500; color: var(--accent); user-select: none;
   }
-  .tab.on { background: var(--accent); color: var(--on-accent); }
-  /* THE SECOND ROW IS QUIETER THAN THE FIRST, deliberately: it is where you are
-     inside a place you have already chosen, and drawn at the same weight the
-     two rows compete to be read as the navigation. */
-  .subtabs { margin-top: 6px; }
-  .subtab { border-color: transparent; border-bottom-color: var(--line); background: transparent; padding: 5px 9px; letter-spacing: .06em; }
-  .subtab.on { background: transparent; color: var(--accent); border-color: transparent; border-bottom-color: var(--accent); }
-  /* SIX TABS HAVE TO FIT A PHONE, which is the whole reason there are six. At
-     the default padding they came to 395px of content in a 358px strip on a
-     390px screen, so the row still scrolled and the change bought nothing.
-     Measured by tests/nav-test.cjs at 390px wide, which is where it failed. */
-  @media (max-width: 460px) {
-    .tabs { gap: 4px; }
-    .tab { padding: 6px 6px; letter-spacing: .02em; font-size: 10.5px; }
-    .subtab { padding: 5px 5px; }
-  }
+  details.more > summary::-webkit-details-marker { display: none; }
+  details.more > summary::before { content: "ⓘ"; font-size: 13px; }
+  details.more[open] > summary { margin-bottom: 4px; }
+  details.more > .note, details.more > p { margin-top: 6px; }
 
-  .lede { color: var(--ink-soft); max-width: 62ch; margin: 0 0 16px; }
-  section { animation: none; }
-  h2 { font-family: var(--display); font-weight: 400; font-size: 15px; text-transform: uppercase; letter-spacing: .02em; margin: 0 0 10px; }
-  h3 { font-size: 13px; font-weight: 700; margin: 0 0 8px; }
-  h4 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); margin: 12px 0 6px; }
+  .promo { position: fixed; inset: 0; background: color-mix(in srgb, var(--page) 80%, transparent); display: flex; align-items: center; justify-content: center; z-index: 40; }
+  .promo div { border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius); box-shadow: var(--shadow); padding: 10px; display: flex; gap: 6px; }
+  .promo button { border: 1px solid var(--line); background: var(--sunk); border-radius: var(--radius-sm); font-size: 30px; padding: 6px 12px; cursor: pointer; line-height: 1; }
+  .promo button:hover { background: var(--accent-tint); }
+
+  footer { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 12px; font-size: 12px; color: var(--ink-faint); }
 
   /* ── today ─────────────────────────────────────────────────────────── */
-  .tasks { display: grid; gap: 12px; margin-bottom: 16px; }
+  .tasks { display: grid; gap: 10px; margin-bottom: 14px; }
   .task {
     display: grid; gap: 3px; text-align: left; width: 100%;
-    border: 2px solid var(--line); background: var(--panel); box-shadow: var(--shadow);
-    padding: 14px; cursor: pointer; color: var(--ink);
-    transition: transform .08s, box-shadow .08s;
+    border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 14px 16px; cursor: pointer; color: var(--ink); transition: border-color .12s, background .12s;
   }
-  .task:hover { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--line); }
-  .task-kind { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
-  .task-title { font-size: 15px; font-weight: 700; }
-  .task-note { font-size: 12px; color: var(--ink-soft); line-height: 1.45; }
-  .task-go { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-top: 4px; }
+  .task:hover { border-color: var(--accent); }
+  .task-kind { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  .task-title { font-size: 15px; font-weight: 600; }
+  .task-note { font-size: 13px; color: var(--ink-soft); line-height: 1.45; }
+  .task-go { font-size: 13px; color: var(--accent); font-weight: 500; margin-top: 4px; }
 
   .record { display: grid; gap: 0; }
-  .record-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 15%, transparent); font-size: 13px; }
+  .record-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
   .record-row:last-child { border-bottom: 0; }
   .record-band { color: var(--ink-soft); }
-  .record-score { font-variant-numeric: tabular-nums; font-weight: 700; }
-  /* A row that opens the game it names. It is a <button>, so it arrives with a
-     button's chrome; everything here is undoing that, not adding to it — the
-     row should read exactly like the ones that do nothing, until you touch it. */
+  .record-score { font-variant-numeric: tabular-nums; font-weight: 600; }
   .record-open {
-    width: 100%; background: none; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 15%, transparent);
-    color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: pointer;
-    align-items: baseline;
+    width: 100%; background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0;
+    color: inherit; font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; align-items: baseline;
   }
   .record-open:hover, .record-open:focus-visible { background: var(--sunk); }
   .record-open:hover .record-band, .record-open:focus-visible .record-band { color: var(--ink); }
 
-  /* ── where the time goes ───────────────────────────────────────────────
-     A label, a bar, what it cost, and how many moves are behind it. The count
-     is deliberately last and faint: it is the thing that says whether to
-     believe the bar beside it, not a number to read across. */
-  .timebar {
-    display: grid; grid-template-columns: 7.5rem 1fr 3rem 2.5rem; gap: 8px;
-    align-items: center; padding: 3px 0; font-size: 12px;
-  }
+  /* ── where the time goes ──────────────────────────────────────────── */
+  .timebar { display: grid; grid-template-columns: 7.5rem 1fr 3rem 2.5rem; gap: 8px; align-items: center; padding: 3px 0; font-size: 12.5px; }
   .timebar-k { color: var(--ink-soft); }
-  .timebar-track { background: var(--sunk); height: 10px; border: 1px solid var(--line); overflow: hidden; }
-  .timebar-fill { display: block; height: 100%; background: var(--accent); }
-  .timebar-v { font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; }
+  .timebar-track { background: var(--sunk); height: 8px; border-radius: 4px; overflow: hidden; }
+  .timebar-fill { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .timebar-v { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
   .timebar-n { font-variant-numeric: tabular-nums; color: var(--ink-faint); text-align: right; }
 
   /* ── forms ─────────────────────────────────────────────────────────── */
-  .field { display: grid; gap: 4px; margin-bottom: 10px; }
-  .field > span { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
+  .field { display: grid; gap: 5px; margin-bottom: 10px; }
+  .field > span { font-size: 12.5px; color: var(--ink-soft); font-weight: 500; }
   select, input[type="text"], textarea {
-    border: 2px solid var(--line); background: var(--panel); color: var(--ink);
-    padding: 8px 10px; font: inherit; font-size: 14px; width: 100%;
+    border: 1px solid var(--line-strong); background: var(--panel); color: var(--ink); border-radius: var(--radius-sm);
+    padding: 9px 11px; font: inherit; font-size: 14px; width: 100%;
   }
+  select:focus, input[type="text"]:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
   textarea { resize: vertical; font-size: 13px; line-height: 1.5; }
   .fields { display: grid; gap: 10px; margin-top: 12px; }
   @media (min-width: 620px) { .fields { grid-template-columns: repeat(3, 1fr); } }
-
-  .caution { border-left: 6px solid var(--accent); background: var(--accent-tint); padding: 8px 10px; }
+  .caution { border-left: 4px solid var(--warn); background: color-mix(in srgb, var(--warn) 9%, transparent); padding: 8px 12px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+  .toggles { display: grid; gap: 8px; margin-top: 10px; }
+  .toggle { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; cursor: pointer; }
+  .toggle input { margin: 3px 0 0; accent-color: var(--accent); flex: none; width: 16px; height: 16px; }
+  .toggle small { display: block; color: var(--ink-faint); font-size: 12px; margin-top: 1px; }
+  .fen { font-family: var(--mono); font-size: 11.5px; }
 
   /* ── openings ──────────────────────────────────────────────────────── */
   .method summary { cursor: pointer; list-style: none; }
   .method summary::-webkit-details-marker { display: none; }
   .method summary h2 { display: inline; }
-  .method summary::after { content: " ▾"; color: var(--accent); }
+  .method summary::after { content: " ▾"; color: var(--accent); font-size: 12px; }
   .method[open] summary::after { content: " ▴"; }
-  .method p { max-width: 66ch; }
-  .method-steps { max-width: 66ch; padding-left: 20px; }
-  .method-steps li { margin-bottom: 9px; line-height: 1.55; }
-  .method-steps li::marker { color: var(--accent); font-weight: 700; }
+  .method p { max-width: 66ch; font-size: 14px; }
+  .method-steps { max-width: 66ch; padding-left: 20px; font-size: 14px; }
+  .method-steps li { margin-bottom: 8px; line-height: 1.55; }
+  .method-steps li::marker { color: var(--accent); font-weight: 600; }
 
-  .group { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin: 16px 0 8px; }
-  .opening-grid { display: grid; gap: 12px; }
+  .group { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); margin: 16px 0 8px; font-weight: 600; }
+  .opening-grid { display: grid; gap: 10px; }
   @media (min-width: 720px) { .opening-grid { grid-template-columns: 1fr 1fr; } }
-  .opening { border: 2px solid var(--line); background: var(--panel); box-shadow: var(--shadow); padding: 13px; display: grid; gap: 7px; align-content: start; }
+  .opening { border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; display: grid; gap: 6px; align-content: start; }
   .opening.due { border-color: var(--accent); }
   .opening-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-  .opening-name { font-weight: 700; font-size: 15px; }
-  .opening-eco { font-size: 11px; color: var(--ink-faint); letter-spacing: .08em; }
-  .opening-plan { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; margin: 0; }
-  .opening-state { font-size: 11px; color: var(--ink-faint); margin: 0; }
-
-  .idea-who { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin: 10px 0 4px; }
+  .opening-name { font-weight: 600; font-size: 15px; }
+  .opening-eco { font-size: 11.5px; color: var(--ink-faint); font-family: var(--mono); }
+  .opening-plan { font-size: 13px; color: var(--ink-soft); line-height: 1.5; margin: 0; }
+  .opening-state { font-size: 12px; color: var(--ink-faint); margin: 0; }
+  .idea-who { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin: 10px 0 4px; }
   .idea { font-size: 14px; line-height: 1.6; margin: 0; }
-  .prompt { border: 2px solid var(--line); background: var(--sunk); padding: 9px 11px; font-size: 13.5px; margin: 10px 0 0; }
+  .prompt { border: 1px solid var(--line); background: var(--sunk); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 14px; margin: 10px 0 0; }
 
   /* ── review ────────────────────────────────────────────────────────── */
-  .how { margin: 8px 0 12px; font-size: 12.5px; color: var(--ink-soft); }
-  .how summary { cursor: pointer; font-weight: 700; color: var(--ink); }
+  .how { margin: 8px 0 12px; font-size: 13px; color: var(--ink-soft); }
+  .how summary { cursor: pointer; font-weight: 500; color: var(--accent); }
   .how p { margin: 8px 0; max-width: 64ch; }
-  .progress { border: 2px solid var(--line); height: 14px; margin-top: 8px; background: var(--sunk); }
-  .progress span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .12s linear; }
+  .progress { height: 6px; margin-top: 10px; background: var(--sunk); border-radius: 3px; overflow: hidden; }
+  .progress span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .12s linear; border-radius: 3px; }
+  .after { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 12px; }
 
   .mistake {
     display: grid; grid-template-columns: 6.5rem auto; gap: 2px 10px; width: 100%; text-align: left;
-    border: 0; border-bottom: 2px solid var(--line); background: transparent; color: var(--ink);
-    padding: 9px 0; cursor: pointer;
+    border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--ink);
+    padding: 10px 0; cursor: pointer;
   }
   .mistake:hover { background: var(--sunk); }
-  .mistake-move { font-weight: 700; font-variant-numeric: tabular-nums; }
-  .mistake-sev { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; }
-  /* Three tiers, tellable apart without colour too: the glyph carries it. */
-  .mistake.blunder .mistake-sev { color: var(--accent); font-weight: 800; }
+  .mistake-move { font-weight: 600; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+  .mistake-sev { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; font-weight: 600; }
+  .mistake.blunder .mistake-sev { color: var(--danger); }
   .mistake.blunder .mistake-sev::before { content: "?? "; }
-  .mistake.mistake .mistake-sev { color: var(--accent); font-weight: 600; }
+  .mistake.mistake .mistake-sev { color: var(--warn); }
   .mistake.mistake .mistake-sev::before { content: "? "; }
   .mistake.inaccuracy .mistake-sev { color: var(--ink-faint); }
   .mistake.inaccuracy .mistake-sev::before { content: "?! "; }
-  .mistake-note { grid-column: 2; font-size: 12px; color: var(--ink-soft); }
-  /* What kind of mistake it was, under what it cost. Two adjacent rows must be
-     tellable apart by what they SAY, and the cost alone does not do that. */
-  .mistake-why { grid-column: 2; font-size: 12px; color: var(--ink); }
+  .mistake-note { grid-column: 2; font-size: 12.5px; color: var(--ink-soft); }
+  .mistake-why { grid-column: 2; font-size: 12.5px; color: var(--ink); }
 
   /* ── progress ──────────────────────────────────────────────────────── */
-  .bars { display: grid; gap: 7px; }
-  .bar-row { display: grid; grid-template-columns: 5.5rem 1fr 2rem; gap: 9px; align-items: center; font-size: 12px; }
+  .bars { display: grid; gap: 8px; }
+  .bar-row { display: grid; grid-template-columns: 5.5rem 1fr 2rem; gap: 9px; align-items: center; font-size: 12.5px; }
   .bar-label { text-transform: capitalize; color: var(--ink-soft); }
-  .bar { border: 2px solid var(--line); height: 15px; background: var(--sunk); }
-  .bar-fill { display: block; height: 100%; background: var(--accent); }
-  /* PREFIXED, BECAUSE THE BARE NAMES ARE TAKEN. The fill used to carry the
-     severity as a bare class — "bar-fill mistake" — and .mistake is the review
-     list's row: a grid with nine pixels of padding and a bottom border. The
-     mistake bar inherited all of it and rendered twenty pixels tall inside an
-     eleven pixel track, while blunder and inaccuracy, which have no such rule,
-     looked fine. A stylesheet where one bar in three is malformed is worse than
-     one where all three are, because it reads as data rather than as a bug. */
+  .bar { height: 8px; background: var(--sunk); border-radius: 4px; overflow: hidden; }
+  .bar-fill { display: block; height: 100%; background: var(--danger); border-radius: 4px; }
+  .bar-fill.sev-mistake { background: var(--warn); }
   .bar-fill.sev-inaccuracy { background: var(--ink-faint); }
-  .bar-count { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
-
-  .after { border-top: 2px solid var(--line); margin-top: 12px; padding-top: 10px; }
-  .empty { color: var(--ink-faint); }
-
-
-  /* ── board themes ──────────────────────────────────────────────────── */
-  /* Declared AFTER the theme blocks so they outrank them at equal
-     specificity: a chosen board is the same in daylight and at night, which
-     is the point of choosing one. Vermilion (no attribute) is the identity
-     and still follows the theme. */
-  :root[data-board="walnut"] { --board-light: #f0d9b5; --board-dark: #b58863; }
-  :root[data-board="green"]  { --board-light: #eeeed2; --board-dark: #769656; }
-  :root[data-board="slate"]  { --board-light: #dee3e6; --board-dark: #8ca2ad; }
-  :root[data-board="ink"]    { --board-light: #e7e2d5; --board-dark: #4d463c; }
-  :root[data-board="sand"]   { --board-light: #f5f0dc; --board-dark: #c9a86a; }
-
-  /* ── piece styles ──────────────────────────────────────────────────── */
-  /* CLASSIC: Unicode's own two sets — outline for White, solid for Black —
-     drawn in ink with a light halo so the outline survives a dark square. */
-  :root[data-pieces="classic"] .piece.w,
-  :root[data-pieces="classic"] .piece.b {
-    color: var(--piece-dark);
-    -webkit-text-stroke: 0.045em var(--piece-dark);
-    paint-order: stroke fill;
-    text-shadow: 0 0 2px var(--piece-edge-on-dark), 0 0 2px var(--piece-edge-on-dark), 0 0 1px var(--piece-edge-on-dark);
-  }
-  /* LETTERS: a tile with the piece's letter — the style that reads at the
-     smallest size, and the one a beginner can name without knowing the
-     glyphs. Square, like everything else here. */
-  :root[data-pieces="letters"] .piece {
-    font-family: var(--display); font-size: 5.6cqw; width: 66%; height: 66%;
-    display: flex; align-items: center; justify-content: center;
-    text-shadow: none; border: 2px solid #14110d; box-shadow: 2px 2px 0 0 rgba(20,17,13,.55);
-  }
-  :root[data-pieces="letters"] .piece.w { background: #fbfaf7; color: #14110d; }
-  :root[data-pieces="letters"] .piece.b { background: #14110d; color: #fbfaf7; border-color: #fbfaf7; }
-  .promo :root[data-pieces="letters"] .piece, :root[data-pieces="letters"] .promo .piece { font-size: 20px; width: 44px; height: 44px; }
-
-  :root[data-coords="off"] .coords { visibility: hidden; }
-
-  /* Pieces marked as hanging (attacked and undefended). A ring, not a fill,
-     so the piece under it stays legible — and INK DASHES WITH A WHITE INSET,
-     not the accent: the accent IS the vermilion dark square, so an accent ring
-     measured 1.00:1 against it in daylight and 1.83:1 at night, and only its
-     1px white edge was ever visible. Ink on the vermilion square is 4.7:1 and
-     on the night board's 3.3:1; the white inset carries it on the ink board.
-     The dash is what tells it from the check ring, which is solid. */
-  .sq.hang::after {
-    content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none;
-    border: 4px dashed #14110d; box-shadow: inset 0 0 0 2px #ffffff, 0 0 0 1px #ffffff;
-  }
-  /* A user's own arrow: chess.com's orange-ish, distinct from the three that
-     carry a meaning, so a note he drew is never mistaken for a verdict. */
-  .arrow-user { stroke: #f0a020; }
-  .arrow-user.arrow-head { fill: #f0a020; stroke: none; }
-  .legend .k-threat { background: var(--threat); }
-  .legend .k-user { background: #f0a020; }
+  .bar-count { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 
   /* ── eval bar ──────────────────────────────────────────────────────── */
-  /* Vertical, chess.com style: the white share grows from the bottom when
-     White is on the near side. Ink and bone, not a colour, so it cannot be
-     confused with any mark on the board. */
   .board-with-bar { display: flex; gap: 10px; align-items: flex-start; }
   .board-with-bar > .board-host { flex: 1 1 auto; min-width: 0; }
   .evalbar {
-    flex: none; width: 18px; align-self: stretch; border: 2px solid var(--line); box-shadow: var(--shadow-sm);
-    background: #14110d; position: relative; overflow: hidden; margin-bottom: 18.5px;
+    flex: none; width: 16px; align-self: stretch; border-radius: 5px; overflow: hidden;
+    background: #2b2f36; position: relative; margin-bottom: 19px; box-shadow: 0 0 0 1px var(--line-strong);
   }
-  .evalbar-white { position: absolute; left: 0; right: 0; bottom: 0; background: #fbfaf7; height: 50%; transition: height .3s ease; }
+  .evalbar-white { position: absolute; left: 0; right: 0; bottom: 0; background: #f4f4f2; height: 50%; transition: height .3s ease; }
   .evalbar.flipped .evalbar-white { bottom: auto; top: 0; }
   .evalbar-label {
-    position: absolute; left: 0; right: 0; text-align: center; font-size: 9px; font-weight: 700;
-    letter-spacing: 0; line-height: 1; padding: 2px 0; font-variant-numeric: tabular-nums; writing-mode: vertical-rl; transform: rotate(180deg);
+    position: absolute; left: 0; right: 0; text-align: center; font-size: 9px; font-weight: 600;
+    line-height: 1; padding: 2px 0; font-variant-numeric: tabular-nums; writing-mode: vertical-rl; transform: rotate(180deg);
   }
-  .evalbar-label.top { top: 4px; color: #fbfaf7; }
-  .evalbar-label.bottom { bottom: 4px; color: #14110d; }
-  .evalbar.flipped .evalbar-label.top { color: #14110d; }
-  .evalbar.flipped .evalbar-label.bottom { color: #fbfaf7; }
+  .evalbar-label.top { top: 4px; color: #f4f4f2; }
+  .evalbar-label.bottom { bottom: 4px; color: #2b2f36; }
+  .evalbar.flipped .evalbar-label.top { color: #2b2f36; }
+  .evalbar.flipped .evalbar-label.bottom { color: #f4f4f2; }
 
-  /* ── practice board ─────────────────────────────────────────────────── */
-  .lines { display: grid; gap: 6px; font-size: 12.5px; }
-  .line-row { display: grid; grid-template-columns: 3.6rem 1fr; gap: 8px; border: 2px solid var(--line); background: var(--sunk); padding: 6px 8px; text-align: left; cursor: pointer; color: var(--ink); }
-  .line-row:hover { background: var(--accent-tint); }
-  .line-score { font-family: var(--display); font-variant-numeric: tabular-nums; }
-  .line-moves { color: var(--ink-soft); overflow-wrap: anywhere; }
+  /* ── analysis board ─────────────────────────────────────────────────── */
+  .lines { display: grid; gap: 6px; font-size: 13px; }
+  .line-row { display: grid; grid-template-columns: 3.6rem 1fr; gap: 8px; border: 1px solid var(--line); background: var(--sunk); border-radius: var(--radius-sm); padding: 7px 10px; text-align: left; cursor: pointer; color: var(--ink); }
+  .line-row:hover { background: var(--accent-tint); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+  .line-score { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .line-moves { color: var(--ink-soft); overflow-wrap: anywhere; font-family: var(--mono); font-size: 12.5px; }
   .line-row.top .line-score { color: var(--good); }
-  .toggles { display: grid; gap: 6px; margin-top: 10px; }
-  .toggle { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; cursor: pointer; }
-  .toggle input { margin: 3px 0 0; accent-color: var(--accent); flex: none; }
-  .toggle small { display: block; color: var(--ink-faint); font-size: 11px; }
-  .fen { font-family: var(--mono); font-size: 11px; }
-  .movelist { display: flex; flex-wrap: wrap; gap: 4px; font-size: 12.5px; max-height: 240px; overflow-y: auto; }
-  .movelist .mn { color: var(--ink-faint); padding: 3px 2px 3px 6px; font-variant-numeric: tabular-nums; }
-  .movelist .mv { border: 2px solid transparent; background: transparent; padding: 3px 6px; cursor: pointer; color: var(--ink); font: inherit; font-variant-numeric: tabular-nums; }
-  .movelist .mv:hover { border-color: var(--line); }
-  .movelist .mv.on { background: var(--accent); color: var(--on-accent); border-color: var(--line); }
-  .movelist .mv.mine { font-weight: 700; }
-  /* Classification glyphs, chess.com style but with this app's three tiers
-     plus "best" and "mate" — carried by a glyph, so no colour is needed. */
+  .movelist { display: flex; flex-wrap: wrap; gap: 3px; font-size: 13px; max-height: 240px; overflow-y: auto; font-family: var(--mono); }
+  .movelist .mn { color: var(--ink-faint); padding: 4px 2px 4px 6px; font-variant-numeric: tabular-nums; }
+  .movelist .mv { border: 1px solid transparent; border-radius: var(--radius-xs); background: transparent; padding: 3px 7px; cursor: pointer; color: var(--ink); font: inherit; font-variant-numeric: tabular-nums; }
+  .movelist .mv:hover { background: var(--sunk); }
+  .movelist .mv.on { background: var(--accent); color: var(--on-accent); }
+  .movelist .mv.mine { font-weight: 600; }
   .movelist .mv[data-class="best"]::after { content: " ★"; color: var(--good); font-size: 10px; }
-  .movelist .mv[data-class="inaccuracy"]::after { content: " ?!"; color: var(--ink-faint); font-weight: 700; }
-  .movelist .mv[data-class="mistake"]::after { content: " ?"; color: var(--accent); font-weight: 700; }
-  .movelist .mv[data-class="blunder"]::after { content: " ??"; color: var(--accent); font-weight: 800; }
+  .movelist .mv[data-class="inaccuracy"]::after { content: " ?!"; color: var(--ink-faint); font-weight: 600; }
+  .movelist .mv[data-class="mistake"]::after { content: " ?"; color: var(--warn); font-weight: 600; }
+  .movelist .mv[data-class="blunder"]::after { content: " ??"; color: var(--danger); font-weight: 700; }
   .movelist .mv[data-class="missed_mate"]::after,
-  .movelist .mv[data-class="allowed_mate"]::after { content: " #?"; color: var(--accent); font-weight: 800; }
+  .movelist .mv[data-class="allowed_mate"]::after { content: " #?"; color: var(--danger); font-weight: 700; }
   .movelist .mv.on::after { color: var(--on-accent); }
 
   /* ── opening move chips and tooltips ──────────────────────────────── */
   .chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0 0; }
   .chip {
-    position: relative; border: 2px solid var(--line); background: var(--panel); color: var(--ink);
-    padding: 4px 8px; font: inherit; font-size: 12.5px; cursor: pointer; font-variant-numeric: tabular-nums;
+    position: relative; border: 1px solid var(--line-strong); background: var(--panel); color: var(--ink); border-radius: var(--radius-xs);
+    padding: 4px 9px; font: inherit; font-size: 13px; cursor: pointer; font-variant-numeric: tabular-nums;
   }
-  .chip.mine { font-weight: 700; }
-  .chip.on { background: var(--accent); color: var(--on-accent); }
+  .chip.mine { font-weight: 600; }
+  .chip.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   .chip.todo { opacity: .45; }
   .chip .mn { color: inherit; opacity: .6; margin-right: 3px; font-size: 11px; }
-  /* The popover is one element, moved under whichever chip is hovered or
-     focused — a tooltip per chip would be forty hidden boxes. */
   .tip {
-    position: absolute; z-index: 30; max-width: min(320px, 92vw); border: 2px solid var(--line);
-    background: var(--panel); color: var(--ink); box-shadow: var(--shadow); padding: 8px 10px; font-size: 12.5px; line-height: 1.5;
+    position: absolute; z-index: 30; max-width: min(320px, 92vw); border: 1px solid var(--line);
+    background: var(--panel); color: var(--ink); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 8px 10px; font-size: 13px; line-height: 1.5;
   }
-  .tip b { display: block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-bottom: 2px; }
+  .tip b { display: block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-bottom: 2px; }
   .branches { display: grid; gap: 6px; margin-top: 8px; }
-  .branch { display: grid; gap: 2px; border: 2px solid var(--line); background: var(--panel); padding: 8px 10px; text-align: left; cursor: pointer; color: var(--ink); font: inherit; }
+  .branch { display: grid; gap: 2px; border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius-sm); padding: 8px 10px; text-align: left; cursor: pointer; color: var(--ink); font: inherit; }
   .branch.on { background: var(--accent-tint); border-color: var(--accent); }
-  .branch b { font-size: 12.5px; }
-  .branch span { font-size: 11.5px; color: var(--ink-soft); }
-  .branch small { font-size: 10.5px; color: var(--ink-faint); letter-spacing: .06em; text-transform: uppercase; }
+  .branch b { font-size: 13px; }
+  .branch span { font-size: 12px; color: var(--ink-soft); }
+  .branch small { font-size: 11px; color: var(--ink-faint); letter-spacing: .04em; text-transform: uppercase; }
 
   /* ── clocks ─────────────────────────────────────────────────────────── */
   .clocks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; max-width: 520px; }
-  .clock { border: 2px solid var(--line); background: var(--panel); box-shadow: var(--shadow-sm); padding: 6px 10px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-  .clock .k { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
-  .clock b { font-family: var(--display); font-size: 20px; font-variant-numeric: tabular-nums; }
-  /* Whose clock is running is carried by the FILL, not by a colour alone — the
-     running side is the one that looks pressed in. */
-  .clock.running { background: var(--sunk); border-color: var(--accent); }
-  .clock.low b { color: var(--accent); }
+  .clock { border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); padding: 6px 12px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .clock .k { font-size: 12px; color: var(--ink-faint); font-weight: 500; }
+  .clock b { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .clock.running { background: var(--accent-tint); border-color: var(--accent); }
+  .clock.low b { color: var(--danger); }
 
   /* ── the game's curve ───────────────────────────────────────────────── */
-  .curve-frame { border: 2px solid var(--line); background: var(--sunk); box-shadow: var(--shadow-sm); }
+  .curve-frame { border: 1px solid var(--line); background: var(--sunk); border-radius: var(--radius-sm); }
   .curve { display: block; width: 100%; height: 120px; }
-  /* Ink against the ground, not a colour: this is one series, and a hue here
-     would collide with the arrows' vocabulary for no gain. */
-  .curve-fill { fill: color-mix(in srgb, var(--ink) 16%, transparent); stroke: none; }
+  .curve-fill { fill: color-mix(in srgb, var(--ink) 14%, transparent); stroke: none; }
   .curve-line { fill: none; stroke: var(--ink); stroke-width: 1.4; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
-  .curve-mid { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 4 4; opacity: .5; }
-  /* A zero-length line with a round cap: a circle measured in screen pixels,
-     which is the only way to draw a round dot inside a viewBox that is
-     stretched to the width of its panel. */
-  .curve-dot {
-    fill: none; stroke: var(--accent); stroke-width: 7px; stroke-linecap: round;
-    vector-effect: non-scaling-stroke;
-  }
+  .curve-mid { stroke: var(--line-strong); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 4 4; }
+  .curve-dot { fill: none; stroke: var(--danger); stroke-width: 7px; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 
-  /* ── the progress chart ─────────────────────────────────────────────────
-     THE TREND IS THE ONLY STRONG MARK. Every game used to be a seven-pixel dot
-     in the accent colour with the trend line underneath it: at nine games that
-     is a chart, at two hundred and forty-three it is a solid band of red with
-     the answer hidden inside it. The loudest thing on the screen was the noise.
-
-     So the order of emphasis is inverted. A hairline grid one shade off the
-     ground, the spread as a soft ink band, the trend at two pixels in the
-     accent, and individual games only while there are few enough to tell
-     apart — with the latest one always marked, because "where am I now" is the
-     other question this chart is asked. */
-  .chart-grid { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; opacity: .55; }
-  .chart-band { fill: color-mix(in srgb, var(--ink) 9%, transparent); stroke: none; }
-  .chart-trend {
-    fill: none; stroke: var(--accent); stroke-width: 2.5; vector-effect: non-scaling-stroke;
-    stroke-linejoin: round; stroke-linecap: round;
-  }
-  /* Recessive, and only drawn at all below the cap — see renderProgressChart. */
-  .chart-dot {
-    fill: none; stroke: color-mix(in srgb, var(--ink) 45%, transparent); stroke-width: 4px;
-    stroke-linecap: round; vector-effect: non-scaling-stroke;
-  }
-  /* Where you are now: a ring, so it reads as a marker rather than one more
-     data point, and it survives the dots being switched off. */
-  .chart-now {
-    fill: none; stroke: var(--accent); stroke-width: 8px; stroke-linecap: round;
-    vector-effect: non-scaling-stroke;
-  }
-
-  /* The plot's geometry, stated once: everything that has to line up with a
-     gridline is measured from these two numbers rather than guessed at. */
-  .chart-plot { --plot-h: 120px; --plot-inset: 12px; /* 2px frame border + 10px padding */
-    display: flex; gap: 8px; align-items: stretch; }
+  /* ── the progress chart ─────────────────────────────────────────────── */
+  .chart-grid { stroke: var(--line-strong); stroke-width: 1; vector-effect: non-scaling-stroke; opacity: .7; }
+  .chart-band { fill: color-mix(in srgb, var(--accent) 12%, transparent); stroke: none; }
+  .chart-trend { fill: none; stroke: var(--accent); stroke-width: 2.5; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+  .chart-dot { fill: none; stroke: color-mix(in srgb, var(--ink) 40%, transparent); stroke-width: 4px; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+  .chart-now { fill: none; stroke: var(--accent); stroke-width: 8px; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+  .chart-plot { --plot-h: 120px; --plot-inset: 11px; display: flex; gap: 8px; align-items: stretch; }
   .chart-plot .chart-frame { flex: 1 1 auto; min-width: 0; position: relative; }
   .chart-plot .curve.chart { height: var(--plot-h); }
-  /* The vertical scale, outside the stretched viewBox — text inside one is
-     distorted by preserveAspectRatio="none", which is why it is here.
-     A LABEL THAT IS NOT ON ITS GRIDLINE IS THE WRONG LABEL. Spacing the three
-     out evenly puts the outer two a couple of pixels off, because the labels
-     have height and the rules do not, so each is pinned to the pixel its own
-     rule is drawn at instead. */
-  .chart-yaxis {
-    position: relative; font-size: 10.5px; font-family: var(--mono);
-    color: var(--ink-faint); text-align: right; flex: 0 0 auto; min-width: 2.6rem;
-    font-variant-numeric: tabular-nums;
-  }
+  .chart-yaxis { position: relative; font-size: 11px; color: var(--ink-faint); text-align: right; flex: 0 0 auto; min-width: 2.6rem; font-variant-numeric: tabular-nums; }
   .chart-yaxis span { position: absolute; right: 0; line-height: 1; transform: translateY(-50%); }
-  /* The three rules sit at 4, 50 and 96 of the hundred-unit viewBox. */
   .chart-yaxis span:nth-child(1) { top: calc(var(--plot-inset) + var(--plot-h) * 0.04); }
   .chart-yaxis span:nth-child(2) { top: calc(var(--plot-inset) + var(--plot-h) * 0.50); }
   .chart-yaxis span:nth-child(3) { top: calc(var(--plot-inset) + var(--plot-h) * 0.96); }
   .chart-tip {
     position: absolute; bottom: calc(100% + 6px); transform: translateX(-50%);
-    background: var(--panel); border: 2px solid var(--line); box-shadow: var(--shadow-sm);
-    padding: 3px 7px; font-size: 11px; font-family: var(--mono); white-space: nowrap;
-    pointer-events: none; z-index: 3; color: var(--ink);
+    background: var(--ink); color: var(--page); border-radius: var(--radius-xs); box-shadow: var(--shadow);
+    padding: 4px 8px; font-size: 11.5px; white-space: nowrap; pointer-events: none; z-index: 3; font-variant-numeric: tabular-nums;
   }
+  /* Room for the half of an edge dot that falls outside the plot; the vertical
+     half is --plot-inset less the 1px border so the labels stay on their lines. */
+  .chart-frame { padding: calc(var(--plot-inset, 11px) - 1px) 9px; }
+  .chart { overflow: visible; }
+  .chart-scale { display: flex; justify-content: space-between; gap: 10px; font-size: 11.5px; color: var(--ink-faint); padding: 4px 2px 0; font-variant-numeric: tabular-nums; }
+  .chart-scale span { white-space: nowrap; }
+  .chart-key { margin-top: 6px; }
 
   /* ── the coach ──────────────────────────────────────────────────────── */
   .coach-log { max-height: 320px; overflow-y: auto; display: grid; gap: 10px; }
-  .coach-you {
-    border-left: 6px solid var(--accent); background: var(--accent-tint); padding: 7px 10px;
-    margin: 0; font-size: 13px; font-weight: 700;
-  }
-  .coach-answer { font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; }
-  /* A playable line is a button; a line that would not replay is marked as
-     text, never quietly dropped and never a button that plays something else. */
-  .coach-line {
-    border: 2px solid var(--line); background: var(--sunk); color: var(--ink);
-    font: inherit; font-size: 12.5px; font-weight: 700; padding: 1px 6px; cursor: pointer;
-    box-shadow: var(--shadow-sm); margin: 0 1px;
-  }
-  .coach-line:hover { background: var(--accent); color: var(--on-accent); }
-  .coach-bad { text-decoration: underline wavy var(--accent); }
+  .coach-you { border-left: 3px solid var(--accent); background: var(--accent-tint); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 7px 10px; margin: 0; font-size: 13.5px; font-weight: 500; }
+  .coach-answer { font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+  .coach-line { border: 1px solid var(--line-strong); background: var(--sunk); color: var(--ink); border-radius: var(--radius-xs); font: inherit; font-family: var(--mono); font-size: 12.5px; font-weight: 600; padding: 1px 6px; cursor: pointer; margin: 0 1px; }
+  .coach-line:hover { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .coach-bad { text-decoration: underline wavy var(--danger); }
 
   /* ── puzzles ───────────────────────────────────────────────────────── */
-  .puzzle-row {
-    display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; width: 100%; text-align: left;
-    border: 0; border-bottom: 2px solid var(--line); background: transparent; color: var(--ink);
-    padding: 9px 0; cursor: pointer; font: inherit;
-  }
+  .puzzle-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--ink); padding: 10px 0; cursor: pointer; font: inherit; }
   .puzzle-row:hover { background: var(--sunk); }
-  .puzzle-when { font-weight: 700; font-variant-numeric: tabular-nums; }
-  .puzzle-note { grid-column: 1 / -1; font-size: 12px; color: var(--ink-soft); }
-  .puzzle-flag { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: var(--ink-faint); }
-  /* Told apart by the word, not by the colour — the colour is a second copy
-     of the same fact for whoever can see it. */
+  .puzzle-when { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .puzzle-note { grid-column: 1 / -1; font-size: 12.5px; color: var(--ink-soft); }
+  .puzzle-flag { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; font-weight: 600; color: var(--ink-faint); }
   .puzzle-flag.found { color: var(--good); }
-  .puzzle-flag.missed { color: var(--accent); }
-  .btn.danger { background: var(--accent); color: var(--on-accent); }
+  .puzzle-flag.missed { color: var(--danger); }
 
   /* ── settings ──────────────────────────────────────────────────────── */
   .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
-  .swatch { display: grid; gap: 4px; border: 2px solid var(--line); background: var(--panel); padding: 6px; cursor: pointer; color: var(--ink); font: inherit; font-size: 11px; text-align: center; box-shadow: var(--shadow-sm); }
-  .swatch.on { outline: 3px solid var(--mark); outline-offset: 1px; }
-  .swatch i { display: grid; grid-template-columns: 1fr 1fr; width: 44px; height: 44px; }
+  .swatch { display: grid; gap: 5px; border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius-sm); padding: 7px; cursor: pointer; color: var(--ink); font: inherit; font-size: 12px; text-align: center; }
+  .swatch.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-tint); }
+  .swatch i { display: grid; grid-template-columns: 1fr 1fr; width: 44px; height: 44px; border-radius: 6px; overflow: hidden; margin: 0 auto; }
   .swatch i b { display: block; }
   .swatch i b:nth-child(1), .swatch i b:nth-child(4) { background: var(--sw-light); }
   .swatch i b:nth-child(2), .swatch i b:nth-child(3) { background: var(--sw-dark); }
   .style-pick { display: grid; gap: 8px; }
   @media (min-width: 620px) { .style-pick { grid-template-columns: repeat(3, 1fr); } }
-  .style-card { border: 2px solid var(--line); background: var(--panel); padding: 8px; cursor: pointer; color: var(--ink); font: inherit; text-align: left; display: grid; gap: 6px; box-shadow: var(--shadow-sm); }
+  .style-card { border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius-sm); padding: 8px; cursor: pointer; color: var(--ink); font: inherit; text-align: left; display: grid; gap: 6px; }
   .style-card.on { background: var(--accent-tint); border-color: var(--accent); }
-  .style-card b { font-size: 12.5px; }
+  .style-card b { font-size: 13px; font-weight: 600; }
   .style-card .mini { width: 100%; max-width: 160px; }
-  .style-card .mini .board-frame { box-shadow: none; }
-  .install { display: grid; gap: 6px; font-size: 12.5px; }
+  .style-card .mini .board-frame { box-shadow: 0 0 0 1px var(--line-strong); }
+  .install { display: grid; gap: 6px; font-size: 13px; }
   .install p { margin: 0; }
-  .kbd { border: 1px solid var(--line); padding: 0 4px; font-size: 11px; }
+  .kbd { border: 1px solid var(--line-strong); border-radius: 4px; padding: 0 5px; font-size: 11.5px; font-family: var(--mono); background: var(--sunk); }
   .gear { margin-left: auto; }
 
   [hidden] { display: none !important; }
 
-  /* ── the endgame list ──────────────────────────────────────────────────── */
-  .endgame-row { border-top: 2px solid var(--line); padding: 12px 0 14px; }
+  /* ── the endgame list ──────────────────────────────────────────────── */
+  .endgame-row { border-top: 1px solid var(--line); padding: 12px 0 14px; }
   .endgame-row:first-of-type { border-top: 0; }
   .endgame-head { display: flex; align-items: baseline; gap: 10px; justify-content: space-between; }
-  .tag {
-    font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
-    border: 2px solid var(--line); padding: 1px 6px; white-space: nowrap; color: var(--ink-soft);
-  }
-  .tag.good { background: var(--good); color: var(--on-accent); border-color: var(--line); }
+  .tag { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; border: 1px solid var(--line-strong); border-radius: 999px; padding: 2px 8px; white-space: nowrap; color: var(--ink-soft); }
+  .tag.good { background: var(--good); color: #ffffff; border-color: var(--good); }
 
-  /* A verdict is not decoration: green means the result is still there, red
-     means it has gone, and both are statements the app can prove. */
-  .good-note { color: var(--good); }
-  .bad-note { color: var(--accent); }
-
-  /* ── notation ──────────────────────────────────────────────────────────── */
-  .san-big {
-    font-family: var(--mono); font-size: 34px; font-weight: 700; letter-spacing: .04em;
-    margin: 14px 0 10px; color: var(--ink);
-  }
+  /* ── notation ──────────────────────────────────────────────────────── */
+  .san-big { font-family: var(--mono); font-size: 32px; font-weight: 600; letter-spacing: .02em; margin: 12px 0 10px; color: var(--ink); }
   .san-big.waiting { color: var(--ink-faint); }
-  /* One row per character of the move, so the explanation lines up with the
-     thing it explains rather than sitting under a paragraph about all of it. */
-  .san-part { display: flex; gap: 12px; align-items: baseline; border-top: 2px solid var(--line); padding: 10px 0; }
+  .san-part { display: flex; gap: 12px; align-items: baseline; border-top: 1px solid var(--line); padding: 10px 0; }
   .san-part:first-of-type { border-top: 0; }
-  .san-part-text {
-    font-family: var(--mono); font-size: 20px; font-weight: 700;
-    min-width: 3.2em; flex: 0 0 auto; color: var(--accent);
-  }
+  .san-part-text { font-family: var(--mono); font-size: 19px; font-weight: 600; min-width: 3.2em; flex: 0 0 auto; color: var(--accent); }
   .san-part-body { flex: 1 1 auto; min-width: 0; }
-  .san-part-label {
-    display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
-    color: var(--ink-soft); margin-bottom: 3px;
-  }
+  .san-part-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft); margin-bottom: 3px; font-weight: 600; }
   .san-part-body .note { margin: 0; }
   .san-key { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px 16px; margin-bottom: 12px; }
   .san-key div { display: flex; gap: 10px; align-items: baseline; }
   .san-key b { font-family: var(--mono); min-width: 3.4em; color: var(--accent); }
-  .san-key span { color: var(--ink-soft); font-size: 13px; }
+  .san-key span { color: var(--ink-soft); font-size: 13.5px; }
 
-  /* ── board vision ──────────────────────────────────────────────────────── */
+  /* ── board vision ──────────────────────────────────────────────────── */
   #visionBoard .sq { cursor: pointer; }
-  .sq.vision-ask::after {
-    content: ""; position: absolute; inset: 6%; border: 3px solid var(--threat);
-    border-radius: 50%; z-index: 2; pointer-events: none;
-  }
+  .sq.vision-ask::after { content: ""; position: absolute; inset: 6%; border: 3px solid var(--threat); border-radius: 50%; z-index: 2; pointer-events: none; }
   .sq.vision-right { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--good) 55%, transparent); }
-  .sq.vision-wrong { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--accent) 55%, transparent); }
-  .v.urgent { color: var(--accent); }
-  .readout-row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-top: 1px solid var(--sunk); }
+  .sq.vision-wrong { box-shadow: inset 0 0 0 100vmax color-mix(in srgb, var(--danger) 55%, transparent); }
+  .v.urgent { color: var(--danger); }
+  .readout-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-top: 1px solid var(--line); }
   .readout-row:first-child { border-top: 0; }
-  .readout-row .k { color: var(--ink-soft); font-size: 12px; }
-  .readout-row .v { font-family: var(--display); font-variant-numeric: tabular-nums; }
-  /* Room for the half of an edge dot that falls outside the plot. The vertical
-     half is --plot-inset less the 2px border, so the scale labels beside it
-     stay on their gridlines when it changes. */
-  .chart-frame { padding: calc(var(--plot-inset, 12px) - 2px) 9px; }
-  .chart { overflow: visible; }
-  .chart-scale { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; color: var(--ink-faint); font-family: var(--mono); padding: 4px 2px 0; }
-  .chart-scale span { white-space: nowrap; }
-  .chart-key { margin-top: 6px; }
+  .readout-row .k { color: var(--ink-soft); font-size: 13px; }
+  .readout-row .v { font-weight: 600; font-variant-numeric: tabular-nums; }
 
-  /* ── the tab strip runs off the edge, and now says so ───────────────────
-     Twelve sections do not fit across a phone. The strip has always scrolled;
-     what it never did was look scrollable, so the last tab was simply cut
-     through the middle of a word and read as a rendering fault. The fade is
-     drawn only while there is more to the right of it. */
-  .tabs-wrap { position: relative; }
-  .tabs-wrap::after {
-    content: ""; position: absolute; top: 0; bottom: 2px; right: 0; width: 22px;
-    background: linear-gradient(to right, transparent, var(--page) 85%);
-    pointer-events: none; opacity: 0; transition: opacity .15s;
-  }
-  /* So scrollIntoView() leaves the selected tab clear of the fade rather than
-     parking it underneath, where a highlighted tab looks half-erased. */
-  .tabs { scroll-padding-inline: 28px; }
-  .tabs-wrap.more::after { opacity: 1; }
-
-  /* ── what you are doing goes above what you are doing it on ─────────────
-     On a phone the board is the height of the screen, so anything under it is
-     off screen — which is where the clock, the score and the question all sat
-     during a timed round. While a round is running the panel comes first. */
+  /* What you are doing goes above what you are doing it on: while a timed
+     round runs on a phone, the panel comes before the board. */
   @media (max-width: 859px) {
     .layout.live > :last-child { order: -1; }
     .layout.live { display: flex; flex-direction: column; }
@@ -879,20 +691,20 @@
 
   <!-- TODAY -->
   <section id="section-today">
-    <p class="lede">What to do next. Rows only appear when there is something to act on.</p>
+    <p class="lede">Your training for today. Items appear only when there is something to do.</p>
     <div id="todayList" class="tasks"></div>
     <div id="todayRecord" class="panel"></div>
     <div class="panel">
-      <h3>Where your progress is kept</h3>
+      <h3>Your data</h3>
       <p class="note" id="storeNote">Checking…</p>
     </div>
     <div class="panel" id="downloadWrap">
-      <h3 id="downloadTitle">Take it with you</h3>
-      <p class="note" style="margin:0" id="downloadBlurb">The whole app is one file and works offline. Save a copy and it opens from your Files app, a USB
-        stick or a desktop. Progress in that copy stays in the browser you open it in.</p>
+      <h3 id="downloadTitle">Install</h3>
+      <p class="note" style="margin:0" id="downloadBlurb">The whole app is a single file that works offline. Save a copy to open it from your Files app or a
+        desktop; progress in that copy stays in the browser that opens it.</p>
       <div class="row" style="margin-top:10px" id="installRow" hidden><button class="btn primary" id="installApp" type="button">Install as an app</button></div>
       <p class="note" id="installNote"></p>
-      <div class="row" style="margin-top:10px" id="downloadRow"><button class="btn" id="downloadApp" type="button">Save a copy of the app</button></div>
+      <div class="row" style="margin-top:10px" id="downloadRow"><button class="btn" id="downloadApp" type="button">Save a copy</button></div>
       <p class="note" id="downloadNote"></p>
     </div>
   </section>
@@ -902,7 +714,7 @@
     <div class="layout">
       <div>
         <div class="clocks" id="playClocks" hidden>
-          <div class="clock" id="clockTheirsBox"><span class="k">Them</span><b id="clockTheirs">—</b></div>
+          <div class="clock" id="clockTheirsBox"><span class="k">Opponent</span><b id="clockTheirs">—</b></div>
           <div class="clock" id="clockMineBox"><span class="k">You</span><b id="clockMine">—</b></div>
         </div>
         <div id="playBoard"></div>
@@ -914,11 +726,9 @@
             <button class="btn" id="playFlip">Flip</button>
             <button class="btn" id="playResign">Resign</button>
             <button class="btn primary" id="playNew">New game</button>
-            <!-- INTO THE COACH FROM THE GAME. The coach reads the analysis
-                 board, and the position you want explained is the one in front
-                 of you — so this carries it across rather than making you set
-                 it up again. -->
-            <button class="btn" id="playCoach" type="button">Ask the coach</button>
+            <!-- Into the coach from the game: it reads the analysis board, so the
+                 position in front of you is carried across. -->
+            <button class="btn" id="playCoach" type="button">Coach</button>
           </div>
           <div id="teachBox" hidden class="after">
             <div class="status teach" id="teachStatus"><b id="teachHead">Nothing set</b><span id="teachBody"></span></div>
@@ -927,7 +737,7 @@
           <p class="note" id="playFrom" hidden>Set-up position. Saved, but not counted in your record.</p>
           <div id="playAfter" hidden class="after">
             <p class="note" id="playAfterText">Saved. The moves are on your Today page.</p>
-            <div class="row" style="margin-top:8px"><button class="btn" id="playAnalyse" type="button">Look at the final position</button></div>
+            <div class="row" style="margin-top:8px"><button class="btn" id="playAnalyse" type="button">Open the final position</button></div>
           </div>
         </div>
       </div>
@@ -936,37 +746,30 @@
         <div class="panel">
           <h2>Opponent</h2>
           <label class="field">
-            <span>Strength band</span>
+            <span>Level</span>
             <select id="bandSelect"></select>
           </label>
           <p class="note" id="bandNote"></p>
-          <label class="field" style="margin-top:10px"><span>Clock</span>
+          <label class="field" style="margin-top:10px"><span>Time control</span>
             <select id="timeControl"></select>
           </label>
           <label class="toggle" style="margin-top:6px"><input type="checkbox" id="bookToggle" checked><span>Open with moves from your own games<small id="bookNote"></small></span></label>
-          <label class="toggle" style="margin-top:6px"><input type="checkbox" id="teachToggle"><span>Coach sets problems<small>Before your move the coach checks for a trap and warns you if there is one, then says how it went. Two to four a game. These games are not counted in your record.</small></span></label>
-          <p class="note caution">
-            <strong>These numbers are targets, not ratings.</strong> Nothing here has been played against
-            rated humans, so a band is where a setting is aimed, not a strength anyone measured. The three
-            dials above are what actually changes, and they are shown so you can see what you picked.
-          </p>
-          <details class="how">
-            <summary>What was actually measured</summary>
-            <p>Self-play, six games a pair with colours alternated. Band&nbsp;800 beat band&nbsp;0 six times
-              out of six, and band&nbsp;1600 scored 5½/6 against band&nbsp;800. So the ladder does climb.</p>
-            <p>Two things it does <em>not</em> establish. Neighbouring bands were not separated: a
-              hundred-point gap is about a 64% expected score, and no affordable number of games tells that
-              from a coin — so the step between, say, 900 and 1000 is a design choice, not a finding. And the
-              top two bands came out level in that run, because the test capped thinking time at 70ms, which
-              is the very thing that separates them; in ordinary play they get 1800ms and 2400ms.</p>
-            <p>If a band feels wrong for you, it is: move up or down until the games are close, and ignore
-              the number.</p>
-            <p><strong>The strength estimate on a reviewed game</strong> comes from a second measurement
-              (5 September 2026): eight bands from 0 to 2100 each played two games against themselves, and every
-              game was walked by the reviewer at each of its three settings — 96 reviews. Average loss per move
-              falls with the band's number closely enough to fit a line through the logarithm (R² 0.75 to 0.81),
-              up to about 1200. Above that every band looks the same to the reviewer, because they play the moves
-              it would play, so the estimate stops there and says "or above".</p>
+          <label class="toggle" style="margin-top:6px"><input type="checkbox" id="teachToggle"><span>Coach mode<small>Before your move the coach checks for a trap and warns you, then reviews how you handled it. Two to four per game. Not counted in your record.</small></span></label>
+          <details class="more">
+            <summary>About the levels</summary>
+            <p class="note caution"><strong>The numbers are targets, not ratings.</strong> No level has been played against rated
+              humans, so a level is where a setting is aimed rather than a strength anyone measured. The dials shown
+              are what actually changes.</p>
+            <p class="note">Self-play, six games a pair with colours alternated: level 800 beat level 0 six times out of
+              six, and level 1600 scored 5½/6 against 800, so the scale does climb. Neighbouring levels were not
+              separated — a hundred-point gap is about a 64% expected score, and no affordable number of games tells
+              that from a coin — so the step between, say, 900 and 1000 is a design choice. If a level feels wrong,
+              move up or down until games are close and ignore the number.</p>
+            <p class="note">The strength estimate on an analysed game comes from a second measurement (5 September
+              2026): eight levels from 0 to 2100 each played two games against themselves, and every game was analysed
+              at each of the three depths — 96 analyses. Average loss per move falls with the level closely enough to
+              fit a line through the logarithm (R² 0.75 to 0.81) up to about 1200; above that every level looks the
+              same to the analyser, so the estimate stops there and says "or above".</p>
           </details>
         </div>
 
@@ -980,11 +783,11 @@
         </div>
 
         <div class="panel">
-          <h2>Its evaluation</h2>
+          <h2>Evaluation</h2>
           <div class="readout">
-            <div><span class="k">In points, from your side</span><span class="v" id="playEval">—</span></div>
+            <div><span class="k">From your side, in points</span><span class="v" id="playEval">—</span></div>
           </div>
-          <p class="note">The engine's own opinion, not a fact about the position. A positive number means it thinks you are better.</p>
+          <p class="note">The engine's assessment. Positive means it considers you better.</p>
         </div>
 
         <div class="panel">
@@ -995,7 +798,7 @@
     </div>
   </section>
 
-  <!-- BOARD -->
+  <!-- ANALYSIS BOARD -->
   <section id="section-board" hidden>
     <div class="layout">
       <div>
@@ -1004,12 +807,12 @@
           <div class="board-host"><div id="practiceBoard"></div></div>
         </div>
         <div class="legend">
-          <span><i class="k-best"></i> engine's first choice</span>
-          <span><i class="k-user"></i> its other lines · your own arrows</span>
-          <span><i class="k-threat"></i> what they threaten</span>
+          <span><i class="k-best"></i> best move</span>
+          <span><i class="k-user"></i> other lines · your arrows</span>
+          <span><i class="k-threat"></i> threat</span>
         </div>
         <div class="panel">
-          <div class="status"><b id="practiceTurn">White to move.</b><span>Move either side. Long-press a square to mark it, or drag with the right button for an arrow.</span></div>
+          <div class="status"><b id="practiceTurn">White to move.</b><span>Move either side. Long-press a square to mark it, or right-drag for an arrow.</span></div>
           <div class="row" style="margin-top:12px">
             <button class="btn primary" id="practiceSuggest" type="button">Suggest a move</button>
             <button class="btn" id="practiceUndo" type="button">Undo</button>
@@ -1023,42 +826,45 @@
       </div>
       <div>
         <div class="panel">
-          <h2>Insight</h2>
+          <h2>Engine</h2>
           <div class="toggles">
-            <label class="toggle"><input type="checkbox" id="practiceAuto"><span>Analyse after every move<small>The top three lines and the bar, updated as you go. Uses the thinking time set in Settings.</small></span></label>
-            <label class="toggle"><input type="checkbox" id="practiceThreats"><span>Show the threat<small>What the other side would play if it were their move, in blue.</small></span></label>
-            <label class="toggle"><input type="checkbox" id="practiceHanging"><span>Show hanging pieces<small>Anything attacked and not defended at all, ringed with a dashed line.</small></span></label>
+            <label class="toggle"><input type="checkbox" id="practiceAuto"><span>Analyse after every move<small>The top three lines and the evaluation bar, at the thinking time set in Settings.</small></span></label>
+            <label class="toggle"><input type="checkbox" id="practiceThreats"><span>Show threats<small>What the other side would play if it were their move, in blue.</small></span></label>
+            <label class="toggle"><input type="checkbox" id="practiceHanging"><span>Show hanging pieces<small>Attacked and undefended, ringed with a dashed line.</small></span></label>
           </div>
           <p class="note" id="practiceThreatNote"></p>
           <p class="note" id="practiceHangNote"></p>
         </div>
         <div class="panel" id="coachPanel" hidden>
-          <h2>Ask the coach</h2>
-          <p class="note" style="margin:0 0 8px">Answers are written from what the engine found in <em>this</em> position — the
-            pieces, the evaluation, the top lines, and any move you name, searched on its own. It is not allowed to
-            tell you anything the engine did not find, and it is allowed to say there is no clear reason.</p>
+          <h2>Coach</h2>
           <p class="note" style="margin:0 0 8px" id="coachHow"></p>
           <div class="chips" id="coachSuggestions"></div>
           <div class="coach-log" id="coachLog"></div>
           <label class="field" style="margin-top:10px"><span>Your question</span>
-            <input id="coachQuestion" type="text" placeholder="why not Qh5? · what is he threatening?">
+            <input id="coachQuestion" type="text" placeholder="Why not Qh5? What is the threat?">
           </label>
           <div class="row">
             <button class="btn primary" id="coachAsk" type="button">Ask</button>
             <button class="btn danger" id="coachStop" type="button" hidden>Stop</button>
-            <button class="btn" id="coachBack" type="button" hidden>Back to the position you asked about</button>
+            <button class="btn" id="coachBack" type="button" hidden>Back to that position</button>
           </div>
           <p class="note" id="coachStatus"></p>
+          <details class="more">
+            <summary>How the coach answers</summary>
+            <p class="note">Answers are written from what the engine found in this position — the pieces, the
+              evaluation, the top lines, and any move you name, searched on its own. The coach may not tell you anything
+              the engine did not find, and it may say there is no clear reason.</p>
+          </details>
         </div>
         <div class="panel" id="coachAbsent" hidden>
-          <h2>Ask the coach</h2>
-          <p class="note" style="margin:0">The coach needs to reach Claude, and this view cannot. Everything else on this
-            page works without it — the engine, the analysis and the training are all local.</p>
+          <h2>Coach</h2>
+          <p class="note" style="margin:0">The coach needs a connection to Claude, which this view does not have. Everything
+            else here works offline: the engine, the analysis and the training.</p>
         </div>
 
         <div class="panel">
-          <h2>Play it out</h2>
-          <p class="note" style="margin:0 0 10px">Hand this position to the opponent on the Play tab, at the band chosen there. You take the side to move.</p>
+          <h2>Play from here</h2>
+          <p class="note" style="margin:0 0 10px">Hand this position to the computer, at the level set on Play. You take the side to move.</p>
           <button class="btn" id="practicePlay" type="button">Play from here</button>
         </div>
         <div class="panel">
@@ -1067,9 +873,9 @@
         </div>
         <div class="panel">
           <h2>Position</h2>
-          <label class="field"><span>This position, as FEN</span><input class="fen" id="practiceFen" type="text" readonly></label>
-          <label class="field"><span>Set up a position from FEN</span><input class="fen" id="practiceFenIn" type="text" placeholder="paste a FEN from Chess.com or Lichess"></label>
-          <button class="btn" id="practiceLoad" type="button">Load it</button>
+          <label class="field"><span>This position (FEN)</span><input class="fen" id="practiceFen" type="text" readonly></label>
+          <label class="field"><span>Set up from FEN</span><input class="fen" id="practiceFenIn" type="text" placeholder="Paste a FEN from Chess.com or Lichess"></label>
+          <button class="btn" id="practiceLoad" type="button">Load</button>
           <p class="note" id="practiceFenNote"></p>
         </div>
       </div>
@@ -1079,52 +885,44 @@
   <!-- OPENINGS -->
   <section id="section-openings" hidden>
     <div id="openingBrowse">
-      <details class="panel method" open>
-        <summary><h2>How to actually learn an opening</h2></summary>
-        <p>Most opening study fails the same way: you memorise ten moves, your opponent plays the eleventh
-          differently on move three, and you are on your own with no idea what the position wanted. The fix
-          is not more moves. It is fewer moves and more reasons.</p>
-
-        <ol class="method-steps">
-          <li><strong>Learn one answer to each first move, not five.</strong> You will meet 1.e4 and 1.d4 most
-            of the time. One reply to each, played every game, teaches you the resulting positions faster
-            than a broad repertoire ever will — because you keep landing in them.</li>
-          <li><strong>Know the point of every move before you memorise the order.</strong> If you can say what
-            a move does — takes a square, opens a line, stops an idea — you can find it again when the move
-            order changes. If you only know the sequence, you cannot.</li>
-          <li><strong>Stop at the first position you understand.</strong> Six to ten moves is plenty. Past
-            that you are memorising someone else's preparation for positions you will not reach.</li>
-          <li><strong>Have an answer for the cheap attacks.</strong> Below about 1200 most games are decided
-            by an early raid on f7 or f2, not by theory. Each line here lists what actually goes wrong and
-            what to do about it. That section is worth more than the moves.</li>
-          <li><strong>Test yourself with the board, not the page.</strong> Recognising a move when you see it
-            is not the same as finding it. "Test me" plays the other side and makes you produce the move
-            yourself, then spaces the line out over days so it sticks.</li>
-          <li><strong>Review your own games against it.</strong> When you leave the line, that is the
-            interesting moment — and you no longer have to find it by hand. The panel below this one walks
-            every game you have played or pasted against these lines and lists the moves where you stopped
-            following them, commonest first, with what each one cost.</li>
-        </ol>
-
-        <p class="note">Every line below, and every branch, has been checked move by move against this app's own
-          engine, and none of them leaves you worse than about half a point. Where the text counts something —
-          attackers on a square, a piece with one move — the count was made on the board, not from memory.</p>
-      </details>
-
-      <!-- WHERE YOUR GAMES LEFT THE BOOK. Above the list of openings on
-           purpose: it is the only thing on this screen that knows anything
-           about you, and it says which of the lines below is worth your
-           afternoon. -->
+      <!-- Where your games left the repertoire comes first: it is the only
+           thing on this screen that knows anything about you. -->
       <div class="panel" id="deviationPanel" hidden>
-        <h2>Where you leave the book</h2>
+        <h2>Where you leave your repertoire</h2>
         <p class="note" id="deviationSummary"></p>
         <div id="deviationList"></div>
-        <p class="note">Your games walked against the lines below. The opening named is the one the game followed furthest, and
-          transposing into another line you know does not count as leaving. The cost is two searches of equal depth,
-          one after your move and one after the book's — and it is allowed to be nothing.</p>
+        <details class="more">
+          <summary>How this is measured</summary>
+          <p class="note">Your games are compared with the lines below. The opening named is the one the game followed
+            furthest, and transposing into another line you know does not count as leaving. The cost is two searches
+            of equal depth, one after your move and one after the book's — and it is allowed to be nothing.</p>
+        </details>
       </div>
 
       <div id="openingList"></div>
+
+      <details class="panel method">
+        <summary><h2>How to learn an opening</h2></summary>
+        <p>Most opening study fails the same way: you memorise ten moves, your opponent deviates on move three, and you
+          are on your own with no idea what the position wanted. The fix is fewer moves and more reasons.</p>
+        <ol class="method-steps">
+          <li><strong>One answer to each first move, not five.</strong> You will meet 1.e4 and 1.d4 most of the time.
+            One reply to each, played every game, teaches the resulting positions faster than a broad repertoire —
+            because you keep reaching them.</li>
+          <li><strong>Know the point of every move before the order.</strong> If you can say what a move does — takes
+            a square, opens a line, stops an idea — you can find it again when the move order changes.</li>
+          <li><strong>Stop at the first position you understand.</strong> Six to ten moves is plenty. Beyond that you
+            are memorising preparation for positions you will not reach.</li>
+          <li><strong>Have an answer for the cheap attacks.</strong> Below about 1200 most games are decided by an early
+            raid on f7 or f2, not by theory. Each line lists what goes wrong and what to do about it.</li>
+          <li><strong>Test yourself on the board.</strong> Recognising a move is not the same as finding it. "Test me"
+            plays the other side and makes you produce the move, then spaces the line out over days.</li>
+          <li><strong>Check your own games against it.</strong> The panel above lists the moves where you left these
+            lines, most frequent first, with what each cost.</li>
+        </ol>
+        <p class="note">Every line and branch has been checked move by move against this app's engine, and none leaves
+          you worse than about half a point.</p>
+      </details>
     </div>
 
     <div id="openingStudy" hidden>
@@ -1140,7 +938,7 @@
             </div>
             <p class="note" id="openingProgress"></p>
             <div class="chips" id="openingChips" aria-label="The line"></div>
-            <p class="note" style="margin-top:6px">Hover or tap a move to see what it is for.</p>
+            <p class="note" style="margin-top:6px">Tap a move to see its purpose.</p>
             <p class="idea-who" id="openingWho"></p>
             <p class="idea" id="openingIdea"></p>
 
@@ -1150,7 +948,7 @@
 
             <div class="row" style="margin-top:12px">
               <button class="btn primary" id="openingNext" type="button">Next move</button>
-              <button class="btn primary" id="openingTestNow" type="button" hidden>Test me now</button>
+              <button class="btn primary" id="openingTestNow" type="button" hidden>Test me</button>
               <button class="btn" id="openingFinish" type="button" hidden>Done</button>
               <button class="btn" id="openingClose" type="button">Back</button>
             </div>
@@ -1164,56 +962,53 @@
     </div>
   </section>
 
-  <!-- REVIEW -->
+  <!-- GAME REVIEW -->
   <section id="section-review" hidden>
-    <!-- BRINGING GAMES IN. This panel replaced a paragraph that said the page
-         "cannot reach Chess.com or Lichess directly — it is not allowed to make
-         requests to other sites". That was true of Lichess and had stopped
-         being true of Chess.com, whose public archive endpoint sends the header
-         a browser needs to read it. A page that tells you something is
-         impossible while it is possible is worse than one that never mentioned
-         it. -->
     <div class="panel">
-      <h2>Bring in your Chess.com games</h2>
-      <p class="note">No password needed — Chess.com publishes public games openly. Your username reads your archives,
-        newest month first. The request goes from this browser to Chess.com and back; this app has no server.</p>
+      <h2>Import from Chess.com</h2>
+      <p class="note" style="margin:0 0 4px">Your public games, read directly from Chess.com. No password is needed.</p>
       <div class="fields">
         <label class="field"><span>Chess.com username</span>
-          <input type="text" id="importUser" autocomplete="username" spellcheck="false" placeholder="the name in your profile address">
+          <input type="text" id="importUser" autocomplete="username" spellcheck="false" placeholder="Your username">
         </label>
-        <label class="field"><span>How many</span>
+        <label class="field"><span>Games to import</span>
           <select id="importCount">
-            <option value="50">The last 50 games</option>
-            <option value="100" selected>The last 100 games</option>
-            <option value="300">The last 300 games</option>
-            <option value="1000">Everything it can find</option>
+            <option value="50">Last 50 games</option>
+            <option value="100" selected>Last 100 games</option>
+            <option value="300">Last 300 games</option>
+            <option value="1000">All games</option>
           </select>
         </label>
       </div>
       <div class="row" style="margin-top:10px">
-        <button class="btn primary" id="importRun" type="button">Fetch my games</button>
+        <button class="btn primary" id="importRun" type="button">Import games</button>
         <button class="btn danger" id="importStop" type="button" hidden>Stop</button>
       </div>
       <p class="note" id="importNote"></p>
       <p class="note" id="importState"></p>
-      <p class="note">Importing brings the moves, which is all the repertoire report needs. An accuracy and a mistake list
-        need the engine to walk the game.</p>
+      <details class="more">
+        <summary>How importing works</summary>
+        <p class="note">Chess.com publishes public games through an open archive, newest month first. The request goes
+          from this browser to Chess.com and back; this app has no server. Importing brings the moves, ratings and
+          clocks, which is enough for the repertoire report and the rating chart. Accuracy and a mistake list come from
+          reviewing each game, below.</p>
+      </details>
 
       <div class="after" style="margin-top:14px">
-        <h3>Walk them with the engine</h3>
-        <p class="note">Oldest first, saved after each — stop any time and press again to carry on. Mistakes worth drilling
-          are added to Drills as it goes.</p>
+        <h3>Review imported games</h3>
+        <p class="note">Oldest first, saved as it goes. Stop at any time and continue later. Mistakes worth practising
+          are added to Drills.</p>
         <div class="fields">
-          <label class="field"><span>How hard it looks</span>
+          <label class="field"><span>Depth</span>
             <select id="walkDepth">
-              <option value="7" selected>Quick — a few seconds a game</option>
+              <option value="7" selected>Quick — a few seconds per game</option>
               <option value="9">Normal</option>
-              <option value="12">Careful — slow over many games</option>
+              <option value="12">Deep — slower, finds more</option>
             </select>
           </label>
         </div>
         <div class="row" style="margin-top:10px">
-          <button class="btn" id="walkRun" type="button">Walk the imported games</button>
+          <button class="btn" id="walkRun" type="button">Review imported games</button>
           <button class="btn danger" id="walkStop" type="button" hidden>Stop</button>
         </div>
         <div class="progress" id="walkBar" hidden><span id="walkFill"></span></div>
@@ -1222,18 +1017,15 @@
     </div>
 
     <div class="panel">
-      <h2>Review a game you played</h2>
-      <p class="note">
-        Or paste one. Lichess games have to come this way — that site will not let a browser read them from
-        another page — and so does anything from elsewhere.
-      </p>
+      <h2>Game review</h2>
+      <p class="note" style="margin:0 0 4px">Paste a game from Chess.com, Lichess or anywhere else.</p>
       <details class="how">
         <summary>Where to find the PGN</summary>
-        <p><strong>Chess.com:</strong> open the game, then Share, then the PGN tab, then Copy.
-          On the app it is the share icon at the bottom of the board.</p>
-        <p><strong>Lichess:</strong> open the game, scroll to the bottom of the move list, and use the
-          download or clipboard icon under FEN &amp; PGN.</p>
-        <p>Either way, paste the whole thing below, headers and all. If you only have the moves, that works too.</p>
+        <p><strong>Chess.com:</strong> open the game, then Share, then the PGN tab, then Copy. In the app it is the
+          share icon under the board.</p>
+        <p><strong>Lichess:</strong> open the game, scroll to the bottom of the move list, and use the download or
+          clipboard icon under FEN &amp; PGN.</p>
+        <p>Paste the whole thing, headers and all. Just the moves also works.</p>
       </details>
 
       <textarea id="pgnInput" rows="7" placeholder="Paste the PGN here — headers and moves, or just the moves."></textarea>
@@ -1241,27 +1033,27 @@
       <div class="fields">
         <label class="field">
           <span>Your username in that game</span>
-          <input id="reviewName" type="text" placeholder="optional — decides which side is yours">
+          <input id="reviewName" type="text" placeholder="Optional — sets which side is yours">
         </label>
         <label class="field">
-          <span>If it cannot tell, you were</span>
+          <span>Your side</span>
           <select id="reviewSide">
             <option value="white">White</option>
             <option value="black">Black</option>
           </select>
         </label>
         <label class="field">
-          <span>How hard to look</span>
+          <span>Depth</span>
           <select id="reviewDepth">
-            <option value="7">Quick — about 0.1s a move</option>
-            <option value="9" selected>Normal — about 0.3s a move</option>
-            <option value="12">Careful — about 0.7s a move, catches more</option>
+            <option value="7">Quick — about 0.1s per move</option>
+            <option value="9" selected>Normal — about 0.3s per move</option>
+            <option value="12">Deep — about 0.7s per move, finds more</option>
           </select>
         </label>
       </div>
 
       <div class="row">
-        <button class="btn primary" id="reviewRun">Walk the game</button>
+        <button class="btn primary" id="reviewRun">Review game</button>
       </div>
       <p class="note" id="reviewStatus"></p>
       <div class="progress" id="reviewBar" hidden><span id="reviewFill"></span></div>
@@ -1270,21 +1062,21 @@
     <div id="reviewOut" hidden></div>
 
     <div class="panel" id="reviewBoardWrap" hidden>
-      <h3>The position</h3>
+      <h3>Position</h3>
       <div class="board-with-bar">
         <div id="reviewEval" aria-label="Evaluation after the move"></div>
         <div class="board-host"><div id="reviewBoard"></div></div>
       </div>
       <div class="legend">
-        <span><i class="k-played"></i> what was played</span>
-        <span><i class="k-best"></i> what the engine wanted</span>
+        <span><i class="k-played"></i> played</span>
+        <span><i class="k-best"></i> best move</span>
       </div>
       <p class="note" id="reviewBoardNote"></p>
       <p class="note" id="reviewBoardEval"></p>
       <p class="idea" id="reviewBoardWhy" hidden></p>
       <div class="row" style="margin-top:10px">
-        <button class="btn" id="reviewExplore" type="button">Explore on the board</button>
-        <button class="btn primary" id="reviewAskWhy" type="button" hidden>Ask the coach why</button>
+        <button class="btn" id="reviewExplore" type="button">Open on the analysis board</button>
+        <button class="btn primary" id="reviewAskWhy" type="button" hidden>Ask the coach</button>
       </div>
     </div>
   </section>
@@ -1292,25 +1084,27 @@
   <!-- PUZZLES -->
   <section id="section-puzzles" hidden>
     <div class="panel">
-      <h2>Tactics from your own games</h2>
-      <p class="note" style="margin:0 0 10px">Moments your opponent slipped in your own games, where one move punished it. A second, deeper search
-        confirms a single move is clearly best; anything with two equal answers is dropped rather than asked.</p>
-      <p class="note" style="margin:0 0 12px"><strong>Not the same as Drills.</strong> A drill is a position where
-        <em>you</em> went wrong. A puzzle is a chance that was on the board for you.</p>
+      <h2>Puzzles from your games</h2>
+      <p class="note" style="margin:0 0 10px">Moments your opponent went wrong and one move punished it.</p>
       <div id="puzzleHead" hidden></div>
       <p class="note" id="puzzleCount"></p>
       <p class="note" id="puzzleEmpty">
-        Nothing here yet. Play a game on the Play tab, or paste one into Review, and the engine will search it for
-        the moments your opponent went wrong.
+        No puzzles yet. Play a game, or import or paste one, and the engine will search it for tactics.
       </p>
       <p class="note" id="puzzleOlder" hidden></p>
       <div class="row">
         <button class="btn primary" id="puzzleStart" type="button" hidden>Start</button>
-        <button class="btn" id="puzzleScan" type="button" hidden>Scan games for tactics</button>
+        <button class="btn" id="puzzleScan" type="button" hidden>Find tactics in your games</button>
         <button class="btn danger" id="puzzleStop" type="button" hidden>Stop</button>
       </div>
       <p class="note" id="puzzleScanNote"></p>
       <div class="progress" id="puzzleBar" hidden><span id="puzzleFill"></span></div>
+      <details class="more">
+        <summary>How puzzles are chosen</summary>
+        <p class="note">A second, deeper search confirms that a single move is clearly best; anything with two equal
+          answers is dropped rather than asked. <strong>Not the same as Drills:</strong> a drill is a position where
+          <em>you</em> went wrong. A puzzle is a chance that was on the board for you.</p>
+      </details>
     </div>
 
     <div id="puzzleBoardWrap" hidden>
@@ -1318,20 +1112,20 @@
         <div>
           <div id="puzzleBoard"></div>
           <div class="legend" id="puzzleLegend" hidden>
-            <span><i class="k-played"></i> what you tried</span>
-            <span><i class="k-best"></i> the move that wins</span>
+            <span><i class="k-played"></i> your move</span>
+            <span><i class="k-best"></i> the winning move</span>
           </div>
         </div>
         <div>
           <div class="panel">
-            <h3>Take it</h3>
+            <h3>Find the move</h3>
             <p class="prompt" id="puzzlePrompt"></p>
             <p class="note" id="puzzleWhere"></p>
             <p class="idea" id="puzzleAnswer"></p>
             <div class="row">
               <button class="btn primary" id="puzzleNext" type="button" hidden>Next</button>
-              <button class="btn" id="puzzleExplore" type="button" hidden>Explore on the board</button>
-              <button class="btn" id="puzzleAskWhy" type="button" hidden>Ask the coach why</button>
+              <button class="btn" id="puzzleExplore" type="button" hidden>Open on the analysis board</button>
+              <button class="btn" id="puzzleAskWhy" type="button" hidden>Ask the coach</button>
             </div>
           </div>
         </div>
@@ -1341,14 +1135,14 @@
     <div class="panel" id="puzzleList"></div>
   </section>
 
-  <!-- STORM -->
+  <!-- TIMED PUZZLES -->
   <section id="section-storm" hidden>
-    <p class="lede" id="stormLede">Three minutes, one position after another. The only way to go faster is to see faster.</p>
+    <p class="lede" id="stormLede">Three minutes. One position after another.</p>
 
     <div class="panel" id="stormSetup">
-      <p class="note" style="margin:0 0 10px">Everything else here is untimed on purpose — a drill you rush is a drill you did not do. Recognition is
-        the exception: you know what a fork looks like, what you lack is finding it in four seconds. A wrong move
-        costs ten seconds rather than ending the run.</p>
+      <p class="note" style="margin:0 0 10px">Everything else here is untimed, because a drill you rush is a drill you did not do.
+        Recognition is the exception: you know what a fork looks like; this trains finding it in four seconds. A wrong
+        move costs ten seconds rather than ending the run.</p>
       <p class="note" id="stormSource"></p>
       <div class="row">
         <button class="btn primary" id="stormStart" type="button">Start</button>
@@ -1378,30 +1172,26 @@
     </div>
 
     <div class="panel">
-      <h3>Your best</h3>
+      <h3>Personal best</h3>
       <p class="note" id="stormBest"></p>
     </div>
   </section>
 
   <!-- ENDGAMES -->
   <section id="section-endgames" hidden>
-    <p class="lede">Techniques worth owning, against a defence that will not help you.</p>
+    <p class="lede">Essential techniques, against a defence that gives nothing away.</p>
 
     <div id="endgameBoardWrap" hidden>
       <div class="layout">
         <div>
           <p class="prompt" id="endgameGoal"></p>
           <div id="endgameBoard"></div>
-          <!-- THE VERDICT LIVES WITH THE BOARD. It is the whole point of this
-               screen — "that was the move the win went" — and in the side panel
-               it sat below a full-height board on a phone, so the one thing
-               worth reading was the one thing off screen. So are the buttons:
-               the answer to a verdict is usually to take the move back. -->
+          <!-- The verdict lives with the board: it is the point of this screen. -->
           <p class="note" id="endgameCount"></p>
           <p class="note" id="endgameVerdict"></p>
           <p class="idea" id="endgameOutcome"></p>
           <div class="row">
-            <button class="btn" id="endgameTakeBack" type="button" hidden>Take it back</button>
+            <button class="btn" id="endgameTakeBack" type="button" hidden>Take back</button>
             <button class="btn primary" id="endgameNext" type="button" hidden>Back to the list</button>
           </div>
         </div>
@@ -1422,22 +1212,24 @@
     <div id="endgameList"></div>
 
     <div class="panel">
-      <h3>Why these are graded and your games are not</h3>
-      <p class="note">King and pawn against king is not estimated here, it is solved — all 393,216 positions worked out once
-        and looked up after every move. That is how the app can name the exact move a win turned into a draw. The
-        search cannot: shown the drawn opposition it is sure White is winning. Where the search referees instead, the
-        panel above says so.</p>
+      <details class="more" style="margin-top:0">
+        <summary>How these are graded</summary>
+        <p class="note">King and pawn against king is not estimated, it is solved — all 393,216 positions worked out
+          once and looked up after every move. That is how the app can name the exact move a win became a draw. The
+          search cannot: shown the drawn opposition, it is sure White is winning. Where the search referees instead,
+          the panel says so.</p>
+      </details>
     </div>
   </section>
 
   <!-- WATCH -->
   <section id="section-watch" hidden>
-    <p class="lede">Somebody else's game, a move at a time, with the engine on every move.</p>
+    <p class="lede">A game a move at a time, with the engine's view of each.</p>
 
     <div class="panel">
       <div class="row">
         <button class="btn primary" id="watchBots" type="button">Watch two bots play</button>
-        <label class="field"><span>Speed</span>
+        <label class="field" style="margin:0"><span>Speed</span>
           <select id="watchSpeed">
             <option value="2600">Slow</option>
             <option value="1600" selected>Normal</option>
@@ -1445,8 +1237,7 @@
           </select>
         </label>
       </div>
-      <p class="note" style="margin:10px 0 0" id="watchBlurb">Two bots off the ladder, drawn at random, with an opening neither of them picked. Press it again for
-        a different game — it is never the same twice.</p>
+      <p class="note" style="margin:10px 0 0" id="watchBlurb">Two opponents drawn at random, with an opening neither of them chose. Every game is different.</p>
     </div>
 
     <div id="watchStage" hidden>
@@ -1454,11 +1245,7 @@
         <div>
           <div id="watchBoard"></div>
           <p class="prompt" id="watchMove"></p>
-          <!-- WHAT A PERSON WROTE COMES BEFORE WHAT THE SEARCH SAID. The
-               curated note and the opening's own idea used to sit in the
-               right-hand column, which on a phone is under the board and below
-               the engine's verdict — so the only sentence on the screen with a
-               human insight in it was the one you had to scroll for. -->
+          <!-- What a person wrote comes before what the search said. -->
           <div id="watchWhy"></div>
           <p class="note" id="watchNote"></p>
           <p class="idea" id="watchOutcome"></p>
@@ -1485,25 +1272,27 @@
     </div>
 
     <div class="panel">
-      <h3>Games worth watching</h3>
-      <p class="note">Every move is replayed on a real board before it ships, so these are the games they say they are.
-        A recorded checkmate has to be checkmate or the build fails. A resignation is a fact about a room, not a
-        position, and the screen says so rather than pretending the board proves it.</p>
+      <h3>Famous games</h3>
+      <p class="note">Every move is replayed on a real board before it ships, so these are the games they say they are.</p>
     </div>
     <div id="watchGames"></div>
 
     <div class="panel">
-      <h3>What the commentary is, and what it is not</h3>
-      <p class="note">Three sources. While the game is still in one of the app's openings, you get that opening's own note
-        for the move just played. On a famous game, at the moves that have one, a sentence somebody wrote about that
-        exact move. And after every move, a search deeper than the one that played it — if it wanted something else,
-        the gap is printed in points.</p>
-      <p class="note">What you will not get is what the player was thinking. Nothing here can know that.</p>
+      <details class="more" style="margin-top:0">
+        <summary>About the commentary</summary>
+        <p class="note">Three sources. While the game is still in one of the app's openings, that opening's own note for
+          the move just played. On a famous game, at the moves that have one, a sentence written about that exact move.
+          And after every move, a search deeper than the one that played it — if it preferred something else, the gap
+          is given in points. What you will not get is what the player was thinking; nothing here can know that.</p>
+        <p class="note">A recorded checkmate has to be checkmate on the board or the build fails. A resignation is a fact
+          about a room, not a position, and the screen says so rather than pretending the board proves it.</p>
+      </details>
     </div>
   </section>
+
   <!-- NOTATION -->
   <section id="section-notation" hidden>
-    <p class="lede">How moves are written down, worked out from the board in front of you.</p>
+    <p class="lede">How moves are written, read from the board in front of you.</p>
 
     <div id="notationStage">
       <div class="layout">
@@ -1511,16 +1300,13 @@
           <div id="notationBoard"></div>
           <p class="prompt" id="notationPrompt"></p>
           <div class="row">
-            <button class="btn" id="notationTakeBack" type="button">Take it back</button>
+            <button class="btn" id="notationTakeBack" type="button">Take back</button>
             <button class="btn" id="notationShow" type="button" hidden>Show me</button>
             <button class="btn" id="notationFree" type="button">Start again</button>
             <button class="btn" id="notationFlip" type="button">Flip</button>
           </div>
           <p class="note" id="notationFeedback"></p>
-          <!-- THE ANSWER GOES WHERE YOUR EYE ALREADY IS. This panel was in the
-               right-hand column under the lesson's prose, which on a phone
-               stacks below the board — so the one thing you played the move to
-               see was two screens down from the move. -->
+          <!-- The answer goes where your eye already is: under the board. -->
           <div class="panel">
             <p class="san-big" id="notationSan">—</p>
             <div id="notationParts"></div>
@@ -1532,7 +1318,7 @@
             <p class="note" id="notationRule"></p>
           </div>
           <div class="panel">
-            <h3>The moves you have made</h3>
+            <h3>Your moves</h3>
             <div class="movelist" id="notationMoves"></div>
             <p class="note">Tap one to read it back.</p>
           </div>
@@ -1541,54 +1327,51 @@
     </div>
 
     <div class="panel">
-      <h3>The whole alphabet</h3>
+      <h3>The notation</h3>
       <div class="san-key">
         <div><b>K</b><span>king</span></div>
         <div><b>Q</b><span>queen</span></div>
         <div><b>R</b><span>rook</span></div>
         <div><b>B</b><span>bishop</span></div>
         <div><b>N</b><span>knight — K was taken</span></div>
-        <div><b>·</b><span>no letter at all means a pawn</span></div>
-        <div><b>x</b><span>takes</span></div>
+        <div><b>·</b><span>no letter means a pawn</span></div>
+        <div><b>x</b><span>captures</span></div>
         <div><b>+</b><span>check</span></div>
         <div><b>#</b><span>checkmate</span></div>
-        <div><b>O-O</b><span>castles short</span></div>
-        <div><b>O-O-O</b><span>castles long</span></div>
+        <div><b>O-O</b><span>castles kingside</span></div>
+        <div><b>O-O-O</b><span>castles queenside</span></div>
         <div><b>=Q</b><span>a pawn promoted, to a queen</span></div>
       </div>
-      <p class="note">The board's own addresses come first: files are lettered <b>a</b> to <b>h</b> from White's
-        left, ranks are numbered <b>1</b> to <b>8</b> from White's side. Every square has exactly one name and it
-        does not change when you turn the board round — e4 is e4 whichever end you are sitting at. The Vision screen
-        is where you drill those until you stop counting up from a1.</p>
+      <p class="note">Squares come first: files are lettered <b>a</b> to <b>h</b> from White's left, ranks numbered
+        <b>1</b> to <b>8</b> from White's side. Every square has one name, and it does not change when the board is
+        turned — e4 is e4 from either side. The Vision screen drills those until they are automatic.</p>
     </div>
 
     <div class="panel">
-      <h3>Reading a whole game</h3>
+      <h3>Reading a game</h3>
       <p class="note">Moves come in pairs, numbered once: <b>1. e4 e5</b> is White's first move and Black's reply.
-        A Black move quoted on its own gets three dots — <b>1… e5</b> — so you can tell it from a White one.
-        A game ends with its result: <b>1-0</b> White won, <b>0-1</b> Black won, <b>½-½</b> a draw.</p>
-      <p class="note">You will also meet judgements attached to moves: <b>!</b> good, <b>!!</b> brilliant,
-        <b>?</b> a mistake, <b>??</b> a blunder, <b>!?</b> interesting, <b>?!</b> dubious. Those are opinions, not
-        notation — two annotators can disagree about the same move and both be writing correctly. This app uses its
-        own marks on the Review screen and says what each one measured rather than what it thought.</p>
+        A Black move quoted alone gets three dots — <b>1… e5</b>. A game ends with its result: <b>1-0</b> White won,
+        <b>0-1</b> Black won, <b>½-½</b> a draw.</p>
+      <p class="note">Annotators attach judgements to moves: <b>!</b> good, <b>!!</b> brilliant, <b>?</b> a mistake,
+        <b>??</b> a blunder, <b>!?</b> interesting, <b>?!</b> dubious. Those are opinions, not notation. Game Review
+        uses its own marks and says what each one measured.</p>
     </div>
 
     <div class="panel">
-      <h3>One rule at a time</h3>
-      <p class="note">Each sets the board up and asks for one move. The notation beside it is written from the position by
-        the same code that writes the moves in your own games, so a lesson that stopped being true would fail the
-        build rather than teach you the wrong rule.</p>
+      <h3>Lessons</h3>
+      <p class="note">Each lesson sets up a position and asks for one move. The notation beside it is written from the
+        board by the same code that records your own games.</p>
     </div>
     <div id="notationLessons"></div>
   </section>
-  <!-- VISION -->
+
+  <!-- BOARD VISION -->
   <section id="section-vision" hidden>
-    <p class="lede" id="visionLede">Know every square without counting up from a1.</p>
+    <p class="lede" id="visionLede">Know every square without counting from a1.</p>
 
     <div class="panel" id="visionSetup">
-      <p class="note" style="margin:0 0 10px">Everything else here assumes you can do this. The openings talk about d4 and c5, the review says the
-        mistake was on f7 — all noise until the letters and numbers are somewhere you can reach without thinking.
-        Thirty seconds a round.</p>
+      <p class="note" style="margin:0 0 10px">The openings, the review and the coach all name squares. Thirty seconds a round, until the names
+        are automatic.</p>
       <div class="fields">
         <label class="field"><span>Questions</span>
           <select id="visionMode">
@@ -1602,7 +1385,7 @@
           <select id="visionOrientation">
             <option value="white">White at the bottom</option>
             <option value="black">Black at the bottom</option>
-            <option value="random">Either, at random</option>
+            <option value="random">Random</option>
           </select>
         </label>
       </div>
@@ -1625,19 +1408,15 @@
               <div><span class="k">Time</span><span class="v" id="visionClock">30.0s</span></div>
             </div>
             <p class="note" id="visionStreak"></p>
-            <p class="prompt" id="visionPrompt">Press start.</p>
+            <p class="prompt" id="visionPrompt">Press Start.</p>
             <p class="note" id="visionHow"></p>
             <div class="row" id="visionOptions"></div>
             <p class="note" id="visionFeedback"></p>
           </div>
         </div>
       </div>
-      <!-- OUTSIDE THE TWO COLUMNS. While a round is running the right column is
-           lifted above the board, and anything else in it goes up too — so the
-           table of past scores sat between the question and the board it is
-           asked about. -->
       <div class="panel">
-        <h3>Your best</h3>
+        <h3>Personal best</h3>
         <div id="visionBest"></div>
       </div>
     </div>
@@ -1646,19 +1425,16 @@
   <!-- DRILLS -->
   <section id="section-drills" hidden>
     <div class="panel">
-      <h2>Your mistakes, again later</h2>
-      <p class="note" style="margin:0 0 10px">Positions where <em>you</em> went wrong. Chances your opponent handed you are under Puzzles.</p>
+      <h2>Drills</h2>
+      <p class="note" style="margin:0 0 10px">Positions where <em>you</em> went wrong. Chances your opponent gave you are under Puzzles.</p>
       <p class="note" id="drillCount"></p>
       <p class="note" id="drillEmpty">
-        Nothing here yet. Review a game and its mistakes land here, coming back after a day, a week, then
-        longer, for as long as you keep getting them right.
+        No drills yet. Review a game and its mistakes come back after a day, a week, then longer — for as long as you
+        keep getting them right.
       </p>
       <div class="row">
         <button class="btn primary" id="drillStart" hidden>Start</button>
-        <!-- FOR GAMES ALREADY WALKED. The bulk walk creates drills as it goes,
-             but games reviewed before it did are sitting there with their
-             mistakes and no drills — and nothing would ever walk them again,
-             because they are already marked reviewed. -->
+        <!-- For games analysed before the bulk analysis created drills. -->
         <button class="btn" id="drillCatchUp" type="button" hidden>Add from reviewed games</button>
       </div>
       <p class="note" id="drillCatchUpNote"></p>
@@ -1669,8 +1445,8 @@
         <div>
           <div id="drillBoard"></div>
           <div class="legend" id="drillLegend" hidden>
-            <span><i class="k-played"></i> what you tried</span>
-            <span><i class="k-best"></i> what the engine wanted</span>
+            <span><i class="k-played"></i> your move</span>
+            <span><i class="k-best"></i> best move</span>
           </div>
         </div>
         <div>
@@ -1680,8 +1456,8 @@
             <p class="idea" id="drillAnswer"></p>
             <div class="row">
               <button class="btn primary" id="drillNext" hidden>Next</button>
-              <button class="btn" id="drillExplore" type="button" hidden>Explore on the board</button>
-              <button class="btn" id="drillAskWhy" type="button" hidden>Ask the coach why</button>
+              <button class="btn" id="drillExplore" type="button" hidden>Open on the analysis board</button>
+              <button class="btn" id="drillAskWhy" type="button" hidden>Ask the coach</button>
             </div>
           </div>
         </div>
@@ -1691,7 +1467,7 @@
 
   <!-- PROGRESS -->
   <section id="section-progress" hidden>
-    <p class="lede">What your mistakes have in common, across every game you have reviewed.</p>
+    <p class="lede">How you are playing, across every game you have reviewed.</p>
     <div id="progressOut"></div>
   </section>
 
@@ -1700,7 +1476,7 @@
     <div class="layout">
       <div>
         <div class="panel">
-          <h2>How it looks</h2>
+          <h2>Preview</h2>
           <div id="settingSample" style="max-width:360px"></div>
           <p class="note" id="settingSampleNote"></p>
         </div>
@@ -1717,39 +1493,39 @@
         <div class="panel">
           <h2>Display</h2>
           <label class="field"><span>Theme</span>
-            <select id="settingTheme"><option value="system">Follow the device</option><option value="light">Light</option><option value="dark">Dark</option></select>
+            <select id="settingTheme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select>
           </label>
           <div class="toggles">
-            <label class="toggle"><input type="checkbox" id="settingDots"><span>Show where a piece can go<small>Dots on the legal squares once a piece is selected.</small></span></label>
-            <label class="toggle"><input type="checkbox" id="settingCoords"><span>Show the file letters under the board</span></label>
-            <label class="toggle"><input type="checkbox" id="settingAnimate"><span>Slide pieces<small>Off, and moves appear at once.</small></span></label>
+            <label class="toggle"><input type="checkbox" id="settingDots"><span>Show legal moves<small>Dots on the squares a selected piece can reach.</small></span></label>
+            <label class="toggle"><input type="checkbox" id="settingCoords"><span>Show coordinates</span></label>
+            <label class="toggle"><input type="checkbox" id="settingAnimate"><span>Animate moves<small>Off, and pieces move instantly.</small></span></label>
           </div>
         </div>
         <div class="panel">
-          <h2>Marking squares</h2>
-          <label class="field"><span>A long-press on a phone marks a square in</span>
+          <h2>Highlights</h2>
+          <label class="field"><span>Long-press colour</span>
             <select id="settingLongPress"><option value="1">Red</option><option value="2">Green</option><option value="3">Blue</option><option value="4">Yellow</option></select>
           </label>
-          <p class="note">With a mouse: right-click for red, shift-right-click green, alt blue, ctrl yellow. Right-drag between two squares for an arrow. A tap on an empty square clears them.</p>
+          <p class="note">With a mouse: right-click for red, Shift for green, Alt for blue, Ctrl for yellow. Right-drag
+            between squares for an arrow. Tap an empty square to clear.</p>
         </div>
         <div class="panel">
           <h2>Engine</h2>
-          <label class="field"><span>Thinking time on the practice board</span>
+          <label class="field"><span>Thinking time on the analysis board</span>
             <select id="settingThink"><option value="fast">Fast — 0.3s</option><option value="normal">Normal — 0.9s</option><option value="deep">Deep — 2.5s</option></select>
           </label>
-          <p class="note">The opponents on the Play tab have their own, fixed by band, and the game review has its own setting on that page.</p>
+          <p class="note">Opponents on Play have their own thinking time, fixed by level. Game review has its own setting.</p>
         </div>
         <div class="panel">
-          <button class="btn" id="settingReset" type="button">Back to the defaults</button>
+          <button class="btn" id="settingReset" type="button">Restore defaults</button>
         </div>
       </div>
     </div>
   </section>
 
   <footer>
-    <p>Everything on this page runs in your browser: the engine, the analysis, the openings. No account and no
-      server; nothing about your games leaves the device. The only thing fetched from elsewhere is the two
-      fonts, and the page works without them. Companion to the Chess Coach training app.</p>
+    <p>Runs entirely in your browser — engine, analysis and openings included. No account, no server; nothing about
+      your games leaves the device. Only the two fonts are fetched, and the app works without them.</p>
   </footer>
 </div>
 
@@ -2944,7 +2720,11 @@ const bandNote = (band) => {
     : (pct < 6
       ? `plays a random move about one time in ${Math.round(1 / band.blunder)}`
       : `plays a random move about ${Math.round(pct)}% of the time`));
-  parts.push(`${band.movetime}ms a move`);
+  // Seconds, not milliseconds: "80ms" is an engine's unit, "0.08s" is a
+  // person's. bandNoteRate() reads only the blunder rate back, so the time can
+  // be worded freely.
+  const seconds = band.movetime / 1000;
+  parts.push(`${seconds < 1 ? seconds.toFixed(2).replace(/0$/, '') : seconds.toFixed(1)}s a move`);
   return parts.join(', ');
 };
 
@@ -8048,7 +7828,7 @@ function importSummary({ found = 0, added = 0, duplicate = 0, unusable = 0, upda
   if (!found) return `No games at all in the ${month(months)} looked at.`;
 
   const parts = [];
-  if (added) parts.push(`${added} ${added === 1 ? 'game' : 'games'} brought in from ${month(months)}.`);
+  if (added) parts.push(`${added} ${added === 1 ? 'game' : 'games'} imported from ${month(months)}.`);
   else parts.push(`Nothing new in ${month(months)}.`);
   if (duplicate) parts.push(`${duplicate} ${duplicate === 1 ? 'was' : 'were'} already here.`);
   // Said plainly, because "already here" and "already here and now has your
@@ -9458,13 +9238,12 @@ const PUZZLE_BANK = [{"f":"r2qkb1r/pb3ppp/1pP2n2/4N3/Q1p1p3/2B5/PP2PPPP/RN2KB1R 
 
 // ── the app's own icon, inline ─────────────────────────────────────────────
 //
-// Generated by make-icons.cjs from the brand mark and embedded here, so a page
-// that is a single file can still declare a real installable icon. A manifest
-// pointing at an icon file that does not exist is a manifest that installs
-// nothing.
-const ICON_192 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIAAADdvvtQAAACFUlEQVR4nOzUsYlCURQA0btgaiAru02YWYQ1W4RgDwaiYA/28Cb859QwzO542A+s2g0EAiIREImASAREIiASAZEIiERAJAIiERCJgEgERCIgEgGRCIhEQCQCIlkP6Pl6zwZ8LufZgNP9MUsciERAJAIiERCJgEgERCIgEgGRCIhEQCQCIhEQiYBIBEQiIBIBkQiIREAkAiIREImASAREIiASAZEIiERAJAIiERCJgEgERCIgEgGRCIhEQCQCIhEQiYBIBEQiIBIBkQiIREAkAiIREImASAREIiASAZEIiERAJAIiERCJgEgERCIgEgGRCIhEQCQCIhEQiYBIBEQiIBIBkQiIREAkAiIREImASAREIiASAZEIiERAJAIiERDJekCfy3k24Pd6my34/5slDkQiIBIBkQiIREAkAiIREImASAREIiASAZEIiERAJAIiERCJgEgERCIgEgGRCIhEQCQCIhEQiYBIBEQiIBIBkQiIREAkAiIREImASAREIiASAZEIiERAJAIiERCJgEgERCIgEgGRCIhEQCQCIhEQiYBIBEQiIBIBkQiIREAkAiIREImASAREIiASAZEIiERAJAIiERCJgEgERCIgEgGRCIhEQCQCIhEQiYBIBEQiIBIBkQiI5Od42A+sciASAZEIiERAJAIiERCJgEgERCIgEgGRCIhEQCQCIhEQiYBIBEQiIBIBkXwBAAD//0BcLMoAAAAGSURBVAMAoyEMjwGBIO8AAAAASUVORK5CYII=';
-const ICON_512 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAIAAAB7GkOtAAAHS0lEQVR4nOzXQQkCARQA0S949SCKlvBmCDMbQrCDB1GwgykWFua9EsNsj/vdANCzHQCSBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgar0BeH++Awv73a4DC7s8X7NKDgAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACi1huA3+06sLDD/TGwtPNpVskBAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQJQAAEQJAECUAABECQBAlAAARAkAQNTmuN8NAD0OACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACi/gAAAP//ocBTTgAAAAZJREFUAwDl2RGP+0VpegAAAABJRU5ErkJggg==';
-const ICON_MASKABLE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAIAAAB7GkOtAAAHS0lEQVR4nOzXwQ0BARQA0S9xdRBCE26KULMiJHpwEBI9aGIvm3mviclsj/vdANCzHQCSBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAAKIEACBKAACiBAAgSgAAogQAIEoAlvf+fIeV+N2uw0pcnq9hUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRArC83+06rMTh/hjW4nwaFiUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQJQAAUQIAECUAAFECABAlAABRAgAQtTnudwNAjwMAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAIAoAQCIEgCAKAEAiBIAgCgBAIgSAICoPwAAAP//soptrQAAAAZJREFUAwDHABGPcyYAcAAAAABJRU5ErkJggg==';
+// Generated by tools/make-icons.cjs from the brand mark and embedded here, so a
+// page that is a single file can still declare a real installable icon. A
+// manifest pointing at an icon file that does not exist installs nothing.
+const ICON_192 = 'data:image/png;base64,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';
+const ICON_512 = 'data:image/png;base64,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';
+const ICON_MASKABLE = 'data:image/png;base64,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';
 
 
 // ── traps: setting a problem instead of correcting a mistake ───────────────
@@ -10444,7 +10223,7 @@ const esc = (text) => String(text ?? '')
 // board through CSS rather than through each screen remembering to ask.
 const DEFAULT_PREFS = {
   pieces: 'hardlines',   // hardlines | classic | letters
-  board: 'vermilion',    // vermilion | walnut | green | slate | ink | sand
+  board: 'green',        // green | walnut | slate | ink | sand | vermilion
   theme: 'system',       // system | light | dark
   dots: true,            // legal-move dots
   coords: true,
@@ -10463,7 +10242,7 @@ function applyPrefs() {
   const p = App.prefs;
   const root = document.documentElement;
   PieceStyle.current = p.pieces;
-  if (p.board === 'vermilion') delete root.dataset.board; else root.dataset.board = p.board;
+  root.dataset.board = p.board;
   root.dataset.pieces = p.pieces;
   root.dataset.coords = p.coords ? 'on' : 'off';
   if (p.theme === 'system') delete root.dataset.theme; else root.dataset.theme = p.theme;
@@ -10496,11 +10275,11 @@ const el = (tag, className, text) => {
 const SECTIONS = [
   ['today', 'Today'],
   ['play', 'Play'],
-  ['board', 'Board'],
+  ['board', 'Analysis'],
   ['openings', 'Openings'],
-  ['review', 'Review'],
+  ['review', 'Game review'],
   ['puzzles', 'Puzzles'],
-  ['storm', 'Clock'],
+  ['storm', 'Timed'],
   ['endgames', 'Endgames'],
   ['watch', 'Watch'],
   ['notation', 'Notation'],
@@ -10535,7 +10314,7 @@ const GROUPS = [
   { id: 'learn', label: 'Learn', sections: ['notation', 'openings', 'endgames', 'drills', 'vision'] },
   { id: 'train', label: 'Train', sections: ['puzzles', 'storm'] },
   { id: 'watch', label: 'Watch', sections: ['watch'] },
-  { id: 'you', label: 'You', sections: ['progress', 'settings'] },
+  { id: 'you', label: 'Profile', sections: ['progress', 'settings'] },
 ];
 
 const sectionLabel = (id) => SECTIONS.find(([s]) => s === id)?.[1] ?? id;
@@ -10652,7 +10431,7 @@ function renderToday() {
     rows.push({
       kind: 'Puzzles',
       title: `${n} ${n === 1 ? 'game has' : 'games have'} not been searched for tactics`,
-      note: 'The engine walks each game and keeps the moments your opponent went wrong.',
+      note: 'The engine analyses each game and keeps the moments your opponent went wrong.',
       action: 'Search',
       go: () => { show('puzzles'); scanGamesForTactics(); },
     });
@@ -10666,10 +10445,10 @@ function renderToday() {
   if (!reviewed.length) {
     rows.push({
       kind: 'Review',
-      title: waiting ? `${waiting} imported ${waiting === 1 ? 'game' : 'games'}, none walked yet` : 'No games reviewed yet',
+      title: waiting ? `${waiting} imported ${waiting === 1 ? 'game' : 'games'}, none reviewed yet` : 'No games reviewed yet',
       note: waiting
-        ? 'Importing brings the moves. An accuracy and a list of mistakes need the engine to walk the game.'
-        : 'Bring your games in from Chess.com, or paste one, and the engine will walk it and name the mistakes.',
+        ? 'Importing brings the moves. Accuracy and a list of mistakes come from reviewing the game.'
+        : 'Import your games from Chess.com, or paste one, and the engine will review it and list the mistakes.',
       action: waiting ? 'Walk one' : 'Bring them in',
       go: () => show('review'),
     });
@@ -10989,7 +10768,7 @@ async function finishPlay(key) {
     pgn,
   });
   $('playAfterText').textContent = game.startFen
-    ? 'The game is saved with its moves. Games from a set-up position are not counted in your record against the band.'
+    ? 'The game is saved with its moves. Games from a set-up position are not counted in your record at that level.'
     : 'The game is saved. It is in your record on the Today page.';
 
   const generation = Play.generation;
@@ -11690,7 +11469,7 @@ async function runReview() {
     Review.running = false;
     $('reviewRun').disabled = false;
     $('reviewBar').hidden = true;
-    status.textContent = `The walk failed part-way: ${e?.message ?? e}. Nothing was saved.`;
+    status.textContent = `The analysis failed part-way: ${e?.message ?? e}. Nothing was saved.`;
     return;
   }
 
@@ -11881,7 +11660,7 @@ function renderReviewResult() {
   summary.innerHTML = `<h3>${esc(h.White ?? '?')} vs ${esc(h.Black ?? '?')}</h3>
     <p class="note">You played ${esc(Review.side)}. ${Math.ceil(Review.parsed.plies.length / 2)} moves, ${Review.result.counted} of your moves judged.</p>
     <div class="readout">
-      <div><span class="k">Rough accuracy</span><span class="v">${accuracy === null ? '—' : `${accuracy}%`}</span></div>
+      <div><span class="k">Accuracy</span><span class="v">${accuracy === null ? '—' : `${accuracy}%`}</span></div>
       <div><span class="k">Mistakes found</span><span class="v">${mistakes.length}</span></div>
     </div>
     <p class="note">${blunders} of them ${blunders === 1 ? 'was' : 'were'} a blunder. ${accuracy === null
@@ -11898,16 +11677,12 @@ function renderReviewResult() {
     panel.innerHTML = `<h3>How strong this game looked</h3>
       <div class="readout">
         <div><span class="k">Estimated strength</span><span class="v">${estimateWords(est)}</span></div>
-        <div><span class="k">Played like the band</span><span class="v">${est.ceilingHit ? `${est.ceiling}+` : esc(est.band)}</span></div>
+        <div><span class="k">Played like level</span><span class="v">${est.ceilingHit ? `${est.ceiling}+` : esc(est.band)}</span></div>
       </div>
-      ${est.floorHit && Number.isFinite(est.floorLoss) ? `<p class="note"><strong>Why not a number:</strong> the weakest opponent this app has measured loses about ${(est.floorLoss / 100).toFixed(2)} points a move at this setting, and this game lost ${(Review.result.meanLoss / 100).toFixed(2)}. There is nothing below that on the scale — the ladder has no weaker rung to have measured — so this is where the measurement stops, not a statement about how strong you are. The figure gets useful as your loss per move comes down towards ${(est.floorLoss / 100).toFixed(2)}.</p>` : ''}
+      ${est.floorHit && Number.isFinite(est.floorLoss) ? `<p class="note"><strong>Why not a number:</strong> the weakest opponent this app has measured loses about ${(est.floorLoss / 100).toFixed(2)} points a move at this setting, and this game lost ${(Review.result.meanLoss / 100).toFixed(2)}. There is nothing below that on the scale — no weaker level has been measured — so this is where the measurement stops, not a statement about how strong you are. The figure gets useful as your loss per move comes down towards ${(est.floorLoss / 100).toFixed(2)}.</p>` : ''}
       ${est.ceilingHit ? `<p class="note"><strong>Why not a number:</strong> above ${est.ceiling} this app's own opponents all look the same to its reviewer — they play the moves it would play, and lose next to nothing — so the measurement cannot separate them, and a figure up there would be invented. Use a slower review setting for a little more range.</p>` : ''}
-      <p class="note">Worked out from your average loss per move (${(Review.result.meanLoss / 100).toFixed(2)} points)
-      by comparing it with games this app's own opponents played against each other, walked by the same reviewer at
-      the same setting. <strong>It is a comparison with this app's ladder, not a rating.</strong> The ladder's numbers
-      are targets rather than measured strengths, so treat this as "which band you played like today", not as your
-      Chess.com or Lichess figure. The band named is one the calibration actually played — it was measured at
-      ${est.step}-point steps, so the nearest rung to play is the ${esc(est.play.label)} band. Measured ${esc(est.measured)}.</p>`;
+      <p class="note">From your average loss per move (${(Review.result.meanLoss / 100).toFixed(2)} points), compared with games this app's own opponents played against each other. <strong>A comparison with this app's levels, not a rating.</strong></p>
+      <details class="more"><summary>About this estimate</summary><p class="note">The level numbers are targets rather than measured strengths, so read this as "which level you played like today", not as your Chess.com or Lichess figure. The level named is one the calibration actually played — it was measured at ${est.step}-point steps, so the nearest level to play is ${esc(est.play.label)}. Measured ${esc(est.measured)}.</p></details>`;
     box.appendChild(panel);
   } else if (Review.result.meanLoss === null) {
     box.appendChild(el('p', 'note', `No strength estimate: too few of your moves to estimate from (${Review.result.counted} judged, ${Review.result.minJudged} needed).`));
@@ -12417,7 +12192,7 @@ const PROGRESS_MEASURES = {
   },
   estimate: {
     label: 'Strength estimate',
-    note: 'What each game’s average loss per move resembles on this app’s own ladder. The ladder’s numbers are targets rather than measured ratings, and above the calibration ceiling it can only say "or above".',
+    note: 'What each game’s average loss per move resembles against this app’s own levels. The level numbers are targets rather than measured ratings, and above the calibration ceiling it can only say "or above".',
     better: 'up',
     value: (game) => (Number.isFinite(game.estimate?.elo) ? game.estimate.elo : null),
     format: (v) => String(Math.round(v)),
@@ -12528,7 +12303,7 @@ function renderPersonalEstimate(meanLoss, { heading = 'What your own games say',
   panel.appendChild(readout);
 
   panel.appendChild(el('p', 'note',
-    `Of your ${near.pool} reviewed games that carry a Chess.com rating, the ${near.n} that lost closest to ${points(meanLoss)} points a move were rated between ${Math.round(near.lo)} and ${Math.round(near.hi)}, with ${Math.round(near.elo)} in the middle. No ladder and no curve: those are games you played, and that is what you were rated in them.`));
+    `Of your ${near.pool} reviewed games that carry a Chess.com rating, the ${near.n} that lost closest to ${points(meanLoss)} points a move were rated between ${Math.round(near.lo)} and ${Math.round(near.hi)}, with ${Math.round(near.elo)} in the middle. No scale and no curve: those are games you played, and that is what you were rated in them.`));
 
   // A GAME UNLIKE ANYTHING YOU HAVE PLAYED gets an answer built out of games
   // that are not like it, and saying the number without saying that is how a
@@ -12547,7 +12322,7 @@ function renderPersonalEstimate(meanLoss, { heading = 'What your own games say',
       ? `Worth trusting: across ${agree.n} of your games, the ones where you lost less per move really are the ones where you were rated higher, so loss per move is measuring something about you.`
       : (verdict === 'loose'
         ? `Read it loosely: across ${agree.n} of your games the link between losing less per move and being rated higher is there but weak, so a single game's figure will bounce around.`
-        : `A warning rather than a figure: across ${agree.n} of your games there is no clear link between losing less per move and being rated higher. Until there is, treat every strength number in this app — this one and the ladder's — as describing the moves, not you.`)));
+        : `A warning rather than a figure: across ${agree.n} of your games there is no clear link between losing less per move and being rated higher. Until there is, treat every strength number in this app — this one and the level estimate — as describing the moves, not you.`)));
   }
   return panel;
 }
@@ -12587,13 +12362,13 @@ function renderTimeTrouble(games) {
     if (!found.skipped) return null;
     const panel = el('div', 'panel');
     panel.appendChild(el('h3', null, 'Where your time goes'));
-    panel.appendChild(el('p', 'note', `Nothing to show yet. This needs games that carry a clock on every move — which the ones imported from Chess.com do — AND that the engine has walked, and none of your ${found.skipped} stored ${found.skipped === 1 ? 'game has' : 'games have'} both yet. Import, then walk some of them, and this fills in.`));
+    panel.appendChild(el('p', 'note', `Nothing to show yet. This needs games that carry a clock on every move — which the ones imported from Chess.com do — AND that have been reviewed, and none of your ${found.skipped} stored ${found.skipped === 1 ? 'game has' : 'games have'} both yet. Import, then review some of them, and this fills in.`));
     return panel;
   }
 
   const panel = el('div', 'panel');
   panel.appendChild(el('h3', null, 'Where your time goes'));
-  panel.appendChild(el('p', 'note', `${found.moves} of your moves across ${found.used} ${found.used === 1 ? 'game' : 'games'}, grouped by how long you spent on them. The bar is what the average move in that group cost you.${found.skipped ? ` ${found.skipped} other ${found.skipped === 1 ? 'game was' : 'games were'} left out: no clock in the moves, or not walked by the engine yet.` : ''}`));
+  panel.appendChild(el('p', 'note', `${found.moves} of your moves across ${found.used} ${found.used === 1 ? 'game' : 'games'}, grouped by how long you spent on them. The bar is what the average move in that group cost you.${found.skipped ? ` ${found.skipped} other ${found.skipped === 1 ? 'game was' : 'games were'} left out: no clock in the moves, or not yet reviewed.` : ''}`));
 
   const worst = Math.max(...found.spent.map((r) => r.meanLoss ?? 0), ...found.left.map((r) => r.meanLoss ?? 0), 1);
   const bars = (rows, title) => {
@@ -12888,7 +12663,7 @@ function renderProgress() {
   // whose every setting shows the same games is furniture.
   if (kinds.length > 1) {
     const filter = el('div', 'panel');
-    filter.appendChild(el('h3', null, 'Which games'));
+    filter.appendChild(el('h3', null, 'Time control'));
     const row = el('div', 'row');
     for (const { key, n } of [{ key: 'all', n: App.reviews.games.length }, ...kinds]) {
       const button = el('button', key === Progress.timeClass ? 'btn primary' : 'btn',
@@ -12899,7 +12674,7 @@ function renderProgress() {
       row.appendChild(button);
     }
     filter.appendChild(row);
-    filter.appendChild(el('p', 'note', 'Bullet, blitz and rapid are different games. Everybody blunders more with ten seconds left, so a month of bullet averaged in with your rapid drags every number on this page and none of them describes what you played.'));
+    filter.appendChild(el('p', 'note', 'Bullet, blitz and rapid are different games. Everything on this page follows the selection.'));
     box.appendChild(filter);
   }
 
@@ -12908,7 +12683,7 @@ function renderProgress() {
     // caused the empty screen, leaving no way back to the games.
     const where = Progress.timeClass === 'all' ? '' : ` in your ${TIME_CLASS_LABEL[Progress.timeClass].toLowerCase()} games`;
     box.appendChild(el('p', 'note', waiting
-      ? `${waiting} imported ${waiting === 1 ? 'game is' : 'games are'} stored${where} and none of them has been walked by the engine yet. Review one and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.`
+      ? `${waiting} imported ${waiting === 1 ? 'game is' : 'games are'} stored${where} and none of them has been reviewed yet. Review one and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.`
       : `Review a game${where} and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.`));
     return;
   }
@@ -12928,7 +12703,7 @@ function renderProgress() {
   const accuracy = scored.length ? Math.round(scored.reduce((sum, g) => sum + g.accuracy, 0) / scored.length) : null;
 
   const summary = el('div', 'panel');
-  summary.innerHTML = `<h3>Across ${games.length} reviewed ${games.length === 1 ? 'game' : 'games'}${waiting ? `, with ${waiting} imported and not yet walked` : ''}</h3>
+  summary.innerHTML = `<h3>Across ${games.length} reviewed ${games.length === 1 ? 'game' : 'games'}${waiting ? `, with ${waiting} imported and not yet reviewed` : ''}</h3>
     <div class="readout">
       <div><span class="k">Mistakes a game</span><span class="v">${perGame}</span></div>
       <div><span class="k">Mean accuracy</span><span class="v">${accuracy === null ? '—' : `${accuracy}%`}</span></div>
@@ -12985,10 +12760,10 @@ function renderProgress() {
     panel.innerHTML = `<h3>How strong your games look</h3>
       <div class="readout">
         <div><span class="k">Middle of your last ${rated.length}</span><span class="v">${middle}</span></div>
-        <div><span class="k">Played like the band</span><span class="v">${esc(measuredBandLabel(measuredIndex, measured))}</span></div>
+        <div><span class="k">Played like level</span><span class="v">${esc(measuredBandLabel(measuredIndex, measured))}</span></div>
       </div>
-      ${atFloor > rated.length / 2 && Number.isFinite(rated[rated.length - 1].estimate?.floorLoss) ? `<p class="note"><strong>The scale has run out below you, which is not the same as a low number.</strong> ${atFloor} of these ${rated.length} games lost more per move than the weakest opponent this app has ever measured — about ${(rated[rated.length - 1].estimate.floorLoss / 100).toFixed(2)} points a move. The ladder has no weaker rung, so there is nothing to compare them against and the figure cannot separate them. Mistakes a game, above, is the measure that still works here.</p>` : ''}
-      <p class="note">The middle value of the per-game estimates from your last ${rated.length} reviewed ${rated.length === 1 ? 'game' : 'games'} (they ranged ${range}). Each one compares your average loss per move with this app's own ladder, whose numbers are targets rather than measured ratings — so this says which band your recent games resemble, and nothing about your rating anywhere else. The band named is one the calibration actually played, measured at ${step}-point steps${atFloor > rated.length / 2 ? '' : `; the button below picks the nearest rung the ladder offers, the ${esc(play.label)} band`}.</p>`;
+      ${atFloor > rated.length / 2 && Number.isFinite(rated[rated.length - 1].estimate?.floorLoss) ? `<p class="note"><strong>The scale has run out below you, which is not the same as a low number.</strong> ${atFloor} of these ${rated.length} games lost more per move than the weakest opponent this app has ever measured — about ${(rated[rated.length - 1].estimate.floorLoss / 100).toFixed(2)} points a move. No weaker level has been measured, so there is nothing to compare them against and the figure cannot separate them. Mistakes a game, above, is the measure that still works here.</p>` : ''}
+      <p class="note">The middle value of the per-game estimates from your last ${rated.length} reviewed ${rated.length === 1 ? 'game' : 'games'} (they ranged ${range}). Each one compares your average loss per move with this app's own levels, whose numbers are targets rather than measured ratings — so this says which level your recent games resemble, and nothing about your rating anywhere else. The level named is one the calibration actually played, measured at ${step}-point steps${atFloor > rated.length / 2 ? '' : `; the button below picks the nearest level available, ${esc(play.label)}`}.</p>`;
     // NO BAND BUTTON OFF A FLOORED ESTIMATE. The nearest rung to an estimate
     // pinned at the bottom is the weakest band there is — an opponent that
     // plays a random move three times in five — and offering that to somebody
@@ -12996,9 +12771,9 @@ function renderProgress() {
     // number it has just finished explaining it does not have. The record of
     // what you have actually beaten is a measurement; this is not.
     if (atFloor > rated.length / 2) {
-      panel.appendChild(el('p', 'note', 'No band suggested. The nearest rung to a floored estimate is the weakest bot on the ladder, which is not what these games say you should play. Pick by your record on the Today page, where the wins and losses are real.'));
+      panel.appendChild(el('p', 'note', 'No level suggested. The nearest level to a floored estimate is the weakest opponent available, which is not what these games say you should play. Pick by your record on the Today page, where the wins and losses are real.'));
     } else {
-      const go = el('button', 'btn', `Play the ${play.label} band`);
+      const go = el('button', 'btn', `Play level ${play.label}`);
       go.addEventListener('click', () => { Play.band = BANDS[play.index]; renderBandPicker(); show('play'); newPlayGame(); });
       panel.appendChild(go);
     }
@@ -13100,12 +12875,12 @@ function renderProgress() {
   // detail.
   if (App.history.games.length) {
     const played = el('div', 'panel');
-    played.appendChild(el('h3', null, 'Games against the ladder'));
+    played.appendChild(el('h3', null, 'Games against the computer'));
     const rows = el('div', 'record');
     for (const g of [...App.history.games].reverse().slice(0, 12)) {
       const row = el('div', 'record-row');
       const when = new Date(g.at).toLocaleDateString();
-      row.innerHTML = `<span class="record-band">${esc(when)} · ${esc(bandLabelFor(g.band))} · as ${esc(g.colour)}${g.from ? ' · from a set-up position' : ''}</span>
+      row.innerHTML = `<span class="record-band">${esc(when)} · level ${esc(bandLabelFor(g.band))} · as ${esc(g.colour)}${g.from ? ' · from a set-up position' : ''}</span>
         <span class="record-score">${{ w: 'Won', d: 'Drew', l: 'Lost' }[g.result]} · ${Math.ceil(g.plies / 2)} moves</span>`;
       rows.appendChild(row);
     }
@@ -13465,12 +13240,12 @@ function playFromPractice() {
 
 // ── settings ───────────────────────────────────────────────────────────────
 const BOARD_THEMES = [
-  ['vermilion', 'Vermilion', '#ffffff', '#e8412a'],
-  ['walnut', 'Walnut', '#f0d9b5', '#b58863'],
   ['green', 'Green', '#eeeed2', '#769656'],
+  ['walnut', 'Walnut', '#f0d9b5', '#b58863'],
   ['slate', 'Slate', '#dee3e6', '#8ca2ad'],
   ['sand', 'Sand', '#f5f0dc', '#c9a86a'],
   ['ink', 'Ink', '#e7e2d5', '#4d463c'],
+  ['vermilion', 'Vermilion', '#ffffff', '#e8412a'],
 ];
 
 const PIECE_STYLES = [
@@ -13957,7 +13732,10 @@ function puzzlePrize(p) {
 function renderPuzzleList() {
   const box = $('puzzleList');
   box.innerHTML = '';
-  if (!App.puzzles.items.length) return;
+  // An empty panel is an empty box with a border round it, which reads as a
+  // fault. It is hidden until there is a list to put in it.
+  box.hidden = !App.puzzles.items.length;
+  if (box.hidden) return;
 
   box.appendChild(el('h3', null, 'Every tactic found'));
   box.appendChild(el('p', 'note', 'Newest first. Tap one to try it again now — that does not change when it is next due.'));
@@ -16107,8 +15885,8 @@ function startWatchBots() {
     white: BANDS[weakIsWhite ? weakIndex : strongIndex],
     black: BANDS[weakIsWhite ? strongIndex : weakIndex],
   };
-  Watch.whiteName = `the ${bandLabelFor(Watch.bands.white.elo)} band`;
-  Watch.blackName = `the ${bandLabelFor(Watch.bands.black.elo)} band`;
+  Watch.whiteName = `level ${bandLabelFor(Watch.bands.white.elo)}`;
+  Watch.blackName = `level ${bandLabelFor(Watch.bands.black.elo)}`;
   Watch.title = `${bandLabelFor(Watch.bands.white.elo)} against ${bandLabelFor(Watch.bands.black.elo)}`;
 
   // The opening is DRAWN AND PLAYED AS THE BOOK, which is the difference
@@ -16745,7 +16523,7 @@ function deviationGames() {
 
   const stored = [
     ...(App.history?.games ?? []).map((g) => ({ at: g.at, side: g.colour, pgn: g.pgn, from: g.from,
-      label: `against the ${bandLabelFor(g.band)} band` })),
+      label: `against level ${bandLabelFor(g.band)}` })),
     ...(App.reviews?.games ?? []).map((g) => ({ at: g.at, side: g.side, pgn: g.pgn, from: null,
       label: `${g.white ?? '?'} vs ${g.black ?? '?'}` })),
   ].sort((a, b) => (b.at ?? 0) - (a.at ?? 0)).slice(0, DEVIATION_GAMES);
@@ -16811,7 +16589,7 @@ function renderDeviations() {
   if (!counts || counts.games === 0) { panel.hidden = true; return; }
   panel.hidden = false;
 
-  const parts = [`${counts.games} ${counts.games === 1 ? 'game' : 'games'} walked against your repertoire.`];
+  const parts = [`${counts.games} ${counts.games === 1 ? 'game' : 'games'} checked against your repertoire.`];
   if (counts.followed) parts.push(`${counts.followed} stayed in it to the end of the line.`);
   if (counts.youLeft) parts.push(`${counts.youLeft} left it on a move of yours.`);
   if (counts.theyLeft) parts.push(`${counts.theyLeft} ended when your opponent played something the book has no answer for — a gap in the repertoire rather than in you.`);
@@ -16978,7 +16756,7 @@ async function runImport() {
     if (!listed.ok) { importNote(`Chess.com answered ${listed.status}. Try again in a minute.`, 'note bad-note'); return; }
 
     const { archives = [] } = await listed.json();
-    if (!archives.length) { importNote('That account has no public games to fetch.', 'note'); return; }
+    if (!archives.length) { importNote('That account has no public games to import.', 'note'); return; }
 
     const fresh = [];
     // Newest month first, so a small import is your recent games rather than
@@ -17018,7 +16796,7 @@ async function runImport() {
     importNote(importSummary({
       found: Import.found, added: Import.added, months: Import.months,
       duplicate: Import.duplicate, unusable: Import.unusable, updated: Import.updated,
-    }) + (fresh.length ? ' They are in Review, and the repertoire report has already been walked against them.' : ''),
+    }) + (fresh.length ? ' They are in Game review, and the repertoire report already includes them.' : ''),
     fresh.length || Import.updated ? 'note good-note' : 'note');
 
     if (fresh.length) renderDeviations();
@@ -17050,7 +16828,7 @@ function renderImport() {
   // SAID ONCE. The paragraph below this one already explains what importing is
   // not; repeating it here put the same sentence on the screen twice.
   box.textContent = `${imported.length} imported ${imported.length === 1 ? 'game' : 'games'} stored`
-    + (unreviewed ? `, ${unreviewed} of them not yet walked by the engine.` : ', all walked.');
+    + (unreviewed ? `, ${unreviewed} of them not yet reviewed.` : ', all reviewed.');
 }
 
 // ── walking the imported games ─────────────────────────────────────────────
@@ -17089,7 +16867,7 @@ function walkNote(text, kind = 'note') {
 async function walkImported() {
   if (Walk.running) return;
   const queue = unwalkedGames();
-  if (!queue.length) { walkNote('Every imported game has been walked.', 'note good-note'); return; }
+  if (!queue.length) { walkNote('Every imported game has been reviewed.', 'note good-note'); return; }
 
   Walk.running = true;
   Walk.cancelled = false;
@@ -17150,7 +16928,7 @@ async function walkImported() {
   $('walkStop').hidden = true;
 
   const left = unwalkedGames().length;
-  walkNote(`${Walk.done} walked${Walk.failed ? `, ${Walk.failed} of them would not read` : ''}.`
+  walkNote(`${Walk.done} reviewed${Walk.failed ? `, ${Walk.failed} of them would not read` : ''}.`
     + (Walk.drills ? ` ${Walk.drills} new ${Walk.drills === 1 ? 'position' : 'positions'} added to your drills.` : '')
     + (left ? ` ${left} still to go — press it again to carry on.` : ''),
     left ? 'note' : 'note good-note');
@@ -17180,6 +16958,19 @@ function markTabOverflow() {
   wrap.classList.toggle('more', more);
 }
 
+// One icon per group, for the bar at the bottom of a phone. Simple strokes at
+// 24 units, so they read at 22px and disappear cleanly on a wide screen where
+// the words are enough.
+const NAV_ICONS = {
+  today: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 9.8V20h13V9.8"/><path d="M10 20v-6h4v6"/>',
+  play: '<path d="M12 3.5a2.6 2.6 0 0 0-1.4 4.8L9.2 12h5.6l-1.4-3.7A2.6 2.6 0 0 0 12 3.5z"/><path d="M9.2 12 8 16.5h8L14.8 12"/><path d="M6 20.5h12l-1.2-4H7.2z"/>',
+  learn: '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v15.5H5.5A1.5 1.5 0 0 0 4 21z"/><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H13v15.5h5.5A1.5 1.5 0 0 1 20 21z"/>',
+  train: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
+  watch: '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="3"/>',
+  you: '<circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c0-4 3.4-6.5 7.5-6.5s7.5 2.5 7.5 6.5"/>',
+};
+const navIcon = (id) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NAV_ICONS[id] ?? ''}</svg>`;
+
 function buildTabs() {
   const nav = $('tabs');
   nav.innerHTML = '';
@@ -17189,9 +16980,11 @@ function buildTabs() {
     // `tab-watch` are top-level buttons while `tab-openings` lives in the
     // second row, and neither the caller nor a test has to know which.
     const single = group.sections.length === 1 ? group.sections[0] : null;
-    const btn = el('button', 'tab', group.label);
+    const btn = el('button', 'tab');
+    btn.innerHTML = navIcon(group.id) + `<span class="tab-label">${group.label}</span>`;
     btn.id = single ? 'tab-' + single : 'gtab-' + group.id;
     btn.type = 'button';
+    btn.setAttribute('aria-label', group.label);
     btn.addEventListener('click', () => show(LastInGroup[group.id] ?? group.sections[0]));
     nav.appendChild(btn);
   }
@@ -17283,7 +17076,7 @@ async function boot() {
   // game to lose.
   $('bandSelect').addEventListener('change', (e) => {
     const band = BANDS.find((b) => b.elo === Number(e.target.value)) ?? BANDS[0];
-    if (!confirmAbandon('Changing the band')) {
+    if (!confirmAbandon('Changing the level')) {
       e.target.value = String(Play.game.band.elo);
       return;
     }

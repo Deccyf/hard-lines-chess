@@ -83,7 +83,7 @@ const { launch, serve, DIST, gotoSection } = require('./browser.cjs');
   // elo 0 is the band that plays a random move three times in five, which is
   // not what these games say anybody should play.
   check('no band button off a floored estimate',
-    await page.$$eval('#progressOut button', (b) => b.map((x) => x.textContent).some((t) => /^Play the /.test(t))), false);
+    await page.$$eval('#progressOut button', (b) => b.map((x) => x.textContent).some((t) => /^Play level /.test(t))), false);
   check('and it says why, pointing at the real record',
     progress.includes('Pick by your record on the Today page'), true);
 
@@ -101,8 +101,8 @@ const { launch, serve, DIST, gotoSection } = require('./browser.cjs');
   say('inside the scale', (inside.match(/looked like [^·\n]*/) ?? ['(none)'])[0].trim().slice(0, 30));
   check('a measurable game gets a number', /looked like \d/.test(inside), true);
   check('and is not told the scale ran out', inside.includes('The scale has run out'), false);
-  check('and does get a band to play',
-    await page.$$eval('#progressOut button', (b) => b.map((x) => x.textContent).some((t) => /^Play the /.test(t))), true);
+  check('and does get a level to play',
+    await page.$$eval('#progressOut button', (b) => b.map((x) => x.textContent).some((t) => /^Play level /.test(t))), true);
 
   console.log(errors.length ? 'ERRORS ' + errors.join(' | ') : 'no page errors');
   if (errors.length) failures.push('page errors');

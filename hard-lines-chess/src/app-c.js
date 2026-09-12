@@ -12,6 +12,19 @@ function markTabOverflow() {
   wrap.classList.toggle('more', more);
 }
 
+// One icon per group, for the bar at the bottom of a phone. Simple strokes at
+// 24 units, so they read at 22px and disappear cleanly on a wide screen where
+// the words are enough.
+const NAV_ICONS = {
+  today: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 9.8V20h13V9.8"/><path d="M10 20v-6h4v6"/>',
+  play: '<path d="M12 3.5a2.6 2.6 0 0 0-1.4 4.8L9.2 12h5.6l-1.4-3.7A2.6 2.6 0 0 0 12 3.5z"/><path d="M9.2 12 8 16.5h8L14.8 12"/><path d="M6 20.5h12l-1.2-4H7.2z"/>',
+  learn: '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v15.5H5.5A1.5 1.5 0 0 0 4 21z"/><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H13v15.5h5.5A1.5 1.5 0 0 1 20 21z"/>',
+  train: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
+  watch: '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="3"/>',
+  you: '<circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c0-4 3.4-6.5 7.5-6.5s7.5 2.5 7.5 6.5"/>',
+};
+const navIcon = (id) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NAV_ICONS[id] ?? ''}</svg>`;
+
 function buildTabs() {
   const nav = $('tabs');
   nav.innerHTML = '';
@@ -21,9 +34,11 @@ function buildTabs() {
     // `tab-watch` are top-level buttons while `tab-openings` lives in the
     // second row, and neither the caller nor a test has to know which.
     const single = group.sections.length === 1 ? group.sections[0] : null;
-    const btn = el('button', 'tab', group.label);
+    const btn = el('button', 'tab');
+    btn.innerHTML = navIcon(group.id) + `<span class="tab-label">${group.label}</span>`;
     btn.id = single ? 'tab-' + single : 'gtab-' + group.id;
     btn.type = 'button';
+    btn.setAttribute('aria-label', group.label);
     btn.addEventListener('click', () => show(LastInGroup[group.id] ?? group.sections[0]));
     nav.appendChild(btn);
   }
@@ -115,7 +130,7 @@ async function boot() {
   // game to lose.
   $('bandSelect').addEventListener('change', (e) => {
     const band = BANDS.find((b) => b.elo === Number(e.target.value)) ?? BANDS[0];
-    if (!confirmAbandon('Changing the band')) {
+    if (!confirmAbandon('Changing the level')) {
       e.target.value = String(Play.game.band.elo);
       return;
     }

@@ -1,6 +1,6 @@
 {
   "name": "hard-lines-chess",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "private": true,
   "type": "module",
   "description": "A single-file browser chess trainer with its own engine, opponent ladder, coach and review.",

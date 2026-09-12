@@ -173,13 +173,13 @@ const FULL = JSON.parse(require('fs').readFileSync('selfplay.json', 'utf8')).pgn
   check('Progress does not count imports as reviews',
     progress.includes('reviewed game'), false);
   check('and says how many are waiting to be walked',
-    progress.includes('none of them has been walked'), true);
+    progress.includes('none of them has been reviewed'), true);
 
   await gotoSection(page, 'today');
   await page.waitForTimeout(300);
   const today = await page.$eval('#todayList', (e) => e.textContent);
   say('today', today.replace(/\s+/g, ' ').slice(0, 120));
-  check('Today still asks for a review', today.includes('none walked yet'), true);
+  check('Today still asks for a review', today.includes('none reviewed yet'), true);
 
   // And once one IS reviewed, it counts.
   await page.evaluate(() => {
@@ -192,7 +192,7 @@ const FULL = JSON.parse(require('fs').readFileSync('selfplay.json', 'utf8')).pgn
   const after1 = await page.$eval('#progressOut', (e) => e.textContent);
   say('after one review', after1.replace(/\s+/g, ' ').slice(0, 120));
   check('a walked game counts as one review', after1.includes('Across 1 reviewed game'), true);
-  check('and the others are named as waiting', after1.includes('3 imported and not yet walked'), true);
+  check('and the others are named as waiting', after1.includes('3 imported and not yet reviewed'), true);
 
   await gotoSection(page, 'review');
 

@@ -70,7 +70,7 @@ async function runImport() {
     if (!listed.ok) { importNote(`Chess.com answered ${listed.status}. Try again in a minute.`, 'note bad-note'); return; }
 
     const { archives = [] } = await listed.json();
-    if (!archives.length) { importNote('That account has no public games to fetch.', 'note'); return; }
+    if (!archives.length) { importNote('That account has no public games to import.', 'note'); return; }
 
     const fresh = [];
     // Newest month first, so a small import is your recent games rather than
@@ -110,7 +110,7 @@ async function runImport() {
     importNote(importSummary({
       found: Import.found, added: Import.added, months: Import.months,
       duplicate: Import.duplicate, unusable: Import.unusable, updated: Import.updated,
-    }) + (fresh.length ? ' They are in Review, and the repertoire report has already been walked against them.' : ''),
+    }) + (fresh.length ? ' They are in Game review, and the repertoire report already includes them.' : ''),
     fresh.length || Import.updated ? 'note good-note' : 'note');
 
     if (fresh.length) renderDeviations();
@@ -142,7 +142,7 @@ function renderImport() {
   // SAID ONCE. The paragraph below this one already explains what importing is
   // not; repeating it here put the same sentence on the screen twice.
   box.textContent = `${imported.length} imported ${imported.length === 1 ? 'game' : 'games'} stored`
-    + (unreviewed ? `, ${unreviewed} of them not yet walked by the engine.` : ', all walked.');
+    + (unreviewed ? `, ${unreviewed} of them not yet reviewed.` : ', all reviewed.');
 }
 
 // ── walking the imported games ─────────────────────────────────────────────
@@ -181,7 +181,7 @@ function walkNote(text, kind = 'note') {
 async function walkImported() {
   if (Walk.running) return;
   const queue = unwalkedGames();
-  if (!queue.length) { walkNote('Every imported game has been walked.', 'note good-note'); return; }
+  if (!queue.length) { walkNote('Every imported game has been reviewed.', 'note good-note'); return; }
 
   Walk.running = true;
   Walk.cancelled = false;
@@ -242,7 +242,7 @@ async function walkImported() {
   $('walkStop').hidden = true;
 
   const left = unwalkedGames().length;
-  walkNote(`${Walk.done} walked${Walk.failed ? `, ${Walk.failed} of them would not read` : ''}.`
+  walkNote(`${Walk.done} reviewed${Walk.failed ? `, ${Walk.failed} of them would not read` : ''}.`
     + (Walk.drills ? ` ${Walk.drills} new ${Walk.drills === 1 ? 'position' : 'positions'} added to your drills.` : '')
     + (left ? ` ${left} still to go — press it again to carry on.` : ''),
     left ? 'note' : 'note good-note');

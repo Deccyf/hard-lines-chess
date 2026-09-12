@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- The page colour, light: the "page" custom property on :root in
-         src/head.html. Keep the two in step. -->
-    <color name="page">#f2efe6</color>
-    <!-- The mark's ink ground; see tools/make-icons.cjs, which draws the same
-         two-by-two checker for the web icons. -->
-    <color name="ink">#14110d</color>
-    <color name="bone">#fbfaf7</color>
-    <color name="vermilion">#e8412a</color>
+         src/head.html. Keep the two in step; the night value is in
+         values-night/colors.xml. -->
+    <color name="page">#f4f5f7</color>
+    <!-- The launcher icon's ground and the mark drawn on it: a two-by-two
+         board in the app's default board colours on a deep blue. The same
+         mark tools/make-icons.cjs draws for the web icons. -->
+    <color name="ink">#1b2a44</color>
+    <color name="board_light">#eeeed2</color>
+    <color name="board_dark">#769656</color>
 </resources>

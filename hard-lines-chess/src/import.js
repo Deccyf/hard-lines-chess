@@ -176,7 +176,7 @@ function importSummary({ found = 0, added = 0, duplicate = 0, unusable = 0, upda
   if (!found) return `No games at all in the ${month(months)} looked at.`;
 
   const parts = [];
-  if (added) parts.push(`${added} ${added === 1 ? 'game' : 'games'} brought in from ${month(months)}.`);
+  if (added) parts.push(`${added} ${added === 1 ? 'game' : 'games'} imported from ${month(months)}.`);
   else parts.push(`Nothing new in ${month(months)}.`);
   if (duplicate) parts.push(`${duplicate} ${duplicate === 1 ? 'was' : 'were'} already here.`);
   // Said plainly, because "already here" and "already here and now has your

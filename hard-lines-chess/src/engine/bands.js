@@ -63,7 +63,11 @@ const bandNote = (band) => {
     : (pct < 6
       ? `plays a random move about one time in ${Math.round(1 / band.blunder)}`
       : `plays a random move about ${Math.round(pct)}% of the time`));
-  parts.push(`${band.movetime}ms a move`);
+  // Seconds, not milliseconds: "80ms" is an engine's unit, "0.08s" is a
+  // person's. bandNoteRate() reads only the blunder rate back, so the time can
+  // be worded freely.
+  const seconds = band.movetime / 1000;
+  parts.push(`${seconds < 1 ? seconds.toFixed(2).replace(/0$/, '') : seconds.toFixed(1)}s a move`);
   return parts.join(', ');
 };
 

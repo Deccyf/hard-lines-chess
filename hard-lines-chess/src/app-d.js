@@ -348,12 +348,12 @@ function playFromPractice() {
 
 // ── settings ───────────────────────────────────────────────────────────────
 const BOARD_THEMES = [
-  ['vermilion', 'Vermilion', '#ffffff', '#e8412a'],
-  ['walnut', 'Walnut', '#f0d9b5', '#b58863'],
   ['green', 'Green', '#eeeed2', '#769656'],
+  ['walnut', 'Walnut', '#f0d9b5', '#b58863'],
   ['slate', 'Slate', '#dee3e6', '#8ca2ad'],
   ['sand', 'Sand', '#f5f0dc', '#c9a86a'],
   ['ink', 'Ink', '#e7e2d5', '#4d463c'],
+  ['vermilion', 'Vermilion', '#ffffff', '#e8412a'],
 ];
 
 const PIECE_STYLES = [

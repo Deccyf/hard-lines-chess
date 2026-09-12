@@ -88,8 +88,8 @@ function startWatchBots() {
     white: BANDS[weakIsWhite ? weakIndex : strongIndex],
     black: BANDS[weakIsWhite ? strongIndex : weakIndex],
   };
-  Watch.whiteName = `the ${bandLabelFor(Watch.bands.white.elo)} band`;
-  Watch.blackName = `the ${bandLabelFor(Watch.bands.black.elo)} band`;
+  Watch.whiteName = `level ${bandLabelFor(Watch.bands.white.elo)}`;
+  Watch.blackName = `level ${bandLabelFor(Watch.bands.black.elo)}`;
   Watch.title = `${bandLabelFor(Watch.bands.white.elo)} against ${bandLabelFor(Watch.bands.black.elo)}`;
 
   // The opening is DRAWN AND PLAYED AS THE BOOK, which is the difference
