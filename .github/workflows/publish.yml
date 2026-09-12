@@ -111,7 +111,9 @@ jobs:
           # show.
           unzip -l "$APK" | grep -q 'assets/index.html' \
             || { echo "the APK has no assets/index.html — the app is missing from it"; exit 1; }
-          for f in archivo-black-400 space-mono-400 space-mono-700; do
+          # The faces src/head.html links and MainActivity.fontStylesheet()
+          # declares; tests/android-assets-test.cjs carries the same list.
+          for f in inter-400 inter-500 inter-600 inter-700 jetbrains-mono-400 jetbrains-mono-600; do
             unzip -l "$APK" | grep -q "assets/fonts/$f.woff2" \
               || { echo "the APK is missing assets/fonts/$f.woff2"; exit 1; }
           done
