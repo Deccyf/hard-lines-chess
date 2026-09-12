@@ -334,6 +334,10 @@
   .btn.primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
   .btn.danger { background: var(--danger); color: #ffffff; border-color: var(--danger); }
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  /* A button beside a labelled field lines up with the field's control, not
+     with the middle of label-plus-control. */
+  .row.align-end { align-items: flex-end; }
+  .row.align-end .field { margin-bottom: 0; }
 
   .rungs { display: grid; gap: 8px; }
   .rung { display: flex; gap: 10px; border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius-sm); padding: 10px 12px; cursor: pointer; text-align: left; }

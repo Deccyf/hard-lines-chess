@@ -165,6 +165,11 @@ function renderNotation() {
 function renderNotationLessons() {
   const box = $('notationLessons');
   box.innerHTML = '';
+  // Heading and rows in one panel, as Endgames does — see renderWatchList.
+  const panel = el('div', 'panel');
+  panel.appendChild(el('h3', null, 'Lessons'));
+  panel.appendChild(el('p', 'note', 'Each lesson sets up a position and asks for one move. The notation beside it is written from the board by the same code that records your own games.'));
+  box.appendChild(panel);
   for (const lesson of NOTATION_LESSONS) {
     const row = el('div', 'endgame-row');
     const head = el('div', 'endgame-head');
@@ -183,7 +188,7 @@ function renderNotationLessons() {
       $('notationStage').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     row.appendChild(go);
-    box.appendChild(row);
+    panel.appendChild(row);
   }
 }
 
