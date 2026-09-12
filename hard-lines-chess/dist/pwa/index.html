@@ -11682,11 +11682,8 @@ function renderReviewResult() {
       </div>
       ${est.floorHit && Number.isFinite(est.floorLoss) ? `<p class="note"><strong>Why not a number:</strong> the weakest opponent this app has measured loses about ${(est.floorLoss / 100).toFixed(2)} points a move at this setting, and this game lost ${(Review.result.meanLoss / 100).toFixed(2)}. There is nothing below that on the scale — no weaker level has been measured — so this is where the measurement stops, not a statement about how strong you are. The figure gets useful as your loss per move comes down towards ${(est.floorLoss / 100).toFixed(2)}.</p>` : ''}
       ${est.ceilingHit ? `<p class="note"><strong>Why not a number:</strong> above ${est.ceiling} this app's own opponents all look the same to its reviewer — they play the moves it would play, and lose next to nothing — so the measurement cannot separate them, and a figure up there would be invented. Use a slower review setting for a little more range.</p>` : ''}
-      <p class="note">Worked out from your average loss per move (${(Review.result.meanLoss / 100).toFixed(2)} points)
-      by comparing it with games this app's own opponents played against each other, analysed at the same depth. <strong>It is a comparison with this app's levels, not a rating.</strong> The level numbers
-      are targets rather than measured strengths, so treat this as "which level you played like today", not as your
-      Chess.com or Lichess figure. The level named is one the calibration actually played — it was measured at
-      ${est.step}-point steps, so the nearest level to play is ${esc(est.play.label)}. Measured ${esc(est.measured)}.</p>`;
+      <p class="note">From your average loss per move (${(Review.result.meanLoss / 100).toFixed(2)} points), compared with games this app's own opponents played against each other. <strong>A comparison with this app's levels, not a rating.</strong></p>
+      <details class="more"><summary>About this estimate</summary><p class="note">The level numbers are targets rather than measured strengths, so read this as "which level you played like today", not as your Chess.com or Lichess figure. The level named is one the calibration actually played — it was measured at ${est.step}-point steps, so the nearest level to play is ${esc(est.play.label)}. Measured ${esc(est.measured)}.</p></details>`;
     box.appendChild(panel);
   } else if (Review.result.meanLoss === null) {
     box.appendChild(el('p', 'note', `No strength estimate: too few of your moves to estimate from (${Review.result.counted} judged, ${Review.result.minJudged} needed).`));
