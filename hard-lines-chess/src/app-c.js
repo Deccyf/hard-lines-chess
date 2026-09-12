@@ -256,7 +256,12 @@ async function boot() {
 
   // Watch
   $('watchBots').addEventListener('click', () => { startWatchBots(); playWatch(); });
-  $('watchSpeed').addEventListener('change', (e) => { Watch.speed = Number(e.target.value); });
+  for (const seg of document.querySelectorAll('#watchSpeed .seg')) {
+    seg.addEventListener('click', () => {
+      Watch.speed = Number(seg.dataset.speed);
+      for (const other of document.querySelectorAll('#watchSpeed .seg')) other.classList.toggle('on', other === seg);
+    });
+  }
   $('watchPlay').addEventListener('click', playWatch);
   $('watchPause').addEventListener('click', stopWatch);
   $('watchBack').addEventListener('click', () => stepWatch(false));

@@ -546,15 +546,17 @@
     <p class="lede">A game a move at a time, with the engine's view of each.</p>
 
     <div class="panel">
-      <div class="row align-end">
-        <button class="btn primary" id="watchBots" type="button">Watch two bots play</button>
-        <label class="field" style="margin:0"><span>Speed</span>
-          <select id="watchSpeed">
-            <option value="2600">Slow</option>
-            <option value="1600" selected>Normal</option>
-            <option value="700">Fast</option>
-          </select>
-        </label>
+      <button class="btn primary" id="watchBots" type="button">Watch two bots play</button>
+      <!-- A segmented control rather than a drop-down beside the button: a
+           label floating over a small select next to a wide button, with dead
+           space after it, read as a layout that had not been finished. -->
+      <div class="seg-row">
+        <span class="seg-label">Speed</span>
+        <div class="segmented" id="watchSpeed" role="group" aria-label="Playback speed">
+          <button class="seg" type="button" data-speed="2600">Slow</button>
+          <button class="seg on" type="button" data-speed="1600">Normal</button>
+          <button class="seg" type="button" data-speed="700">Fast</button>
+        </div>
       </div>
       <p class="note" style="margin:10px 0 0" id="watchBlurb">Two opponents drawn at random, with an opening neither of them chose. Every game is different.</p>
     </div>
