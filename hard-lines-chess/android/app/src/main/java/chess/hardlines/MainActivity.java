@@ -200,20 +200,25 @@ public class MainActivity extends ComponentActivity {
         }
     }
 
+    /** One @font-face rule, pointing at a file bundled in assets/fonts/. */
+    private static String face(String family, int weight, String file) {
+        return "@font-face{font-family:'" + family + "';font-style:normal;font-weight:" + weight
+                + ";font-display:swap;src:url(https://" + DOMAIN + "/assets/fonts/" + file
+                + ".woff2) format('woff2')}\n";
+    }
+
     /**
      * The stylesheet the page's &lt;link&gt; asks for, rewritten to point at
      * the faces bundled in assets/fonts/. Those URLs are on the page's own
      * origin, so the font requests are same-origin and need no CORS headers.
      */
     private WebResourceResponse fontStylesheet() {
-        String css =
-                "@font-face{font-family:'Archivo Black';font-style:normal;font-weight:400;font-display:swap;"
-                        + "src:url(https://" + DOMAIN + "/assets/fonts/archivo-black-400.woff2) format('woff2')}\n"
-                + "@font-face{font-family:'Space Mono';font-style:normal;font-weight:400;font-display:swap;"
-                        + "src:url(https://" + DOMAIN + "/assets/fonts/space-mono-400.woff2) format('woff2')}\n"
-                + "@font-face{font-family:'Space Mono';font-style:normal;font-weight:700;font-display:swap;"
-                        + "src:url(https://" + DOMAIN + "/assets/fonts/space-mono-700.woff2) format('woff2')}\n";
-        InputStream body = new ByteArrayInputStream(css.getBytes(StandardCharsets.UTF_8));
+        // Kept in step with the <link> in src/head.html and with
+        // tests/android-assets-test.cjs, which drives the page exactly this way.
+        StringBuilder css = new StringBuilder();
+        for (int weight : new int[] {400, 500, 600, 700}) css.append(face("Inter", weight, "inter-" + weight));
+        for (int weight : new int[] {400, 600}) css.append(face("JetBrains Mono", weight, "jetbrains-mono-" + weight));
+        InputStream body = new ByteArrayInputStream(css.toString().getBytes(StandardCharsets.UTF_8));
         Map<String, String> headers = new HashMap<>();
         headers.put("Cache-Control", "no-store");
         return new WebResourceResponse("text/css", "utf-8", 200, "OK", headers, body);

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- The page colour, dark: the same custom property inside the
-         prefers-color-scheme block in src/head.html. -->
-    <color name="page">#15120e</color>
+    <!-- The page colour at night: the dark "page" token in src/head.html, so
+         the window behind the WebView matches the page while it loads. -->
+    <color name="page">#0e1116</color>
 </resources>

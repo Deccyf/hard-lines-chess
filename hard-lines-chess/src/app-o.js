@@ -56,7 +56,7 @@ function deviationGames() {
 
   const stored = [
     ...(App.history?.games ?? []).map((g) => ({ at: g.at, side: g.colour, pgn: g.pgn, from: g.from,
-      label: `against the ${bandLabelFor(g.band)} band` })),
+      label: `against level ${bandLabelFor(g.band)}` })),
     ...(App.reviews?.games ?? []).map((g) => ({ at: g.at, side: g.side, pgn: g.pgn, from: null,
       label: `${g.white ?? '?'} vs ${g.black ?? '?'}` })),
   ].sort((a, b) => (b.at ?? 0) - (a.at ?? 0)).slice(0, DEVIATION_GAMES);
@@ -122,7 +122,7 @@ function renderDeviations() {
   if (!counts || counts.games === 0) { panel.hidden = true; return; }
   panel.hidden = false;
 
-  const parts = [`${counts.games} ${counts.games === 1 ? 'game' : 'games'} walked against your repertoire.`];
+  const parts = [`${counts.games} ${counts.games === 1 ? 'game' : 'games'} checked against your repertoire.`];
   if (counts.followed) parts.push(`${counts.followed} stayed in it to the end of the line.`);
   if (counts.youLeft) parts.push(`${counts.youLeft} left it on a move of yours.`);
   if (counts.theyLeft) parts.push(`${counts.theyLeft} ended when your opponent played something the book has no answer for — a gap in the repertoire rather than in you.`);

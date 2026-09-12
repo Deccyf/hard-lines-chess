@@ -491,7 +491,7 @@ async function runReview() {
     Review.running = false;
     $('reviewRun').disabled = false;
     $('reviewBar').hidden = true;
-    status.textContent = `The walk failed part-way: ${e?.message ?? e}. Nothing was saved.`;
+    status.textContent = `The analysis failed part-way: ${e?.message ?? e}. Nothing was saved.`;
     return;
   }
 
@@ -682,7 +682,7 @@ function renderReviewResult() {
   summary.innerHTML = `<h3>${esc(h.White ?? '?')} vs ${esc(h.Black ?? '?')}</h3>
     <p class="note">You played ${esc(Review.side)}. ${Math.ceil(Review.parsed.plies.length / 2)} moves, ${Review.result.counted} of your moves judged.</p>
     <div class="readout">
-      <div><span class="k">Rough accuracy</span><span class="v">${accuracy === null ? '—' : `${accuracy}%`}</span></div>
+      <div><span class="k">Accuracy</span><span class="v">${accuracy === null ? '—' : `${accuracy}%`}</span></div>
       <div><span class="k">Mistakes found</span><span class="v">${mistakes.length}</span></div>
     </div>
     <p class="note">${blunders} of them ${blunders === 1 ? 'was' : 'were'} a blunder. ${accuracy === null
@@ -699,16 +699,12 @@ function renderReviewResult() {
     panel.innerHTML = `<h3>How strong this game looked</h3>
       <div class="readout">
         <div><span class="k">Estimated strength</span><span class="v">${estimateWords(est)}</span></div>
-        <div><span class="k">Played like the band</span><span class="v">${est.ceilingHit ? `${est.ceiling}+` : esc(est.band)}</span></div>
+        <div><span class="k">Played like level</span><span class="v">${est.ceilingHit ? `${est.ceiling}+` : esc(est.band)}</span></div>
       </div>
-      ${est.floorHit && Number.isFinite(est.floorLoss) ? `<p class="note"><strong>Why not a number:</strong> the weakest opponent this app has measured loses about ${(est.floorLoss / 100).toFixed(2)} points a move at this setting, and this game lost ${(Review.result.meanLoss / 100).toFixed(2)}. There is nothing below that on the scale — the ladder has no weaker rung to have measured — so this is where the measurement stops, not a statement about how strong you are. The figure gets useful as your loss per move comes down towards ${(est.floorLoss / 100).toFixed(2)}.</p>` : ''}
+      ${est.floorHit && Number.isFinite(est.floorLoss) ? `<p class="note"><strong>Why not a number:</strong> the weakest opponent this app has measured loses about ${(est.floorLoss / 100).toFixed(2)} points a move at this setting, and this game lost ${(Review.result.meanLoss / 100).toFixed(2)}. There is nothing below that on the scale — no weaker level has been measured — so this is where the measurement stops, not a statement about how strong you are. The figure gets useful as your loss per move comes down towards ${(est.floorLoss / 100).toFixed(2)}.</p>` : ''}
       ${est.ceilingHit ? `<p class="note"><strong>Why not a number:</strong> above ${est.ceiling} this app's own opponents all look the same to its reviewer — they play the moves it would play, and lose next to nothing — so the measurement cannot separate them, and a figure up there would be invented. Use a slower review setting for a little more range.</p>` : ''}
-      <p class="note">Worked out from your average loss per move (${(Review.result.meanLoss / 100).toFixed(2)} points)
-      by comparing it with games this app's own opponents played against each other, walked by the same reviewer at
-      the same setting. <strong>It is a comparison with this app's ladder, not a rating.</strong> The ladder's numbers
-      are targets rather than measured strengths, so treat this as "which band you played like today", not as your
-      Chess.com or Lichess figure. The band named is one the calibration actually played — it was measured at
-      ${est.step}-point steps, so the nearest rung to play is the ${esc(est.play.label)} band. Measured ${esc(est.measured)}.</p>`;
+      <p class="note">From your average loss per move (${(Review.result.meanLoss / 100).toFixed(2)} points), compared with games this app's own opponents played against each other. <strong>A comparison with this app's levels, not a rating.</strong></p>
+      <details class="more"><summary>About this estimate</summary><p class="note">The level numbers are targets rather than measured strengths, so read this as "which level you played like today", not as your Chess.com or Lichess figure. The level named is one the calibration actually played — it was measured at ${est.step}-point steps, so the nearest level to play is ${esc(est.play.label)}. Measured ${esc(est.measured)}.</p></details>`;
     box.appendChild(panel);
   } else if (Review.result.meanLoss === null) {
     box.appendChild(el('p', 'note', `No strength estimate: too few of your moves to estimate from (${Review.result.counted} judged, ${Review.result.minJudged} needed).`));
@@ -1218,7 +1214,7 @@ const PROGRESS_MEASURES = {
   },
   estimate: {
     label: 'Strength estimate',
-    note: 'What each game’s average loss per move resembles on this app’s own ladder. The ladder’s numbers are targets rather than measured ratings, and above the calibration ceiling it can only say "or above".',
+    note: 'What each game’s average loss per move resembles against this app’s own levels. The level numbers are targets rather than measured ratings, and above the calibration ceiling it can only say "or above".',
     better: 'up',
     value: (game) => (Number.isFinite(game.estimate?.elo) ? game.estimate.elo : null),
     format: (v) => String(Math.round(v)),
@@ -1329,7 +1325,7 @@ function renderPersonalEstimate(meanLoss, { heading = 'What your own games say',
   panel.appendChild(readout);
 
   panel.appendChild(el('p', 'note',
-    `Of your ${near.pool} reviewed games that carry a Chess.com rating, the ${near.n} that lost closest to ${points(meanLoss)} points a move were rated between ${Math.round(near.lo)} and ${Math.round(near.hi)}, with ${Math.round(near.elo)} in the middle. No ladder and no curve: those are games you played, and that is what you were rated in them.`));
+    `Of your ${near.pool} reviewed games that carry a Chess.com rating, the ${near.n} that lost closest to ${points(meanLoss)} points a move were rated between ${Math.round(near.lo)} and ${Math.round(near.hi)}, with ${Math.round(near.elo)} in the middle. No scale and no curve: those are games you played, and that is what you were rated in them.`));
 
   // A GAME UNLIKE ANYTHING YOU HAVE PLAYED gets an answer built out of games
   // that are not like it, and saying the number without saying that is how a
@@ -1348,7 +1344,7 @@ function renderPersonalEstimate(meanLoss, { heading = 'What your own games say',
       ? `Worth trusting: across ${agree.n} of your games, the ones where you lost less per move really are the ones where you were rated higher, so loss per move is measuring something about you.`
       : (verdict === 'loose'
         ? `Read it loosely: across ${agree.n} of your games the link between losing less per move and being rated higher is there but weak, so a single game's figure will bounce around.`
-        : `A warning rather than a figure: across ${agree.n} of your games there is no clear link between losing less per move and being rated higher. Until there is, treat every strength number in this app — this one and the ladder's — as describing the moves, not you.`)));
+        : `A warning rather than a figure: across ${agree.n} of your games there is no clear link between losing less per move and being rated higher. Until there is, treat every strength number in this app — this one and the level estimate — as describing the moves, not you.`)));
   }
   return panel;
 }
@@ -1388,13 +1384,13 @@ function renderTimeTrouble(games) {
     if (!found.skipped) return null;
     const panel = el('div', 'panel');
     panel.appendChild(el('h3', null, 'Where your time goes'));
-    panel.appendChild(el('p', 'note', `Nothing to show yet. This needs games that carry a clock on every move — which the ones imported from Chess.com do — AND that the engine has walked, and none of your ${found.skipped} stored ${found.skipped === 1 ? 'game has' : 'games have'} both yet. Import, then walk some of them, and this fills in.`));
+    panel.appendChild(el('p', 'note', `Nothing to show yet. This needs games that carry a clock on every move — which the ones imported from Chess.com do — AND that have been reviewed, and none of your ${found.skipped} stored ${found.skipped === 1 ? 'game has' : 'games have'} both yet. Import, then review some of them, and this fills in.`));
     return panel;
   }
 
   const panel = el('div', 'panel');
   panel.appendChild(el('h3', null, 'Where your time goes'));
-  panel.appendChild(el('p', 'note', `${found.moves} of your moves across ${found.used} ${found.used === 1 ? 'game' : 'games'}, grouped by how long you spent on them. The bar is what the average move in that group cost you.${found.skipped ? ` ${found.skipped} other ${found.skipped === 1 ? 'game was' : 'games were'} left out: no clock in the moves, or not walked by the engine yet.` : ''}`));
+  panel.appendChild(el('p', 'note', `${found.moves} of your moves across ${found.used} ${found.used === 1 ? 'game' : 'games'}, grouped by how long you spent on them. The bar is what the average move in that group cost you.${found.skipped ? ` ${found.skipped} other ${found.skipped === 1 ? 'game was' : 'games were'} left out: no clock in the moves, or not yet reviewed.` : ''}`));
 
   const worst = Math.max(...found.spent.map((r) => r.meanLoss ?? 0), ...found.left.map((r) => r.meanLoss ?? 0), 1);
   const bars = (rows, title) => {
@@ -1689,7 +1685,7 @@ function renderProgress() {
   // whose every setting shows the same games is furniture.
   if (kinds.length > 1) {
     const filter = el('div', 'panel');
-    filter.appendChild(el('h3', null, 'Which games'));
+    filter.appendChild(el('h3', null, 'Time control'));
     const row = el('div', 'row');
     for (const { key, n } of [{ key: 'all', n: App.reviews.games.length }, ...kinds]) {
       const button = el('button', key === Progress.timeClass ? 'btn primary' : 'btn',
@@ -1700,7 +1696,7 @@ function renderProgress() {
       row.appendChild(button);
     }
     filter.appendChild(row);
-    filter.appendChild(el('p', 'note', 'Bullet, blitz and rapid are different games. Everybody blunders more with ten seconds left, so a month of bullet averaged in with your rapid drags every number on this page and none of them describes what you played.'));
+    filter.appendChild(el('p', 'note', 'Bullet, blitz and rapid are different games. Everything on this page follows the selection.'));
     box.appendChild(filter);
   }
 
@@ -1709,7 +1705,7 @@ function renderProgress() {
     // caused the empty screen, leaving no way back to the games.
     const where = Progress.timeClass === 'all' ? '' : ` in your ${TIME_CLASS_LABEL[Progress.timeClass].toLowerCase()} games`;
     box.appendChild(el('p', 'note', waiting
-      ? `${waiting} imported ${waiting === 1 ? 'game is' : 'games are'} stored${where} and none of them has been walked by the engine yet. Review one and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.`
+      ? `${waiting} imported ${waiting === 1 ? 'game is' : 'games are'} stored${where} and none of them has been reviewed yet. Review one and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.`
       : `Review a game${where} and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.`));
     return;
   }
@@ -1729,7 +1725,7 @@ function renderProgress() {
   const accuracy = scored.length ? Math.round(scored.reduce((sum, g) => sum + g.accuracy, 0) / scored.length) : null;
 
   const summary = el('div', 'panel');
-  summary.innerHTML = `<h3>Across ${games.length} reviewed ${games.length === 1 ? 'game' : 'games'}${waiting ? `, with ${waiting} imported and not yet walked` : ''}</h3>
+  summary.innerHTML = `<h3>Across ${games.length} reviewed ${games.length === 1 ? 'game' : 'games'}${waiting ? `, with ${waiting} imported and not yet reviewed` : ''}</h3>
     <div class="readout">
       <div><span class="k">Mistakes a game</span><span class="v">${perGame}</span></div>
       <div><span class="k">Mean accuracy</span><span class="v">${accuracy === null ? '—' : `${accuracy}%`}</span></div>
@@ -1786,10 +1782,10 @@ function renderProgress() {
     panel.innerHTML = `<h3>How strong your games look</h3>
       <div class="readout">
         <div><span class="k">Middle of your last ${rated.length}</span><span class="v">${middle}</span></div>
-        <div><span class="k">Played like the band</span><span class="v">${esc(measuredBandLabel(measuredIndex, measured))}</span></div>
+        <div><span class="k">Played like level</span><span class="v">${esc(measuredBandLabel(measuredIndex, measured))}</span></div>
       </div>
-      ${atFloor > rated.length / 2 && Number.isFinite(rated[rated.length - 1].estimate?.floorLoss) ? `<p class="note"><strong>The scale has run out below you, which is not the same as a low number.</strong> ${atFloor} of these ${rated.length} games lost more per move than the weakest opponent this app has ever measured — about ${(rated[rated.length - 1].estimate.floorLoss / 100).toFixed(2)} points a move. The ladder has no weaker rung, so there is nothing to compare them against and the figure cannot separate them. Mistakes a game, above, is the measure that still works here.</p>` : ''}
-      <p class="note">The middle value of the per-game estimates from your last ${rated.length} reviewed ${rated.length === 1 ? 'game' : 'games'} (they ranged ${range}). Each one compares your average loss per move with this app's own ladder, whose numbers are targets rather than measured ratings — so this says which band your recent games resemble, and nothing about your rating anywhere else. The band named is one the calibration actually played, measured at ${step}-point steps${atFloor > rated.length / 2 ? '' : `; the button below picks the nearest rung the ladder offers, the ${esc(play.label)} band`}.</p>`;
+      ${atFloor > rated.length / 2 && Number.isFinite(rated[rated.length - 1].estimate?.floorLoss) ? `<p class="note"><strong>The scale has run out below you, which is not the same as a low number.</strong> ${atFloor} of these ${rated.length} games lost more per move than the weakest opponent this app has ever measured — about ${(rated[rated.length - 1].estimate.floorLoss / 100).toFixed(2)} points a move. No weaker level has been measured, so there is nothing to compare them against and the figure cannot separate them. Mistakes a game, above, is the measure that still works here.</p>` : ''}
+      <p class="note">The middle value of the per-game estimates from your last ${rated.length} reviewed ${rated.length === 1 ? 'game' : 'games'} (they ranged ${range}). Each one compares your average loss per move with this app's own levels, whose numbers are targets rather than measured ratings — so this says which level your recent games resemble, and nothing about your rating anywhere else. The level named is one the calibration actually played, measured at ${step}-point steps${atFloor > rated.length / 2 ? '' : `; the button below picks the nearest level available, ${esc(play.label)}`}.</p>`;
     // NO BAND BUTTON OFF A FLOORED ESTIMATE. The nearest rung to an estimate
     // pinned at the bottom is the weakest band there is — an opponent that
     // plays a random move three times in five — and offering that to somebody
@@ -1797,9 +1793,9 @@ function renderProgress() {
     // number it has just finished explaining it does not have. The record of
     // what you have actually beaten is a measurement; this is not.
     if (atFloor > rated.length / 2) {
-      panel.appendChild(el('p', 'note', 'No band suggested. The nearest rung to a floored estimate is the weakest bot on the ladder, which is not what these games say you should play. Pick by your record on the Today page, where the wins and losses are real.'));
+      panel.appendChild(el('p', 'note', 'No level suggested. The nearest level to a floored estimate is the weakest opponent available, which is not what these games say you should play. Pick by your record on the Today page, where the wins and losses are real.'));
     } else {
-      const go = el('button', 'btn', `Play the ${play.label} band`);
+      const go = el('button', 'btn', `Play level ${play.label}`);
       go.addEventListener('click', () => { Play.band = BANDS[play.index]; renderBandPicker(); show('play'); newPlayGame(); });
       panel.appendChild(go);
     }
@@ -1901,12 +1897,12 @@ function renderProgress() {
   // detail.
   if (App.history.games.length) {
     const played = el('div', 'panel');
-    played.appendChild(el('h3', null, 'Games against the ladder'));
+    played.appendChild(el('h3', null, 'Games against the computer'));
     const rows = el('div', 'record');
     for (const g of [...App.history.games].reverse().slice(0, 12)) {
       const row = el('div', 'record-row');
       const when = new Date(g.at).toLocaleDateString();
-      row.innerHTML = `<span class="record-band">${esc(when)} · ${esc(bandLabelFor(g.band))} · as ${esc(g.colour)}${g.from ? ' · from a set-up position' : ''}</span>
+      row.innerHTML = `<span class="record-band">${esc(when)} · level ${esc(bandLabelFor(g.band))} · as ${esc(g.colour)}${g.from ? ' · from a set-up position' : ''}</span>
         <span class="record-score">${{ w: 'Won', d: 'Drew', l: 'Lost' }[g.result]} · ${Math.ceil(g.plies / 2)} moves</span>`;
       rows.appendChild(row);
     }

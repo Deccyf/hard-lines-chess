@@ -8,9 +8,9 @@ games, spaced-repetition drills, a teaching opponent that sets traps, an endgame
 trainer refereed by a solved table, a three-minute clock mode, a board-vision
 drill, a screen that explains chess notation by taking your own moves apart, a
 watch mode that plays two bands against each other and replays seven famous
-games move by move, a report that walks your own games against your repertoire
+games move by move, a report that checks your own games against your repertoire
 and names the move you keep leaving it on, an importer that fetches your public
-Chess.com games and walks them with the engine, and a coach that explains
+Chess.com games and reviews them with the engine, and a coach that explains
 positions from engine output — with or without a model to write the sentences.
 
 Everything is one HTML file. It works offline once loaded and can be installed

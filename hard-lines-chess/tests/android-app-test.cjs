@@ -72,7 +72,7 @@ async function read(browser, url, userAgent) {
   const web = await read(browser, url, PLAIN_UA);
   check('marker read', web.marker, false);
   check('save-a-copy row', web.downloadRow, 'visible');
-  check('panel heading', web.downloadTitle, 'Take it with you');
+  check('panel heading', web.downloadTitle, 'Install');
   check('manifest linked', web.manifest, 'linked');
 
   const errors = [...app.errors, ...web.errors];

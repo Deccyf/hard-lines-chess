@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.5.0 — 2026-09-12
+
+### A professional interface
+- **The identity is new.** The brutalist look — a monospace body face, two-pixel
+  ink rules, hard offset shadows, nothing rounded, capitals on every button and
+  a vermilion board — is replaced with the language every serious chess product
+  shares: quiet surfaces, hairline rules, soft corners, Inter for text with
+  monospace kept for notation, one deep blue accent, and a green board by
+  default. The board keeps its daylight colours at night.
+- **Navigation moved to where a thumb is.** On a phone the six sections are a
+  bar fixed to the bottom of the screen with an icon over each label; the
+  second level is a segmented control at the top of the content. On a wide
+  screen the same buttons are a row of text tabs under the brand.
+- **Standard names.** Board is Analysis, Review is Game review, Clock is Timed,
+  You is Profile. "Walk" is review, "band" and "ladder" are level.
+- **Short first, long behind a tap.** Every explanation the app used to put
+  between you and the button is still there, one "ⓘ" away. Openings no longer
+  opens with a six-step essay; Puzzles no longer has two paragraphs and an
+  empty box; the import panel is a field and a button.
+- **The Android app ships the new faces.** Inter and JetBrains Mono are
+  bundled in the APK, which holds no internet permission, and the launcher
+  icon and window colours follow the new identity.
+
 ## 1.4.1 — 2026-09-06
 
 ### "Looked like 0", and the thing it was hiding
