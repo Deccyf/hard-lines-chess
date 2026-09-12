@@ -340,6 +340,10 @@
   .btn.primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
   .btn.danger { background: var(--danger); color: #ffffff; border-color: var(--danger); }
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  /* A button beside a labelled field lines up with the field's control, not
+     with the middle of label-plus-control. */
+  .row.align-end { align-items: flex-end; }
+  .row.align-end .field { margin-bottom: 0; }
 
   .rungs { display: grid; gap: 8px; }
   .rung { display: flex; gap: 10px; border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius-sm); padding: 10px 12px; cursor: pointer; text-align: left; }
@@ -1235,7 +1239,7 @@
     <p class="lede">A game a move at a time, with the engine's view of each.</p>
 
     <div class="panel">
-      <div class="row">
+      <div class="row align-end">
         <button class="btn primary" id="watchBots" type="button">Watch two bots play</button>
         <label class="field" style="margin:0"><span>Speed</span>
           <select id="watchSpeed">
@@ -1279,10 +1283,6 @@
       </div>
     </div>
 
-    <div class="panel">
-      <h3>Famous games</h3>
-      <p class="note">Every move is replayed on a real board before it ships, so these are the games they say they are.</p>
-    </div>
     <div id="watchGames"></div>
 
     <div class="panel">
@@ -1365,11 +1365,6 @@
         uses its own marks and says what each one measured.</p>
     </div>
 
-    <div class="panel">
-      <h3>Lessons</h3>
-      <p class="note">Each lesson sets up a position and asks for one move. The notation beside it is written from the
-        board by the same code that records your own games.</p>
-    </div>
     <div id="notationLessons"></div>
   </section>
 
@@ -16256,6 +16251,14 @@ function renderWatchMoves() {
 function renderWatchList() {
   const box = $('watchGames');
   box.innerHTML = '';
+  // ONE PANEL, heading and rows together — the way Endgames lists its
+  // techniques. The heading used to sit in a card of its own with the games
+  // loose on the page beneath it, so the list looked like a different screen
+  // from the card that introduced it.
+  const panel = el('div', 'panel');
+  panel.appendChild(el('h3', null, 'Famous games'));
+  panel.appendChild(el('p', 'note', 'Every move is replayed on a real board before it ships, so these are the games they say they are.'));
+  box.appendChild(panel);
   for (const game of FAMOUS_GAMES) {
     const row = el('div', 'endgame-row');
     const head = el('div', 'endgame-head');
@@ -16272,7 +16275,7 @@ function renderWatchList() {
       playWatch();
     });
     row.appendChild(watch);
-    box.appendChild(row);
+    panel.appendChild(row);
   }
 }
 
@@ -16444,6 +16447,11 @@ function renderNotation() {
 function renderNotationLessons() {
   const box = $('notationLessons');
   box.innerHTML = '';
+  // Heading and rows in one panel, as Endgames does — see renderWatchList.
+  const panel = el('div', 'panel');
+  panel.appendChild(el('h3', null, 'Lessons'));
+  panel.appendChild(el('p', 'note', 'Each lesson sets up a position and asks for one move. The notation beside it is written from the board by the same code that records your own games.'));
+  box.appendChild(panel);
   for (const lesson of NOTATION_LESSONS) {
     const row = el('div', 'endgame-row');
     const head = el('div', 'endgame-head');
@@ -16462,7 +16470,7 @@ function renderNotationLessons() {
       $('notationStage').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     row.appendChild(go);
-    box.appendChild(row);
+    panel.appendChild(row);
   }
 }
 

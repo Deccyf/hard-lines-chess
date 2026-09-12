@@ -451,6 +451,14 @@ function renderWatchMoves() {
 function renderWatchList() {
   const box = $('watchGames');
   box.innerHTML = '';
+  // ONE PANEL, heading and rows together — the way Endgames lists its
+  // techniques. The heading used to sit in a card of its own with the games
+  // loose on the page beneath it, so the list looked like a different screen
+  // from the card that introduced it.
+  const panel = el('div', 'panel');
+  panel.appendChild(el('h3', null, 'Famous games'));
+  panel.appendChild(el('p', 'note', 'Every move is replayed on a real board before it ships, so these are the games they say they are.'));
+  box.appendChild(panel);
   for (const game of FAMOUS_GAMES) {
     const row = el('div', 'endgame-row');
     const head = el('div', 'endgame-head');
@@ -467,6 +475,6 @@ function renderWatchList() {
       playWatch();
     });
     row.appendChild(watch);
-    box.appendChild(row);
+    panel.appendChild(row);
   }
 }
