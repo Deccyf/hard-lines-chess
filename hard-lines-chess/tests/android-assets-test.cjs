@@ -92,6 +92,12 @@ function check(what, got, want) {
   await page.goto(`https://${DOMAIN}/assets/index.html`);
   await page.waitForSelector('#tab-today', { timeout: 20000 });
   await page.evaluate(() => document.fonts.ready);
+  // A face the current screen does not render stays "unloaded" however well
+  // it is bundled — the monospace faces are only used on move lists and
+  // notation, and the page opens on Today. Asking for each one outright makes
+  // the browser fetch and decode it, which is the thing being checked.
+  await page.evaluate((faces) => Promise.all(faces.map(([f, w]) => document.fonts.load(`${w} 12px "${f}"`))),
+    FACES.map(({ family, weight }) => [family, weight]));
 
   for (const { family, weight } of FACES) {
     const status = await page.evaluate(([f, w]) =>

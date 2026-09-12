@@ -66,7 +66,7 @@ const { launch, serve, DIST, gotoSection } = require('./browser.cjs');
   await page.waitForTimeout(500);
   text = await page.$eval('#progressOut', (e) => e.textContent);
   check('sixty games gives an answer', text.includes('You were rated about'), true);
-  check('built from your games, not a ladder', text.includes('No ladder and no curve'), true);
+  check('built from your games, not a scale', text.includes('No scale and no curve'), true);
   check('and it reports the link is real', text.includes('Worth trusting'), true);
 
   const near = await page.evaluate(() => ratingNear(30, App.reviews.games));
