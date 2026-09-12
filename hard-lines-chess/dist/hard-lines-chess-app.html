@@ -662,6 +662,12 @@
   /* ── the endgame list ──────────────────────────────────────────────── */
   .endgame-row { border-top: 1px solid var(--line); padding: 12px 0 14px; }
   .endgame-row:first-of-type { border-top: 0; }
+  /* THE BUTTON HAD NO ROOM ABOVE IT. A note carries its own top margin and a
+     button carries none, so in every list row — endgames, lessons, famous
+     games, where you leave your repertoire — the button sat flush under the
+     text with fourteen pixels of padding beneath it, and the row read as
+     top-heavy. The button now keeps the same gap above it as everything else. */
+  .endgame-row > .btn, .endgame-row > .row { margin-top: 10px; }
   .endgame-head { display: flex; align-items: baseline; gap: 10px; justify-content: space-between; }
   .tag { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; border: 1px solid var(--line-strong); border-radius: 999px; padding: 2px 8px; white-space: nowrap; color: var(--ink-soft); }
   .tag.good { background: var(--good); color: #ffffff; border-color: var(--good); }
