@@ -138,8 +138,12 @@
     border-bottom: 0; background: var(--sunk); border-radius: 10px; padding: 3px; gap: 2px;
     width: max-content; max-width: 100%;
   }
+  /* A sub-tab is a flex container (it is a .tab), so its label is placed by
+     justify-content, not text-align — without this the label sat at the left
+     of whatever width the tab was given, and "Drills" was off-centre on a
+     phone while "Endgames", sized exactly to its text, looked fine. */
   .subtab {
-    border: 0; margin: 0; border-radius: 8px; padding: 6px 12px;
+    border: 0; margin: 0; border-radius: 8px; padding: 6px 12px; justify-content: center;
     font-size: 13px; font-weight: 500; color: var(--ink-soft);
   }
   .subtab.on { background: var(--panel); color: var(--ink); box-shadow: var(--shadow-sm); border-bottom: 0; font-weight: 600; }
@@ -172,7 +176,10 @@
     #tabsWrap .tab svg { width: 22px; height: 22px; }
     #tabsWrap .tab.on { color: var(--accent); }
     .tabs.subtabs { width: 100%; }
-    .subtab { flex: 1 1 0; padding: 6px 4px; font-size: 12px; text-align: center; white-space: nowrap; }
+    /* Each tab is its own width plus an equal share of the slack, so five
+       labels of different lengths sit with even gaps between them rather than
+       equal boxes with the text bunched to one side. */
+    .subtab { flex: 1 1 auto; padding: 6px 4px; font-size: 12px; white-space: nowrap; }
   }
   @media (min-width: 860px) {
     .tab svg { display: none; }
