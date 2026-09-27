@@ -1023,9 +1023,18 @@
       </details>
 
       <div class="after" style="margin-top:14px">
-        <h3>Review imported games</h3>
+        <h3>Analyse your games</h3>
         <p class="note">Oldest first, saved as it goes. Stop at any time and continue later. Mistakes worth practising
           are added to Drills.</p>
+        <details class="more">
+          <summary>What this re-measures, and why</summary>
+          <p class="note">It analyses every game that has not been analysed — and re-measures any that were, back when
+            the reviewer was given a fixed number of seconds rather than a fixed number of positions. Under a time
+            budget the figures depended on how fast the device was and what else it was doing, so the same game
+            reviewed twice could come out up to 220 rating points apart. Re-measuring puts every game on Progress on
+            the same footing. Games already measured by positions are left alone: running those again would return the
+            same answer.</p>
+        </details>
         <div class="fields">
           <label class="field"><span>Depth</span>
             <select id="walkDepth">
@@ -1036,7 +1045,7 @@
           </label>
         </div>
         <div class="row" style="margin-top:10px">
-          <button class="btn" id="walkRun" type="button">Review imported games</button>
+          <button class="btn" id="walkRun" type="button">Analyse and re-measure</button>
           <button class="btn danger" id="walkStop" type="button" hidden>Stop</button>
         </div>
         <div class="progress" id="walkBar" hidden><span id="walkFill"></span></div>
@@ -17224,11 +17233,28 @@ function renderImport() {
   const imported = (App.reviews?.games ?? []).filter((g) => g.source === 'chess.com');
   const unreviewed = imported.filter((g) => g.reviewed === false).length;
   const box = $('importState');
-  if (!imported.length) { box.textContent = ''; return; }
-  // SAID ONCE. The paragraph below this one already explains what importing is
-  // not; repeating it here put the same sentence on the screen twice.
-  box.textContent = `${imported.length} imported ${imported.length === 1 ? 'game' : 'games'} stored`
-    + (unreviewed ? `, ${unreviewed} of them not yet reviewed.` : ', all reviewed.');
+  if (imported.length) {
+    // SAID ONCE. The paragraph below this one already explains what importing
+    // is not; repeating it here put the same sentence on the screen twice.
+    box.textContent = `${imported.length} imported ${imported.length === 1 ? 'game' : 'games'} stored`
+      + (unreviewed ? `, ${unreviewed} of them not yet reviewed.` : ', all reviewed.');
+  } else {
+    box.textContent = '';
+  }
+
+  // WHAT THE BUTTON WOULD DO, BEFORE IT IS PRESSED. The walk used to say
+  // nothing until it had finished, so a screen with work waiting on it looked
+  // exactly like a screen with none — and after the reviewer changed to a work
+  // budget there was work waiting on every history in existence with no way to
+  // find out.
+  if (Walk.running) return;
+  const waiting = walkWaiting();
+  if (waiting) walkNote(waiting);
+  else if ((App.reviews?.games ?? []).some((g) => g.pgn)) {
+    walkNote('Every game has been analysed, and every one of them under a fixed amount of work — so the figures on Progress all rest on the same measurement.', 'note good-note');
+  } else {
+    walkNote('');
+  }
 }
 
 // ── walking the imported games ─────────────────────────────────────────────
@@ -17254,9 +17280,62 @@ function renderImport() {
 const Walk = { running: false, cancelled: false, done: 0, total: 0, failed: 0, drills: 0 };
 
 /** The imported games with no review behind them, oldest first. */
+/**
+ * The games the walk has work to do on, split by the reason.
+ *
+ * TWO REASONS, AND THEY ARE NOT THE SAME THING.
+ *
+ *   fresh — imported and never analysed. The walk's original job.
+ *
+ *   stale — analysed, but before the reviewer was given a fixed amount of WORK
+ *           to do. Those figures came out of a fixed amount of TIME, so what
+ *           they measured depended on the device and the moment: the same game
+ *           reviewed twice moved by up to 220 rating points. They are real
+ *           games and the numbers are not nonsense, but they cannot be set
+ *           beside the ones measured since without a caveat, and a screen that
+ *           quietly averaged the two would be presenting the machine's
+ *           variation as the player's.
+ *
+ * A game measured under a work budget is LEFT ALONE whatever setting it used,
+ * because that measurement is repeatable: running it again returns the same
+ * answer, so there is nothing to gain. Redoing it at a deeper setting is a
+ * different decision from this one, and not one to make on somebody's behalf.
+ */
+function walkQueue() {
+  const fresh = [], stale = [];
+  for (const game of App.reviews?.games ?? []) {
+    if (!game.pgn) continue;
+    if (game.reviewed === false) { fresh.push(game); continue; }
+    // Measured, with no record of how much work did the measuring.
+    if (Number.isFinite(game.meanLoss) && !Number.isFinite(game.nodes)) stale.push(game);
+  }
+  const oldestFirst = (a, b) => (a.at ?? 0) - (b.at ?? 0);
+  return { fresh: fresh.sort(oldestFirst), stale: stale.sort(oldestFirst) };
+}
+
+/**
+ * Everything the walk would do, never-analysed first.
+ *
+ * ORDER MATTERS HERE. A walk that is stopped halfway should have spent its
+ * time on the games that have no numbers at all rather than on re-measuring
+ * ones that already have some.
+ */
 function unwalkedGames() {
-  return App.reviews.games.filter((g) => g.reviewed === false && g.pgn)
-    .sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
+  const { fresh, stale } = walkQueue();
+  return [...fresh, ...stale];
+}
+
+/** What is waiting, in a sentence, or null when there is nothing to do. */
+function walkWaiting() {
+  const { fresh, stale } = walkQueue();
+  if (!fresh.length && !stale.length) return null;
+  const parts = [];
+  if (fresh.length) parts.push(`${fresh.length} ${fresh.length === 1 ? 'game has' : 'games have'} not been analysed`);
+  if (stale.length) {
+    parts.push(`${stale.length} ${stale.length === 1 ? 'was' : 'were'} analysed before the reviewer counted positions`
+      + ` instead of seconds, so ${stale.length === 1 ? 'its figures depend' : 'their figures depend'} on the device and the moment they were measured on`);
+  }
+  return `${parts.join(', and ')}.`;
 }
 
 function walkNote(text, kind = 'note') {
@@ -17268,7 +17347,10 @@ function walkNote(text, kind = 'note') {
 async function walkImported() {
   if (Walk.running) return;
   const queue = unwalkedGames();
-  if (!queue.length) { walkNote('Every imported game has been reviewed.', 'note good-note'); return; }
+  if (!queue.length) {
+    walkNote('Every game has been analysed, and every one of them under a fixed amount of work — so the figures on Progress all rest on the same measurement.', 'note good-note');
+    return;
+  }
 
   Walk.running = true;
   Walk.cancelled = false;
@@ -17282,7 +17364,8 @@ async function walkImported() {
 
   for (const game of queue) {
     if (Walk.cancelled) break;
-    walkNote(`Walking ${Walk.done + 1} of ${Walk.total} — ${game.white} vs ${game.black}…`);
+    walkNote(`${Number.isFinite(game.meanLoss) ? 'Re-measuring' : 'Walking'} ${Walk.done + 1} of ${Walk.total}`
+      + ` — ${game.white} vs ${game.black}…`);
     try {
       const parsed = parsePgn(game.pgn);
       if (!parsed.plies.length) throw new Error('no moves');
@@ -17329,14 +17412,22 @@ async function walkImported() {
   $('walkRun').hidden = false;
   $('walkStop').hidden = true;
 
-  const left = unwalkedGames().length;
-  walkNote(`${Walk.done} reviewed${Walk.failed ? `, ${Walk.failed} of them would not read` : ''}.`
-    + (Walk.drills ? ` ${Walk.drills} new ${Walk.drills === 1 ? 'position' : 'positions'} added to your drills.` : '')
-    + (left ? ` ${left} still to go — press it again to carry on.` : ''),
-    left ? 'note' : 'note good-note');
+  // THE SCREENS FIRST, THE SUMMARY LAST. renderImport() writes the standing
+  // note about what is still waiting, so writing this one before it meant the
+  // count of what just happened was on screen for no time at all — replaced,
+  // in the same frame, by a sentence about the state it had just changed.
+  // What the walk did is the more useful of the two, and the standing note
+  // comes back the next time the screen renders.
   renderImport();
   renderDrills();
   refreshBook();
+
+  const left = unwalkedGames().length;
+  walkNote(`${Walk.done} reviewed${Walk.failed ? `, ${Walk.failed} of them would not read` : ''}.`
+    + (Walk.drills ? ` ${Walk.drills} new ${Walk.drills === 1 ? 'position' : 'positions'} added to your drills.` : '')
+    + (left ? ` ${left} still to go — press it again to carry on.`
+            : ' Every game now rests on the same measurement.'),
+    left ? 'note' : 'note good-note');
 }
 
 function stopWalk() {
