@@ -228,12 +228,50 @@ jobs:
           fi
           echo "the page is live and is the app"
 
-          # The download link the release points people at. A 404 here is a
-          # phone left with nothing to install.
-          APK_CODE=$(curl -sSL -o apk.bin -w '%{http_code}' "${URL}hard-lines-chess.apk" || echo 000)
+          # ── AND THE APK IS DOWNLOADED, NOT JUST ANSWERED ──────────────────
+          #
+          # A 404 here is a phone left with nothing to install. So is a
+          # download that starts and never finishes, and that one used to pass
+          # this check: it asked for the status code and the first two bytes,
+          # both of which a truncated transfer has. What arrives on the phone
+          # has to BE the file that was built, so the whole thing is fetched
+          # and its digest held against the one the build just recorded.
+          #
+          # The headers are printed whether or not anything fails, because when
+          # a download stalls on somebody's phone the first question is what
+          # the CDN is actually sending — a content length that disagrees with
+          # the body, or a compressed encoding on a file that is already a zip,
+          # and the answer should be in the run that shipped it rather than
+          # something to go and reproduce afterwards.
+          APK_CODE=$(curl -sSL -D apk-headers.txt -o apk.bin -w '%{http_code}' "${URL}hard-lines-chess.apk" || echo 000)
+          echo "--- what the site sends for the APK"
+          grep -iE '^(HTTP/|content-type|content-length|content-encoding|accept-ranges|transfer-encoding|cache-control|etag):' apk-headers.txt || true
+          echo "---"
           test "$APK_CODE" = "200" || { echo "the APK is not being served (HTTP $APK_CODE)"; exit 1; }
           head -c2 apk.bin | grep -q 'PK' || { echo "the served APK is not a zip archive"; exit 1; }
-          echo "the APK is live: $(wc -c < apk.bin) bytes"
+
+          GOT=$(wc -c < apk.bin)
+          # The last content-length wins; a redirect earlier in the chain has
+          # one of its own.
+          WANT=$(grep -i '^content-length:' apk-headers.txt | tail -1 | tr -d '\r' | awk '{print $2}')
+          if [ -n "$WANT" ] && [ "$GOT" != "$WANT" ]; then
+            echo "the APK arrived short: $GOT bytes of the $WANT the site promised."
+            echo "That is what a download that never finishes looks like from here."
+            exit 1
+          fi
+
+          # Bit for bit the APK this run built. Anything else — a stale copy
+          # left on the CDN, a partial upload, a rewritten body — is a
+          # different app from the one that was tested.
+          SERVED=$(sha256sum apk.bin | cut -d' ' -f1)
+          BUILT="${{ needs.build.outputs.sha256 }}"
+          test "$SERVED" = "$BUILT" || {
+            echo "the APK being served is not the one that was built"
+            echo "  served: $SERVED"
+            echo "  built:  $BUILT"
+            exit 1
+          }
+          echo "the APK is live and whole: $GOT bytes, sha256 $SERVED"
 
   release:
     needs: [build, test]
