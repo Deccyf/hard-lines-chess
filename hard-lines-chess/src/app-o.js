@@ -27,18 +27,19 @@ const Deviations = {
 };
 
 /**
- * HOW FAR BACK IT LOOKS. Every stored game has to be read out of its PGN, and
- * reading one means replaying it through the move generator — cheap once,
- * noticeable four hundred times on a page that is supposed to open instantly.
- * The most recent sixty are walked and the screen says sixty, because a report
- * that quietly ignored half your games while printing a total would be lying
- * about its own sample.
+ * HOW FAR BACK IT LOOKS, and it is every game.
+ *
+ * It used to be the most recent sixty, because reading a game means replaying
+ * its PGN through the move generator and four hundred of those froze the page.
+ * Two things changed that: a game is now read only as deep as the deepest line
+ * in the repertoire — the report cannot see past that anyway — and writing a
+ * move out no longer costs a move generation per candidate. Reading every
+ * stored game now costs less than reading sixty did, so there is no longer a
+ * reason to leave games out, and the sample is the whole history.
  */
-const DEVIATION_GAMES = 60;
-
-/** Every stored game that can be compared with a line, as moves from move one. */
 function deviationGames() {
   const games = [];
+  const depth = repertoireDepth(OPENINGS);
 
   const add = (key, side, pgn, label, startFen) => {
     if (!pgn || !side) return;
@@ -46,7 +47,7 @@ function deviationGames() {
     let sans = Deviations.parsed.get(key);
     if (sans === undefined) {
       try {
-        const parsed = parsePgn(pgn);
+        const parsed = parsePgn(pgn, { maxPlies: depth });
         sans = parsed.startFen ? null : parsed.plies.map((p) => p.san);
       } catch { sans = null; }
       Deviations.parsed.set(key, sans);
@@ -59,7 +60,7 @@ function deviationGames() {
       label: `against level ${bandLabelFor(g.band)}` })),
     ...(App.reviews?.games ?? []).map((g) => ({ at: g.at, side: g.side, pgn: g.pgn, from: null,
       label: `${g.white ?? '?'} vs ${g.black ?? '?'}` })),
-  ].sort((a, b) => (b.at ?? 0) - (a.at ?? 0)).slice(0, DEVIATION_GAMES);
+  ].sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
 
   for (const game of stored) add(game.at, game.side, game.pgn, game.label, game.from);
   return games;
@@ -86,13 +87,24 @@ function buildDeviations() {
 }
 
 /**
- * The cost of the top rows, one search pair at a time, yielding between each.
+ * How many rows the report shows, and therefore how many get a price.
+ *
+ * ONE NUMBER FOR BOTH. It was eight shown and six measured, so the last two
+ * rows said "Measuring what it cost…" for as long as the screen was open, with
+ * nothing measuring them. A row that is shown is a row that gets an answer,
+ * even if the answer is that the cost could not be measured.
+ */
+const DEVIATION_ROWS = 8;
+
+/**
+ * The cost of the rows on screen, one search pair at a time, yielding between
+ * each.
  *
  * Only the rows on screen, and only once: a report that froze the page for
  * three seconds to price twenty rows nobody scrolled to would be worse than
  * one that priced none.
  */
-function measureDeviations(limit = 6) {
+function measureDeviations(limit = DEVIATION_ROWS) {
   if (Deviations.measuring) return;
   const todo = Deviations.rows.slice(0, limit).filter((r) => !(r.key in Deviations.costs));
   if (!todo.length) return;
@@ -144,7 +156,7 @@ function renderDeviationRows() {
     return;
   }
 
-  for (const row of Deviations.rows.slice(0, 8)) {
+  for (const row of Deviations.rows.slice(0, DEVIATION_ROWS)) {
     const item = el('div', 'endgame-row');
     const head = el('div', 'endgame-head');
     head.appendChild(el('strong', null, `${row.name}${row.variation ? ` — ${row.variation}` : ''}`));
@@ -194,8 +206,8 @@ function renderDeviationRows() {
     box.appendChild(item);
   }
 
-  if (Deviations.rows.length > 8) {
-    box.appendChild(el('p', 'note', `${Deviations.rows.length - 8} more, seen fewer times.`));
+  if (Deviations.rows.length > DEVIATION_ROWS) {
+    box.appendChild(el('p', 'note', `${Deviations.rows.length - DEVIATION_ROWS} more, seen fewer times.`));
   }
 }
 

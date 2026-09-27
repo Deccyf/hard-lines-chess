@@ -76,7 +76,7 @@ async function boot() {
 
   // Progress is loaded BEFORE anything renders, so the first paint is the real
   // state rather than an empty one that fills in a moment later.
-  const hasStore = await Store.init();
+  await Store.init();
   App.openings = await Store.get('openings', { cards: {} });
   App.drills = await Store.get('drills', { items: [] });
   App.history = await Store.get('history', { bands: {}, games: [] });
@@ -101,9 +101,9 @@ async function boot() {
   Endgames.results ??= {};
   Vision.best ??= {};
 
-  $('storeNote').textContent = hasStore
-    ? 'Saved to your Claude account, so it follows you to another device, with a copy in this browser.'
-    : 'Saved in this browser only. It survives closing the tab, but not clearing site data or moving to another device.';
+  // Store.where() rather than a sentence built here, because it has to be able
+  // to say "nothing is being saved" — see Store.localFailed.
+  $('storeNote').textContent = Store.where();
 
   // Boards. All of them share one implementation, so they cannot disagree about
   // what a legal move is.

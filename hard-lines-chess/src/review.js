@@ -111,6 +111,47 @@ const CHAR_CLS = Object.fromEntries(Object.entries(CLS_CHAR).map(([k, v]) => [v,
 const marksOf = (judged) => judged.map((j) => CLS_CHAR[j.cls] ?? '.').join('');
 
 /**
+ * What each of your moves cost, straight from the stored curve — no board.
+ *
+ * judgedFromStore() below rebuilds the whole move list, and to do that it needs
+ * the game parsed: every move replayed through the generator to get its
+ * notation and the position it was played in. That is the right shape for the
+ * review screen, which draws all of it.
+ *
+ * WHERE THE TIME GOES NEEDS TWO FIELDS OF IT — whether a move was yours, and
+ * what it lost — and both fall out of the curve and the index alone. Whose move
+ * ply i is, is the parity of i; what it cost is the step in the curve either
+ * side of it. Reading them this way turned the Progress screen's first paint
+ * from about six hundred milliseconds over a couple of hundred games into
+ * about ten, because replaying eight thousand moves was the whole of it.
+ */
+function lossesFromStore(curve, marks, side) {
+  const out = [];
+  if (!Array.isArray(curve) || typeof marks !== 'string') return out;
+  const count = Math.min(marks.length, curve.length - 1);
+  for (let i = 0; i < count; i++) {
+    const cls = CHAR_CLS[marks[i]] ?? 'good';
+    const white = i % 2 === 0;
+    const mate = cls === 'missed_mate' || cls === 'allowed_mate';
+    // The curve is from White's side throughout, so a loss for the mover is a
+    // FALL in it when White moved and a RISE when Black did — as in
+    // judgedFromStore, which this has to agree with exactly.
+    const drop = white ? curve[i] - curve[i + 1] : curve[i + 1] - curve[i];
+    out.push({
+      mine: (white ? 'white' : 'black') === side,
+      loss: mate ? null : (cls === 'best' ? 0 : Math.max(0, drop)),
+    });
+  }
+  return out;
+}
+
+/** One header out of a PGN, without parsing the moves. */
+function headerOf(text, name) {
+  const m = new RegExp(`\\[${name}\\s+"((?:[^"\\\\]|\\\\.)*)"\\]`).exec(String(text ?? ''));
+  return m ? m[1].replace(/\\(["\\\\])/g, '$1') : null;
+}
+
+/**
  * A stored game read back into the shape the review screen already draws.
  *
  * `parsed` is its PGN parsed again — which is where every move, its notation
@@ -806,15 +847,19 @@ function timeTrouble(games) {
 
   for (const game of games ?? []) {
     if (!game?.pgn || !Array.isArray(game.curve) || typeof game.marks !== 'string') { skipped++; continue; }
-    let parsed;
-    try { parsed = parsePgn(game.pgn); } catch { skipped++; continue; }
-    const clocks = clocksFrom(game.pgn, parsed.plies.length);
+    const judged = lossesFromStore(game.curve, game.marks, game.side ?? 'white');
+    if (!judged.length) { skipped++; continue; }
+    // ONE CLOCK PER MOVE OF THE GAME, or none at all: a clock lined up against
+    // a move it does not belong to reports time trouble in the wrong half of
+    // the game. The count to check against is the game's own, stored when it
+    // was reviewed — NOT the number of moves judged, which is smaller whenever
+    // a curve stops short, and would throw away the moves it does cover.
+    const plies = Number.isFinite(game.plies) && game.plies >= judged.length ? game.plies : judged.length;
+    const clocks = clocksFrom(game.pgn, plies);
     if (!clocks) { skipped++; continue; }
-    const control = timeControlOf(parsed.headers?.TimeControl ?? game.timeControl);
+    const control = timeControlOf(headerOf(game.pgn, 'TimeControl') ?? game.timeControl);
     const spent = timeSpent(clocks, control);
     if (!spent) { skipped++; continue; }
-    const judged = judgedFromStore(parsed, game.curve, game.marks, game.side ?? 'white');
-    if (!judged.length) { skipped++; continue; }
 
     used++;
     for (let i = 0; i < judged.length; i++) {

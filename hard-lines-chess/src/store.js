@@ -23,6 +23,18 @@ const Store = {
   db: null,
   ready: false,
   cache: {},
+  // THE LOCAL WRITE CAN FAIL SILENTLY, AND THE PAGE LOOKS FINE WHEN IT DOES.
+  // set() puts the value in `cache` first, so every screen goes on reading the
+  // new state for the rest of the session — and on the next load it is simply
+  // gone. That happens on a browser set to block site data, in a private
+  // window, and if the quota is ever reached.
+  //
+  // There is nowhere honest to put an error at the moment it happens: it
+  // happens during a save nobody asked for. So it is remembered here, and the
+  // one screen that makes a promise about your data reads it and says what is
+  // actually true. Never reset: once a write has failed, this session's copy
+  // is incomplete whatever happens afterwards.
+  localFailed: false,
   // Names whose last db write failed; retried on the next set() or init().
   // Kept in local storage as well, so a reload does not forget the debt.
   dirty: new Set(),
@@ -37,13 +49,25 @@ const Store = {
     try {
       const owed = JSON.parse(localStorage.getItem(this.key('__dirty')) ?? '[]');
       for (const name of owed) this.dirty.add(name);
-    } catch { /* nothing owed, or storage unreadable */ }
+    } catch { /* nothing owed, or storage unreadable — set() reports the write */ }
     if (this.db) await this.flushDirty();
     return this.db !== null;
   },
 
   key(name) {
     return `hardlines:${name}`;
+  },
+
+  /** Where your progress is actually kept, in a sentence, whatever is true. */
+  where() {
+    if (this.localFailed) {
+      return this.db
+        ? 'This browser is refusing to store anything — a private window, or site data blocked. Your progress is going to your Claude account, which is what will bring it back; nothing is being kept on this device.'
+        : 'NOTHING IS BEING SAVED. This browser refused to store data — usually a private window, or site data blocked for this site. The app works and this session is intact, but everything will be gone when the page is closed. Open it in a normal window, or allow site data, to keep your games.';
+    }
+    return this.db
+      ? 'Saved to your Claude account, so it follows you to another device, with a copy in this browser.'
+      : 'Saved in this browser only. It survives closing the tab, but not clearing site data or moving to another device.';
   },
 
   /** Read a stored value as { payload, updated, version }, whatever shape it was written in. */
@@ -132,7 +156,11 @@ const Store = {
     // makes it survive a new device.
     try {
       localStorage.setItem(this.key(name), JSON.stringify(doc));
-    } catch { /* private mode, quota, a browser set to block site data */ }
+    } catch {
+      // Private mode, the quota, or a browser set to block site data. See
+      // `localFailed` above for why this is remembered rather than thrown.
+      this.localFailed = true;
+    }
 
     if (this.db) {
       if (this.dirty.size) await this.flushDirty(name);

@@ -17,7 +17,22 @@ function sanToMove(board, san) {
   const wanted = san.replace(/[!?]+$/, '').replace(/[+#]$/, '').replace(/^0-0-0$/, 'O-O-O').replace(/^0-0$/, 'O-O');
   const legal = board.legalMoves();
 
+  // WHICH MOVES ARE WORTH WRITING OUT. Writing one out means playing it to see
+  // whether it gives check, so spelling all thirty-odd legal moves to find the
+  // one that reads "Nf3" costs thirty of those, on every token of every game
+  // ever read. Every move but castling ends in the square the piece went to,
+  // and the text says which square that is, so the candidates are the moves
+  // that go there.
+  //
+  // IT IS STILL MATCHED BY SPELLING IT. This only narrows which moves get
+  // spelled; when the text has no square in it to read — castling, or
+  // something malformed — it narrows nothing and every move is spelled, which
+  // is what it did before.
+  const shape = SAN_SHAPE.exec(wanted);
+  const to = shape ? nameToSquare(shape[4]) : -1;
+
   for (const move of legal) {
+    if (to >= 0 && moveTo(move) !== to) continue;
     if (toSan(board, move).replace(/[+#]$/, '') === wanted) return move;
   }
 
@@ -28,12 +43,10 @@ function sanToMove(board, san) {
   // somewhere decided to be explicit.
   if (wanted === 'O-O' || wanted === 'O-O-O') return null;
 
-  const parts = SAN_SHAPE.exec(wanted);
-  if (!parts) return null;
+  if (!shape) return null;
 
-  const [, letter, fromFile, fromRank, target, promoLetter] = parts;
+  const [, letter, fromFile, fromRank, , promoLetter] = shape;
   const type = letter ? PIECE_LETTER[letter] : PAWN;
-  const to = nameToSquare(target);
   const promo = promoLetter ? PIECE_LETTER[promoLetter] : 0;
 
   const matches = legal.filter((move) => {
@@ -60,7 +73,17 @@ function sanToMove(board, san) {
 // hand-typed test do.
 const HEADER = /\[(\w+)\s+"((?:[^"\\]|\\.)*)"\]/g;
 
-function parsePgn(text) {
+/**
+ * Read a recorded game.
+ *
+ * `maxPlies` STOPS EARLY, and it is not a nicety. Reading a ply means
+ * generating every legal move in the position and writing each one out to
+ * compare with the text, so a ninety-move game costs ninety of those — and the
+ * opening book only ever looks at the first sixteen. Without a way to say so
+ * it read four hundred endgames to learn what Black answers 1.e4 with, which
+ * is where the two-second pause on "New game" came from.
+ */
+function parsePgn(text, { maxPlies = Infinity } = {}) {
   const headers = {};
   const body0 = text.replace(HEADER, (whole, tag, value) => {
     headers[tag] = value.replace(/\\(["\\])/g, '$1');
@@ -101,6 +124,7 @@ function parsePgn(text) {
   let stoppedAt = null;
 
   for (const token of tokens) {
+    if (plies.length >= maxPlies) break;
     const move = sanToMove(board, token);
 
     // A token the rules refuse ends the game here rather than taking the whole
@@ -122,7 +146,11 @@ function parsePgn(text) {
   return {
     headers,
     plies,
-    truncated: plies.length < tokens.length,
+    // WHAT TRUNCATED MEANS: the rules refused a token, so the rest of the game
+    // could not be read. Asking for a ply limit is not a truncation — the
+    // caller asked for exactly that much — so this reads the refusal rather
+    // than comparing counts, which a limit would make wrong.
+    truncated: stoppedAt !== null,
     tokens: tokens.length,
     stoppedAt,
     startFen: start ?? null,

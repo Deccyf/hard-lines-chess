@@ -17,10 +17,48 @@ const Book = {
   games: 0,
   replies: 0,
   skipped: 0,       // games from a set-up position, which have no place in a book keyed from move one
+  // WHAT EACH GAME PUT IN, so a game is read once and not once per rebuild.
+  // The book is rebuilt every time a game starts, ends, or is reviewed, and
+  // reading a PGN means replaying it through the move generator: four hundred
+  // stored games rebuilt from scratch was a two-second freeze on "New game".
+  // Keyed by everything the reading depends on — where the game is stored, its
+  // timestamp, which side he was, whether it was set up, and the length of its
+  // PGN — so a record that is edited in place is read again rather than
+  // answered from a stale slot. It holds the reading and not the PGN, so the
+  // cache stays small.
+  read: new Map(),  // '<h|r>:<at>:<side>:<setup>:<pgn length>' -> null | { skipped } | { replies: [[key, uci], …] }
 };
 
 /** Beyond this many plies a "book" is a transcript of one game, not a habit. */
 const BOOK_MAX_PLIES = 16;
+
+/**
+ * What one game contributes: its opponent's moves, each keyed by the moves
+ * before it. `null` when the game cannot go in a book at all.
+ *
+ * A GAME FROM A SET-UP POSITION IS NOT USED. Its plies are keyed by the moves
+ * before them, and from a set-up position there are none: a pasted game that
+ * began after 1.e4 e5 filed its 2.Nf3 as an answer to nothing, and the book
+ * offered 1.Nf3 at the start "because your opponent played it". Counted, and
+ * said on the note, rather than dropped quietly.
+ */
+function bookReadingOf(source) {
+  let parsed;
+  // Only as far as the book goes. The rest of the game is ninety per cent of
+  // the reading cost and none of the book.
+  try { parsed = parsePgn(source.pgn, { maxPlies: BOOK_MAX_PLIES }); } catch { return null; }
+  if (!parsed.plies.length) return null;
+  if (source.from || parsed.startFen) return { skipped: true };
+
+  const theirs = source.mine === 'white' ? 'black' : 'white';
+  const replies = [];
+  const history = [];
+  for (const ply of parsed.plies) {
+    if (ply.colour === theirs) replies.push([history.join(' '), ply.uci]);
+    history.push(ply.uci);
+  }
+  return { replies };
+}
 
 function buildBook() {
   const book = {};
@@ -28,32 +66,31 @@ function buildBook() {
   let skipped = 0;
 
   const sources = [];
-  for (const g of App.history.games) if (g.pgn) sources.push({ pgn: g.pgn, mine: g.colour, from: g.from ?? null });
-  for (const r of App.reviews.games) if (r.pgn) sources.push({ pgn: r.pgn, mine: r.side, from: null });
+  const sourceOf = (where, at, pgn, mine, from) => ({
+    key: `${where}:${at}:${mine}:${from ? 1 : 0}:${pgn.length}`, pgn, mine, from, at,
+  });
+  for (const g of App.history.games) if (g.pgn) sources.push(sourceOf('h', g.at, g.pgn, g.colour, g.from ?? null));
+  for (const r of App.reviews.games) if (r.pgn) sources.push(sourceOf('r', r.at, r.pgn, r.side, null));
 
+  const fresh = new Map();
   for (const source of sources) {
-    let parsed;
-    try { parsed = parsePgn(source.pgn); } catch { continue; }
-    if (!parsed.plies.length) continue;
-    // A GAME FROM A SET-UP POSITION IS NOT USED. Its plies are keyed by the
-    // moves before them, and from a set-up position there are none: a pasted
-    // game that began after 1.e4 e5 filed its 2.Nf3 as an answer to nothing,
-    // and the book offered 1.Nf3 at the start "because your opponent played
-    // it". Counted, and said on the note, rather than dropped quietly.
-    if (source.from || parsed.startFen) { skipped++; continue; }
+    // A game with no timestamp is read every time rather than sharing a cache
+    // slot with every other game that has none.
+    const cacheable = source.at !== undefined && source.at !== null;
+    let reading = cacheable ? Book.read.get(source.key) : undefined;
+    if (reading === undefined) reading = bookReadingOf(source);
+    if (cacheable) fresh.set(source.key, reading);
+    if (reading === null) continue;
+    if (reading.skipped) { skipped++; continue; }
     games++;
-
-    const theirs = source.mine === 'white' ? 'black' : 'white';
-    const history = [];
-    for (const ply of parsed.plies.slice(0, BOOK_MAX_PLIES)) {
-      if (ply.colour === theirs) {
-        const key = history.join(' ');
-        book[key] ??= {};
-        book[key][ply.uci] = (book[key][ply.uci] ?? 0) + 1;
-      }
-      history.push(ply.uci);
+    for (const [key, uci] of reading.replies) {
+      book[key] ??= {};
+      book[key][uci] = (book[key][uci] ?? 0) + 1;
     }
   }
+  // Only the games that are still stored: a cache that only ever grew would
+  // outlive the history it was read from.
+  Book.read = fresh;
 
   Book.built = book;
   Book.games = games;

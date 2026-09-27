@@ -61,6 +61,23 @@ function repertoireLines(openings) {
   return lines;
 }
 
+/**
+ * The deepest ply any line in the repertoire reaches, plus the one move that
+ * leaves it.
+ *
+ * Nothing here looks past this: a game is compared against a line only as far
+ * as the line goes, and the move reported is the first one that is not in it.
+ * So a caller reading games for this report can stop there too — which turns
+ * reading a ninety-move game into reading its opening. Derived from the
+ * repertoire rather than typed, so a longer line added later is not quietly
+ * cut off at a number somebody once wrote down.
+ */
+function repertoireDepth(openings) {
+  let deepest = 0;
+  for (const line of repertoireLines(openings)) deepest = Math.max(deepest, line.line.length);
+  return deepest + 1;
+}
+
 /** How many leading plies two move lists share. */
 function sharedPlies(a, b) {
   let n = 0;

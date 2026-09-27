@@ -207,6 +207,12 @@ function dueDrills() {
 }
 
 function renderToday() {
+  // REREAD EVERY TIME, because a write can start failing long after the page
+  // loaded — the quota fills, or the browser tightens up mid-session — and
+  // this is the one line that promises anything about your data.
+  const note = $('storeNote');
+  if (note) note.textContent = Store.where();
+
   const box = $('todayList');
   box.innerHTML = '';
 

@@ -1640,7 +1640,8 @@ function renderProgressChart(games) {
   // A difference smaller than this is not worth a word either way, and the
   // number of games here is never large enough to prove one.
   const meaningful = Math.abs(change) >= (measure.better === 'up' ? Math.max(1, span * 0.08) : 0.3);
-  const halves = `First ${half} games: ${measure.format(earlier)}. Last ${scored.length - half}: ${measure.format(later)}.`;
+  // "First 1 games" is what three scored games used to read as.
+  const halves = `First ${half} ${half === 1 ? 'game' : 'games'}: ${measure.format(earlier)}. Last ${scored.length - half}: ${measure.format(later)}.`;
 
   const verdict = el('p', 'note');
   verdict.textContent = flat

@@ -2116,20 +2116,32 @@ class Board {
     return count >= 3;
   }
 
+  /**
+   * Whether neither side can force a mate with what is on the board.
+   *
+   * IT STOPS AT THE THIRD PIECE. Every node of the search asks this, and for
+   * all but the barest endings the answer is no — and a third piece that is not
+   * a king settles it, whatever it is. Counting the rest was a hundred and
+   * twenty-eight squares walked and an array of objects allocated per node to
+   * reach a conclusion the third piece had already given.
+   */
   insufficientMaterial() {
-    const pieces = [];
+    let found = 0;
+    let type1 = 0, light1 = 0, type2 = 0, light2 = 0;
     for (let sq = 0; sq < 128; sq++) {
       if (sq & 0x88) continue;
       const p = this.squares[sq];
-      if (p && typeOf(p) !== KING) pieces.push({ type: typeOf(p), colour: colourOf(p), sq });
+      if (!p || typeOf(p) === KING) continue;
+      if (++found > 2) return false;
+      const type = typeOf(p);
+      const light = (fileOf(sq) + rankOf(sq)) & 1;
+      if (found === 1) { type1 = type; light1 = light; } else { type2 = type; light2 = light; }
     }
-    if (pieces.length === 0) return true;
-    if (pieces.length === 1) return pieces[0].type === BISHOP || pieces[0].type === KNIGHT;
-    if (pieces.length === 2 && pieces.every((p) => p.type === BISHOP)) {
-      const light = (p) => (fileOf(p.sq) + rankOf(p.sq)) & 1;
-      return light(pieces[0]) === light(pieces[1]);
-    }
-    return false;
+    if (found === 0) return true;
+    if (found === 1) return type1 === BISHOP || type1 === KNIGHT;
+    // Two bishops, and only on squares of one colour: neither can reach the
+    // other's, so between them they cover half the board.
+    return type1 === BISHOP && type2 === BISHOP && light1 === light2;
   }
 
   /** null while the game is going, otherwise how it ended. */
@@ -5196,15 +5208,33 @@ function toSan(board, move) {
 
   // Check and mate are properties of the position AFTER the move, so they can
   // only be read by playing it.
+  //
+  // THE CHEAP QUESTION FIRST. Mate is a check with no reply, so a position that
+  // is not a check cannot be one and nothing more needs asking. This used to
+  // ask outcome() instead, which generates every legal move — and then checks
+  // the fifty-move rule, repetition and material, none of which spell anything
+  // — for every move written anywhere in the app. sanToMove() writes out the
+  // legal moves of a position to find the one matching a PGN token, so reading
+  // one game was hundreds of move generations answering "no" to "is this mate".
   const copy = board;
   if (copy.make(move)) {
-    const outcome = copy.outcome();
-    if (outcome === 'checkmate') san += '#';
-    else if (copy.inCheck()) san += '+';
+    if (copy.inCheck()) san += hasLegalReply(copy) ? '+' : '#';
     copy.unmake();
   }
 
   return san;
+}
+
+/**
+ * Whether the side to move has a legal move at all — stopping at the first one
+ * found rather than collecting them, which is the whole point: the answer is
+ * yes for all but the handful of positions that are mate or stalemate.
+ */
+function hasLegalReply(board) {
+  for (const move of board.generate()) {
+    if (board.make(move)) { board.unmake(); return true; }
+  }
+  return false;
 }
 
 /**
@@ -5351,6 +5381,18 @@ const Store = {
   db: null,
   ready: false,
   cache: {},
+  // THE LOCAL WRITE CAN FAIL SILENTLY, AND THE PAGE LOOKS FINE WHEN IT DOES.
+  // set() puts the value in `cache` first, so every screen goes on reading the
+  // new state for the rest of the session — and on the next load it is simply
+  // gone. That happens on a browser set to block site data, in a private
+  // window, and if the quota is ever reached.
+  //
+  // There is nowhere honest to put an error at the moment it happens: it
+  // happens during a save nobody asked for. So it is remembered here, and the
+  // one screen that makes a promise about your data reads it and says what is
+  // actually true. Never reset: once a write has failed, this session's copy
+  // is incomplete whatever happens afterwards.
+  localFailed: false,
   // Names whose last db write failed; retried on the next set() or init().
   // Kept in local storage as well, so a reload does not forget the debt.
   dirty: new Set(),
@@ -5365,13 +5407,25 @@ const Store = {
     try {
       const owed = JSON.parse(localStorage.getItem(this.key('__dirty')) ?? '[]');
       for (const name of owed) this.dirty.add(name);
-    } catch { /* nothing owed, or storage unreadable */ }
+    } catch { /* nothing owed, or storage unreadable — set() reports the write */ }
     if (this.db) await this.flushDirty();
     return this.db !== null;
   },
 
   key(name) {
     return `hardlines:${name}`;
+  },
+
+  /** Where your progress is actually kept, in a sentence, whatever is true. */
+  where() {
+    if (this.localFailed) {
+      return this.db
+        ? 'This browser is refusing to store anything — a private window, or site data blocked. Your progress is going to your Claude account, which is what will bring it back; nothing is being kept on this device.'
+        : 'NOTHING IS BEING SAVED. This browser refused to store data — usually a private window, or site data blocked for this site. The app works and this session is intact, but everything will be gone when the page is closed. Open it in a normal window, or allow site data, to keep your games.';
+    }
+    return this.db
+      ? 'Saved to your Claude account, so it follows you to another device, with a copy in this browser.'
+      : 'Saved in this browser only. It survives closing the tab, but not clearing site data or moving to another device.';
   },
 
   /** Read a stored value as { payload, updated, version }, whatever shape it was written in. */
@@ -5460,7 +5514,11 @@ const Store = {
     // makes it survive a new device.
     try {
       localStorage.setItem(this.key(name), JSON.stringify(doc));
-    } catch { /* private mode, quota, a browser set to block site data */ }
+    } catch {
+      // Private mode, the quota, or a browser set to block site data. See
+      // `localFailed` above for why this is remembered rather than thrown.
+      this.localFailed = true;
+    }
 
     if (this.db) {
       if (this.dirty.size) await this.flushDirty(name);
@@ -5589,7 +5647,22 @@ function sanToMove(board, san) {
   const wanted = san.replace(/[!?]+$/, '').replace(/[+#]$/, '').replace(/^0-0-0$/, 'O-O-O').replace(/^0-0$/, 'O-O');
   const legal = board.legalMoves();
 
+  // WHICH MOVES ARE WORTH WRITING OUT. Writing one out means playing it to see
+  // whether it gives check, so spelling all thirty-odd legal moves to find the
+  // one that reads "Nf3" costs thirty of those, on every token of every game
+  // ever read. Every move but castling ends in the square the piece went to,
+  // and the text says which square that is, so the candidates are the moves
+  // that go there.
+  //
+  // IT IS STILL MATCHED BY SPELLING IT. This only narrows which moves get
+  // spelled; when the text has no square in it to read — castling, or
+  // something malformed — it narrows nothing and every move is spelled, which
+  // is what it did before.
+  const shape = SAN_SHAPE.exec(wanted);
+  const to = shape ? nameToSquare(shape[4]) : -1;
+
   for (const move of legal) {
+    if (to >= 0 && moveTo(move) !== to) continue;
     if (toSan(board, move).replace(/[+#]$/, '') === wanted) return move;
   }
 
@@ -5600,12 +5673,10 @@ function sanToMove(board, san) {
   // somewhere decided to be explicit.
   if (wanted === 'O-O' || wanted === 'O-O-O') return null;
 
-  const parts = SAN_SHAPE.exec(wanted);
-  if (!parts) return null;
+  if (!shape) return null;
 
-  const [, letter, fromFile, fromRank, target, promoLetter] = parts;
+  const [, letter, fromFile, fromRank, , promoLetter] = shape;
   const type = letter ? PIECE_LETTER[letter] : PAWN;
-  const to = nameToSquare(target);
   const promo = promoLetter ? PIECE_LETTER[promoLetter] : 0;
 
   const matches = legal.filter((move) => {
@@ -5632,7 +5703,17 @@ function sanToMove(board, san) {
 // hand-typed test do.
 const HEADER = /\[(\w+)\s+"((?:[^"\\]|\\.)*)"\]/g;
 
-function parsePgn(text) {
+/**
+ * Read a recorded game.
+ *
+ * `maxPlies` STOPS EARLY, and it is not a nicety. Reading a ply means
+ * generating every legal move in the position and writing each one out to
+ * compare with the text, so a ninety-move game costs ninety of those — and the
+ * opening book only ever looks at the first sixteen. Without a way to say so
+ * it read four hundred endgames to learn what Black answers 1.e4 with, which
+ * is where the two-second pause on "New game" came from.
+ */
+function parsePgn(text, { maxPlies = Infinity } = {}) {
   const headers = {};
   const body0 = text.replace(HEADER, (whole, tag, value) => {
     headers[tag] = value.replace(/\\(["\\])/g, '$1');
@@ -5673,6 +5754,7 @@ function parsePgn(text) {
   let stoppedAt = null;
 
   for (const token of tokens) {
+    if (plies.length >= maxPlies) break;
     const move = sanToMove(board, token);
 
     // A token the rules refuse ends the game here rather than taking the whole
@@ -5694,7 +5776,11 @@ function parsePgn(text) {
   return {
     headers,
     plies,
-    truncated: plies.length < tokens.length,
+    // WHAT TRUNCATED MEANS: the rules refused a token, so the rest of the game
+    // could not be read. Asking for a ply limit is not a truncation — the
+    // caller asked for exactly that much — so this reads the refusal rather
+    // than comparing counts, which a limit would make wrong.
+    truncated: stoppedAt !== null,
     tokens: tokens.length,
     stoppedAt,
     startFen: start ?? null,
@@ -6716,6 +6802,47 @@ const CHAR_CLS = Object.fromEntries(Object.entries(CLS_CHAR).map(([k, v]) => [v,
 const marksOf = (judged) => judged.map((j) => CLS_CHAR[j.cls] ?? '.').join('');
 
 /**
+ * What each of your moves cost, straight from the stored curve — no board.
+ *
+ * judgedFromStore() below rebuilds the whole move list, and to do that it needs
+ * the game parsed: every move replayed through the generator to get its
+ * notation and the position it was played in. That is the right shape for the
+ * review screen, which draws all of it.
+ *
+ * WHERE THE TIME GOES NEEDS TWO FIELDS OF IT — whether a move was yours, and
+ * what it lost — and both fall out of the curve and the index alone. Whose move
+ * ply i is, is the parity of i; what it cost is the step in the curve either
+ * side of it. Reading them this way turned the Progress screen's first paint
+ * from about six hundred milliseconds over a couple of hundred games into
+ * about ten, because replaying eight thousand moves was the whole of it.
+ */
+function lossesFromStore(curve, marks, side) {
+  const out = [];
+  if (!Array.isArray(curve) || typeof marks !== 'string') return out;
+  const count = Math.min(marks.length, curve.length - 1);
+  for (let i = 0; i < count; i++) {
+    const cls = CHAR_CLS[marks[i]] ?? 'good';
+    const white = i % 2 === 0;
+    const mate = cls === 'missed_mate' || cls === 'allowed_mate';
+    // The curve is from White's side throughout, so a loss for the mover is a
+    // FALL in it when White moved and a RISE when Black did — as in
+    // judgedFromStore, which this has to agree with exactly.
+    const drop = white ? curve[i] - curve[i + 1] : curve[i + 1] - curve[i];
+    out.push({
+      mine: (white ? 'white' : 'black') === side,
+      loss: mate ? null : (cls === 'best' ? 0 : Math.max(0, drop)),
+    });
+  }
+  return out;
+}
+
+/** One header out of a PGN, without parsing the moves. */
+function headerOf(text, name) {
+  const m = new RegExp(`\\[${name}\\s+"((?:[^"\\\\]|\\\\.)*)"\\]`).exec(String(text ?? ''));
+  return m ? m[1].replace(/\\(["\\\\])/g, '$1') : null;
+}
+
+/**
  * A stored game read back into the shape the review screen already draws.
  *
  * `parsed` is its PGN parsed again — which is where every move, its notation
@@ -7411,15 +7538,19 @@ function timeTrouble(games) {
 
   for (const game of games ?? []) {
     if (!game?.pgn || !Array.isArray(game.curve) || typeof game.marks !== 'string') { skipped++; continue; }
-    let parsed;
-    try { parsed = parsePgn(game.pgn); } catch { skipped++; continue; }
-    const clocks = clocksFrom(game.pgn, parsed.plies.length);
+    const judged = lossesFromStore(game.curve, game.marks, game.side ?? 'white');
+    if (!judged.length) { skipped++; continue; }
+    // ONE CLOCK PER MOVE OF THE GAME, or none at all: a clock lined up against
+    // a move it does not belong to reports time trouble in the wrong half of
+    // the game. The count to check against is the game's own, stored when it
+    // was reviewed — NOT the number of moves judged, which is smaller whenever
+    // a curve stops short, and would throw away the moves it does cover.
+    const plies = Number.isFinite(game.plies) && game.plies >= judged.length ? game.plies : judged.length;
+    const clocks = clocksFrom(game.pgn, plies);
     if (!clocks) { skipped++; continue; }
-    const control = timeControlOf(parsed.headers?.TimeControl ?? game.timeControl);
+    const control = timeControlOf(headerOf(game.pgn, 'TimeControl') ?? game.timeControl);
     const spent = timeSpent(clocks, control);
     if (!spent) { skipped++; continue; }
-    const judged = judgedFromStore(parsed, game.curve, game.marks, game.side ?? 'white');
-    if (!judged.length) { skipped++; continue; }
 
     used++;
     for (let i = 0; i < judged.length; i++) {
@@ -7511,6 +7642,23 @@ function repertoireLines(openings) {
     }
   }
   return lines;
+}
+
+/**
+ * The deepest ply any line in the repertoire reaches, plus the one move that
+ * leaves it.
+ *
+ * Nothing here looks past this: a game is compared against a line only as far
+ * as the line goes, and the move reported is the first one that is not in it.
+ * So a caller reading games for this report can stop there too — which turns
+ * reading a ninety-move game into reading its opening. Derived from the
+ * repertoire rather than typed, so a longer line added later is not quietly
+ * cut off at a number somebody once wrote down.
+ */
+function repertoireDepth(openings) {
+  let deepest = 0;
+  for (const line of repertoireLines(openings)) deepest = Math.max(deepest, line.line.length);
+  return deepest + 1;
 }
 
 /** How many leading plies two move lists share. */
@@ -9984,10 +10132,48 @@ const Book = {
   games: 0,
   replies: 0,
   skipped: 0,       // games from a set-up position, which have no place in a book keyed from move one
+  // WHAT EACH GAME PUT IN, so a game is read once and not once per rebuild.
+  // The book is rebuilt every time a game starts, ends, or is reviewed, and
+  // reading a PGN means replaying it through the move generator: four hundred
+  // stored games rebuilt from scratch was a two-second freeze on "New game".
+  // Keyed by everything the reading depends on — where the game is stored, its
+  // timestamp, which side he was, whether it was set up, and the length of its
+  // PGN — so a record that is edited in place is read again rather than
+  // answered from a stale slot. It holds the reading and not the PGN, so the
+  // cache stays small.
+  read: new Map(),  // '<h|r>:<at>:<side>:<setup>:<pgn length>' -> null | { skipped } | { replies: [[key, uci], …] }
 };
 
 /** Beyond this many plies a "book" is a transcript of one game, not a habit. */
 const BOOK_MAX_PLIES = 16;
+
+/**
+ * What one game contributes: its opponent's moves, each keyed by the moves
+ * before it. `null` when the game cannot go in a book at all.
+ *
+ * A GAME FROM A SET-UP POSITION IS NOT USED. Its plies are keyed by the moves
+ * before them, and from a set-up position there are none: a pasted game that
+ * began after 1.e4 e5 filed its 2.Nf3 as an answer to nothing, and the book
+ * offered 1.Nf3 at the start "because your opponent played it". Counted, and
+ * said on the note, rather than dropped quietly.
+ */
+function bookReadingOf(source) {
+  let parsed;
+  // Only as far as the book goes. The rest of the game is ninety per cent of
+  // the reading cost and none of the book.
+  try { parsed = parsePgn(source.pgn, { maxPlies: BOOK_MAX_PLIES }); } catch { return null; }
+  if (!parsed.plies.length) return null;
+  if (source.from || parsed.startFen) return { skipped: true };
+
+  const theirs = source.mine === 'white' ? 'black' : 'white';
+  const replies = [];
+  const history = [];
+  for (const ply of parsed.plies) {
+    if (ply.colour === theirs) replies.push([history.join(' '), ply.uci]);
+    history.push(ply.uci);
+  }
+  return { replies };
+}
 
 function buildBook() {
   const book = {};
@@ -9995,32 +10181,31 @@ function buildBook() {
   let skipped = 0;
 
   const sources = [];
-  for (const g of App.history.games) if (g.pgn) sources.push({ pgn: g.pgn, mine: g.colour, from: g.from ?? null });
-  for (const r of App.reviews.games) if (r.pgn) sources.push({ pgn: r.pgn, mine: r.side, from: null });
+  const sourceOf = (where, at, pgn, mine, from) => ({
+    key: `${where}:${at}:${mine}:${from ? 1 : 0}:${pgn.length}`, pgn, mine, from, at,
+  });
+  for (const g of App.history.games) if (g.pgn) sources.push(sourceOf('h', g.at, g.pgn, g.colour, g.from ?? null));
+  for (const r of App.reviews.games) if (r.pgn) sources.push(sourceOf('r', r.at, r.pgn, r.side, null));
 
+  const fresh = new Map();
   for (const source of sources) {
-    let parsed;
-    try { parsed = parsePgn(source.pgn); } catch { continue; }
-    if (!parsed.plies.length) continue;
-    // A GAME FROM A SET-UP POSITION IS NOT USED. Its plies are keyed by the
-    // moves before them, and from a set-up position there are none: a pasted
-    // game that began after 1.e4 e5 filed its 2.Nf3 as an answer to nothing,
-    // and the book offered 1.Nf3 at the start "because your opponent played
-    // it". Counted, and said on the note, rather than dropped quietly.
-    if (source.from || parsed.startFen) { skipped++; continue; }
+    // A game with no timestamp is read every time rather than sharing a cache
+    // slot with every other game that has none.
+    const cacheable = source.at !== undefined && source.at !== null;
+    let reading = cacheable ? Book.read.get(source.key) : undefined;
+    if (reading === undefined) reading = bookReadingOf(source);
+    if (cacheable) fresh.set(source.key, reading);
+    if (reading === null) continue;
+    if (reading.skipped) { skipped++; continue; }
     games++;
-
-    const theirs = source.mine === 'white' ? 'black' : 'white';
-    const history = [];
-    for (const ply of parsed.plies.slice(0, BOOK_MAX_PLIES)) {
-      if (ply.colour === theirs) {
-        const key = history.join(' ');
-        book[key] ??= {};
-        book[key][ply.uci] = (book[key][ply.uci] ?? 0) + 1;
-      }
-      history.push(ply.uci);
+    for (const [key, uci] of reading.replies) {
+      book[key] ??= {};
+      book[key][uci] = (book[key][uci] ?? 0) + 1;
     }
   }
+  // Only the games that are still stored: a cache that only ever grew would
+  // outlive the history it was read from.
+  Book.read = fresh;
 
   Book.built = book;
   Book.games = games;
@@ -10401,6 +10586,12 @@ function dueDrills() {
 }
 
 function renderToday() {
+  // REREAD EVERY TIME, because a write can start failing long after the page
+  // loaded — the quota fills, or the browser tightens up mid-session — and
+  // this is the one line that promises anything about your data.
+  const note = $('storeNote');
+  if (note) note.textContent = Store.where();
+
   const box = $('todayList');
   box.innerHTML = '';
 
@@ -12640,7 +12831,8 @@ function renderProgressChart(games) {
   // A difference smaller than this is not worth a word either way, and the
   // number of games here is never large enough to prove one.
   const meaningful = Math.abs(change) >= (measure.better === 'up' ? Math.max(1, span * 0.08) : 0.3);
-  const halves = `First ${half} games: ${measure.format(earlier)}. Last ${scored.length - half}: ${measure.format(later)}.`;
+  // "First 1 games" is what three scored games used to read as.
+  const halves = `First ${half} ${half === 1 ? 'game' : 'games'}: ${measure.format(earlier)}. Last ${scored.length - half}: ${measure.format(later)}.`;
 
   const verdict = el('p', 'note');
   verdict.textContent = flat
@@ -16537,18 +16729,19 @@ const Deviations = {
 };
 
 /**
- * HOW FAR BACK IT LOOKS. Every stored game has to be read out of its PGN, and
- * reading one means replaying it through the move generator — cheap once,
- * noticeable four hundred times on a page that is supposed to open instantly.
- * The most recent sixty are walked and the screen says sixty, because a report
- * that quietly ignored half your games while printing a total would be lying
- * about its own sample.
+ * HOW FAR BACK IT LOOKS, and it is every game.
+ *
+ * It used to be the most recent sixty, because reading a game means replaying
+ * its PGN through the move generator and four hundred of those froze the page.
+ * Two things changed that: a game is now read only as deep as the deepest line
+ * in the repertoire — the report cannot see past that anyway — and writing a
+ * move out no longer costs a move generation per candidate. Reading every
+ * stored game now costs less than reading sixty did, so there is no longer a
+ * reason to leave games out, and the sample is the whole history.
  */
-const DEVIATION_GAMES = 60;
-
-/** Every stored game that can be compared with a line, as moves from move one. */
 function deviationGames() {
   const games = [];
+  const depth = repertoireDepth(OPENINGS);
 
   const add = (key, side, pgn, label, startFen) => {
     if (!pgn || !side) return;
@@ -16556,7 +16749,7 @@ function deviationGames() {
     let sans = Deviations.parsed.get(key);
     if (sans === undefined) {
       try {
-        const parsed = parsePgn(pgn);
+        const parsed = parsePgn(pgn, { maxPlies: depth });
         sans = parsed.startFen ? null : parsed.plies.map((p) => p.san);
       } catch { sans = null; }
       Deviations.parsed.set(key, sans);
@@ -16569,7 +16762,7 @@ function deviationGames() {
       label: `against level ${bandLabelFor(g.band)}` })),
     ...(App.reviews?.games ?? []).map((g) => ({ at: g.at, side: g.side, pgn: g.pgn, from: null,
       label: `${g.white ?? '?'} vs ${g.black ?? '?'}` })),
-  ].sort((a, b) => (b.at ?? 0) - (a.at ?? 0)).slice(0, DEVIATION_GAMES);
+  ].sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
 
   for (const game of stored) add(game.at, game.side, game.pgn, game.label, game.from);
   return games;
@@ -16596,13 +16789,24 @@ function buildDeviations() {
 }
 
 /**
- * The cost of the top rows, one search pair at a time, yielding between each.
+ * How many rows the report shows, and therefore how many get a price.
+ *
+ * ONE NUMBER FOR BOTH. It was eight shown and six measured, so the last two
+ * rows said "Measuring what it cost…" for as long as the screen was open, with
+ * nothing measuring them. A row that is shown is a row that gets an answer,
+ * even if the answer is that the cost could not be measured.
+ */
+const DEVIATION_ROWS = 8;
+
+/**
+ * The cost of the rows on screen, one search pair at a time, yielding between
+ * each.
  *
  * Only the rows on screen, and only once: a report that froze the page for
  * three seconds to price twenty rows nobody scrolled to would be worse than
  * one that priced none.
  */
-function measureDeviations(limit = 6) {
+function measureDeviations(limit = DEVIATION_ROWS) {
   if (Deviations.measuring) return;
   const todo = Deviations.rows.slice(0, limit).filter((r) => !(r.key in Deviations.costs));
   if (!todo.length) return;
@@ -16654,7 +16858,7 @@ function renderDeviationRows() {
     return;
   }
 
-  for (const row of Deviations.rows.slice(0, 8)) {
+  for (const row of Deviations.rows.slice(0, DEVIATION_ROWS)) {
     const item = el('div', 'endgame-row');
     const head = el('div', 'endgame-head');
     head.appendChild(el('strong', null, `${row.name}${row.variation ? ` — ${row.variation}` : ''}`));
@@ -16704,8 +16908,8 @@ function renderDeviationRows() {
     box.appendChild(item);
   }
 
-  if (Deviations.rows.length > 8) {
-    box.appendChild(el('p', 'note', `${Deviations.rows.length - 8} more, seen fewer times.`));
+  if (Deviations.rows.length > DEVIATION_ROWS) {
+    box.appendChild(el('p', 'note', `${Deviations.rows.length - DEVIATION_ROWS} more, seen fewer times.`));
   }
 }
 
@@ -17065,7 +17269,7 @@ async function boot() {
 
   // Progress is loaded BEFORE anything renders, so the first paint is the real
   // state rather than an empty one that fills in a moment later.
-  const hasStore = await Store.init();
+  await Store.init();
   App.openings = await Store.get('openings', { cards: {} });
   App.drills = await Store.get('drills', { items: [] });
   App.history = await Store.get('history', { bands: {}, games: [] });
@@ -17090,9 +17294,9 @@ async function boot() {
   Endgames.results ??= {};
   Vision.best ??= {};
 
-  $('storeNote').textContent = hasStore
-    ? 'Saved to your Claude account, so it follows you to another device, with a copy in this browser.'
-    : 'Saved in this browser only. It survives closing the tab, but not clearing site data or moving to another device.';
+  // Store.where() rather than a sentence built here, because it has to be able
+  // to say "nothing is being saved" — see Store.localFailed.
+  $('storeNote').textContent = Store.where();
 
   // Boards. All of them share one implementation, so they cannot disagree about
   // what a legal move is.

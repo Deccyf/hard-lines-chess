@@ -107,6 +107,11 @@ checks the APK contains the app and every font the page asks for, because a
 wrapper that installs and opens on a blank screen is invisible from a green
 build.
 
+The node suite runs there too, beside the APK build rather than in front of it,
+and nothing is published until it passes. Building proves the page builds; it
+does not prove the page works, and a suite that only ever runs on someone's
+laptop is not protecting the thing that reaches the phone.
+
 The repository's Pages source must be set to **GitHub Actions**
 (Settings → Pages → Build and deployment → Source). On the default, "Deploy
 from a branch", GitHub runs its own Jekyll build of the repository root
@@ -135,13 +140,51 @@ without them. The APK, which has no network at all, bundles them in
 `android/app/src/main/assets/fonts/` and answers the page's own request for the
 stylesheet from inside itself.
 
+## Speed
+
+Everything the app knows about a game it reads back out of the game's own PGN,
+and reading a PGN means replaying it through the move generator. With a few
+dozen games that is free; with a few hundred it was the whole experience.
+Measured on a history of 243 stored games:
+
+| | before | after |
+|---|---|---|
+| opening the app | 1.6 s | 0.6 s |
+| pressing New game | 0.5 s, every time | 1 ms after the first |
+| opening Progress | 184 ms | 21 ms |
+| reading all 243 games | 1.8 s | 0.26 s |
+| the deviation report | most recent 60 games | all 243, in 120 ms |
+
+Three changes, and none of them changes an answer:
+
+- **A move is matched by spelling only the moves that could be it.** Writing a
+  move out means playing it to see whether it gives check, so finding the move
+  a PGN token names used to cost a spelling of all thirty-odd legal moves.
+  Every move but castling ends in the square the text names, so only the moves
+  that go there are candidates — and the match is still made by spelling them.
+- **Mate is a check with no reply.** Writing a move used to ask the board for
+  its outcome, which generates every legal move and then tests the fifty-move
+  rule, repetition and material — none of which spell anything. Asking "is this
+  a check" first costs nothing and answers no almost every time.
+- **Work done per game is remembered per game.** The opening book and the
+  deviation report each keep what they read out of each game, keyed to the
+  record it came from, so a rebuild reads only what is new. Both also stop
+  reading at the depth they can actually see: sixteen plies for the book, and
+  the length of the longest line in the repertoire for the report.
+
+Two of the three are checked by holding the old implementation and the new one
+to each other — 213,108 moves written both ways, and the whole opening book
+built both ways on sixteen awkward histories. The third is checked exhaustively
+over every one- and two-piece ending.
+
 ## Tests
 
 ```
 npm install            # playwright, for the browser drivers
-npm test               # 16 node suites: perft, motifs, traps, mate cap, multi-line
+npm test               # 17 node suites: perft, motifs, traps, mate cap, multi-line
                        # search, the solved table, endgame and opening prose,
-                       # notation, clocks, evaluation symmetry, interface vocabulary
+                       # notation, clocks, evaluation symmetry, the fast paths
+                       # against the long way round, interface vocabulary
 npm run test:browser   # 44 Playwright drivers against dist/
 npm run verify:openings
 ```
