@@ -63,7 +63,7 @@ const ok = (name, cond, detail = '') => { console.log((cond ? 'ok   ' : 'FAIL ')
     const out = {};
     for (const mv of ['Ra8#', 'Re8#']) {
       const parsed = parsePgn(`[FEN "${fen}"]\n[SetUp "1"]\n1. ${mv}`);
-      const res = await reviewGame(parsed, 'white', { movetime: 120, depth: 7, withTactics: false });
+      const res = await reviewGame(parsed, 'white', { nodes: 25000, depth: 7, withTactics: false });
       const j = res.judged[0];
       out[mv] = { engineBest: j.best?.san, cls: j.cls, mates: j.mates, loss: j.loss, mistakes: res.mistakes.length, whiteCp: res.whiteCp[1] };
     }

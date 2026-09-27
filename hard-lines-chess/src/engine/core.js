@@ -558,20 +558,32 @@ export class Board {
     return count >= 3;
   }
 
+  /**
+   * Whether neither side can force a mate with what is on the board.
+   *
+   * IT STOPS AT THE THIRD PIECE. Every node of the search asks this, and for
+   * all but the barest endings the answer is no — and a third piece that is not
+   * a king settles it, whatever it is. Counting the rest was a hundred and
+   * twenty-eight squares walked and an array of objects allocated per node to
+   * reach a conclusion the third piece had already given.
+   */
   insufficientMaterial() {
-    const pieces = [];
+    let found = 0;
+    let type1 = 0, light1 = 0, type2 = 0, light2 = 0;
     for (let sq = 0; sq < 128; sq++) {
       if (sq & 0x88) continue;
       const p = this.squares[sq];
-      if (p && typeOf(p) !== KING) pieces.push({ type: typeOf(p), colour: colourOf(p), sq });
+      if (!p || typeOf(p) === KING) continue;
+      if (++found > 2) return false;
+      const type = typeOf(p);
+      const light = (fileOf(sq) + rankOf(sq)) & 1;
+      if (found === 1) { type1 = type; light1 = light; } else { type2 = type; light2 = light; }
     }
-    if (pieces.length === 0) return true;
-    if (pieces.length === 1) return pieces[0].type === BISHOP || pieces[0].type === KNIGHT;
-    if (pieces.length === 2 && pieces.every((p) => p.type === BISHOP)) {
-      const light = (p) => (fileOf(p.sq) + rankOf(p.sq)) & 1;
-      return light(pieces[0]) === light(pieces[1]);
-    }
-    return false;
+    if (found === 0) return true;
+    if (found === 1) return type1 === BISHOP || type1 === KNIGHT;
+    // Two bishops, and only on squares of one colour: neither can reach the
+    // other's, so between them they cover half the board.
+    return type1 === BISHOP && type2 === BISHOP && light1 === light2;
   }
 
   /** null while the game is going, otherwise how it ended. */

@@ -20,7 +20,7 @@ const sans = [];
 for (let ply = 0; ply < 120 && !board.outcome(); ply++) {
   const band = board.turn === ctx.WHITE ? white : black;
   engine.reset();
-  const r = engine.search(board, { movetime: band.movetime, maxDepth: band.depth, blunder: band.blunder });
+  const r = engine.search(board, { nodes: band.nodes, maxDepth: band.depth, blunder: band.blunder });
   if (!r.move) break;
   sans.push(toSan(board, r.move));
   board.make(r.move);

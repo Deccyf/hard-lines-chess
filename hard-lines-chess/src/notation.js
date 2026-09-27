@@ -46,15 +46,33 @@ function toSan(board, move) {
 
   // Check and mate are properties of the position AFTER the move, so they can
   // only be read by playing it.
+  //
+  // THE CHEAP QUESTION FIRST. Mate is a check with no reply, so a position that
+  // is not a check cannot be one and nothing more needs asking. This used to
+  // ask outcome() instead, which generates every legal move — and then checks
+  // the fifty-move rule, repetition and material, none of which spell anything
+  // — for every move written anywhere in the app. sanToMove() writes out the
+  // legal moves of a position to find the one matching a PGN token, so reading
+  // one game was hundreds of move generations answering "no" to "is this mate".
   const copy = board;
   if (copy.make(move)) {
-    const outcome = copy.outcome();
-    if (outcome === 'checkmate') san += '#';
-    else if (copy.inCheck()) san += '+';
+    if (copy.inCheck()) san += hasLegalReply(copy) ? '+' : '#';
     copy.unmake();
   }
 
   return san;
+}
+
+/**
+ * Whether the side to move has a legal move at all — stopping at the first one
+ * found rather than collecting them, which is the whole point: the answer is
+ * yes for all but the handful of positions that are mate or stalemate.
+ */
+function hasLegalReply(board) {
+  for (const move of board.generate()) {
+    if (board.make(move)) { board.unmake(); return true; }
+  }
+  return false;
 }
 
 /**

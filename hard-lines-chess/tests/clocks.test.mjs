@@ -12,9 +12,12 @@ const src = [
   readFileSync(new URL('../src/notation.js', import.meta.url), 'utf8'),
   readFileSync(new URL('../src/pgn.js', import.meta.url), 'utf8'),
   readFileSync(new URL('../src/import.js', import.meta.url), 'utf8'),
+  readFileSync(new URL('../src/motifs.js', import.meta.url), 'utf8'),
+  readFileSync(new URL('../src/rating-fit.js', import.meta.url), 'utf8'),
+  readFileSync(new URL('../src/review.js', import.meta.url), 'utf8'),
 ].join('\n');
 const S = new Function('window', 'localStorage', src
-  + '; return { parsePgn, clocksFrom, timeControlOf, timeSpent, chessComGame, chessComMonth };')({}, undefined);
+  + '; return { parsePgn, clocksFrom, timeControlOf, timeSpent, chessComGame, chessComMonth, timeTrouble, lossesFromStore, judgedFromStore, headerOf, marksOf, SPENT_BUCKETS, LEFT_BUCKETS, bucketFor };')({}, undefined);
 
 let pass = 0;
 const fails = [];
@@ -115,6 +118,104 @@ eq('and so does the time control', stored[0].timeControl, '180+2');
 eq('nothing the review found is touched', stored[0].accuracy, 71);
 // Running it a third time has nothing left to do.
 eq('a second pass reports no further change', S.chessComMonth([api()], 'you', stored).updated, 0);
+
+// ── where the time goes, without replaying eight thousand moves ───────────
+//
+// timeTrouble() used to parse every game and rebuild its whole move list to
+// read two fields off it: whether a move was yours and what it cost. Both fall
+// out of the stored curve and the ply index, so it no longer parses at all —
+// which took the Progress screen's first paint over a couple of hundred games
+// from about six hundred milliseconds to about ten.
+//
+// A FASTER ANSWER IS ONLY WORTH ANYTHING IF IT IS THE SAME ANSWER. The old
+// implementation is written out here and both are run over the same corpus;
+// every bucket, every count and every mean has to match exactly.
+const oldTimeTrouble = (games) => {
+  const spentRows = S.SPENT_BUCKETS.map((b) => ({ ...b, n: 0, lost: 0, blunders: 0 }));
+  const leftRows = S.LEFT_BUCKETS.map((b) => ({ ...b, n: 0, lost: 0, blunders: 0 }));
+  let used = 0, skipped = 0, moves = 0;
+  for (const game of games ?? []) {
+    if (!game?.pgn || !Array.isArray(game.curve) || typeof game.marks !== 'string') { skipped++; continue; }
+    let parsed;
+    try { parsed = S.parsePgn(game.pgn); } catch { skipped++; continue; }
+    const clocks = S.clocksFrom(game.pgn, parsed.plies.length);
+    if (!clocks) { skipped++; continue; }
+    const control = S.timeControlOf(parsed.headers?.TimeControl ?? game.timeControl);
+    const spent = S.timeSpent(clocks, control);
+    if (!spent) { skipped++; continue; }
+    const judged = S.judgedFromStore(parsed, game.curve, game.marks, game.side ?? 'white');
+    if (!judged.length) { skipped++; continue; }
+    used++;
+    for (let i = 0; i < judged.length; i++) {
+      const j = judged[i];
+      if (!j.mine || !Number.isFinite(j.loss)) continue;
+      const took = spent[i];
+      if (!Number.isFinite(took)) continue;
+      moves++;
+      const before = clocks[i] + took - (control?.increment ?? 0);
+      for (const [rows, value] of [[spentRows, took], [leftRows, before]]) {
+        const row = S.bucketFor(rows, value);
+        row.n++; row.lost += Math.min(300, j.loss);
+        if (j.loss >= 300) row.blunders++;
+      }
+    }
+  }
+  const finish = (rows) => rows.map((r) => ({ label: r.label, n: r.n,
+    meanLoss: r.n ? r.lost / r.n : null, blunderRate: r.n ? r.blunders / r.n : null }));
+  return { spent: finish(spentRows), left: finish(leftRows), used, skipped, moves };
+};
+
+// A corpus with the awkward cases in it, not just the happy one.
+const corpus = [];
+{
+  const MOVES = ['e4','e5','Nf3','Nc6','Bb5','a6','Ba4','Nf6','O-O','Be7','Re1','b5','Bb3','d6','c3','O-O','h3','Nb8','d4','Nbd7'];
+  const CHARS = '*.?!X';
+  for (let g = 0; g < 24; g++) {
+    const n = 6 + (g % 15);                      // games of different lengths
+    let w = 300 + g * 7, b = 300 + g * 5; const parts = [];
+    for (let i = 0; i < n; i++) {
+      const white = i % 2 === 0;
+      const took = (g % 4 === 0) ? 1 + (i % 3) : 5 + ((i * 7 + g) % 40);
+      if (white) w = Math.max(1, w - took); else b = Math.max(1, b - took);
+      const left = Math.round(white ? w : b);
+      parts.push(`${white ? `${i / 2 + 1}. ` : `${(i + 1) / 2}... `}${MOVES[i]}`
+        + (g % 7 === 3 && i === 2 ? '' : ` {[%clk 0:${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}]}`));
+    }
+    const tc = ['600', '180+2', '1/86400', '-'][g % 4];
+    const pgn = `[Event "T"]\n[White "you"]\n[Black "opp"]\n[Result "1-0"]\n[TimeControl "${tc}"]\n\n${parts.join(' ')} 1-0`;
+    const curve = [0];
+    for (let i = 0; i < n; i++) curve.push(curve[i] + (((i * 53 + g * 11) % 700) - 350));
+    corpus.push({ at: g, side: g % 5 === 0 ? 'black' : 'white', pgn, curve, plies: n,
+      marks: Array.from({ length: n }, (_, i) => CHARS[(i + g) % CHARS.length]).join('') });
+  }
+  // and the shapes that must be refused
+  corpus.push({ at: 99, side: 'white', pgn: '1. e4 e5', curve: [0, 5, 5], marks: '..' });   // no clocks
+  corpus.push({ at: 98, side: 'white', pgn: corpus[0].pgn });                                // never reviewed
+  // A curve that stops short of the game: the moves it does cover still count,
+  // which is why the clock check uses the game's ply count and not the curve's.
+  corpus.push({ at: 97, side: 'white', pgn: corpus[0].pgn, plies: corpus[0].plies, curve: [0, 1], marks: 'X' });
+  // And one with no stored ply count at all, as an older record has.
+  corpus.push({ at: 96, side: 'white', pgn: corpus[1].pgn, curve: corpus[1].curve, marks: corpus[1].marks });
+}
+const slow = oldTimeTrouble(corpus);
+const fast = S.timeTrouble(corpus);
+eq('the corpus exercises both paths', [slow.used > 6, slow.skipped > 0, slow.moves > 40], [true, true, true]);
+eq('same games used, same skipped, same moves', [fast.used, fast.skipped, fast.moves], [slow.used, slow.skipped, slow.moves]);
+eq('every by-time-spent bucket identical', fast.spent, slow.spent);
+eq('every by-clock-left bucket identical', fast.left, slow.left);
+
+// And the parts, on their own.
+eq('the header reader agrees with the parser',
+  corpus.slice(0, 6).map((g) => S.headerOf(g.pgn, 'TimeControl')),
+  corpus.slice(0, 6).map((g) => S.parsePgn(g.pgn).headers.TimeControl ?? null));
+eq('a header that is not there is null', S.headerOf('1. e4 e5', 'TimeControl'), null);
+{
+  const g = corpus[1];
+  const full = S.judgedFromStore(S.parsePgn(g.pgn), g.curve, g.marks, g.side);
+  eq('losses read without the board match the full rebuild',
+    S.lossesFromStore(g.curve, g.marks, g.side),
+    full.map((j) => ({ mine: j.mine, loss: j.loss })));
+}
 
 console.log(`\n${pass} checks passed, ${fails.length} failed`);
 if (fails.length) { console.log('FAILED\n  ' + fails.join('\n  ')); process.exit(1); }

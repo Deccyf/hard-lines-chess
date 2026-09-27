@@ -61,6 +61,23 @@ function repertoireLines(openings) {
   return lines;
 }
 
+/**
+ * The deepest ply any line in the repertoire reaches, plus the one move that
+ * leaves it.
+ *
+ * Nothing here looks past this: a game is compared against a line only as far
+ * as the line goes, and the move reported is the first one that is not in it.
+ * So a caller reading games for this report can stop there too — which turns
+ * reading a ninety-move game into reading its opening. Derived from the
+ * repertoire rather than typed, so a longer line added later is not quietly
+ * cut off at a number somebody once wrote down.
+ */
+function repertoireDepth(openings) {
+  let deepest = 0;
+  for (const line of repertoireLines(openings)) deepest = Math.max(deepest, line.line.length);
+  return deepest + 1;
+}
+
 /** How many leading plies two move lists share. */
 function sharedPlies(a, b) {
   let n = 0;
@@ -190,7 +207,7 @@ function collectDeviations(games, openings) {
  * A POSITIVE NUMBER IS A LOSS. Zero or below means leaving the book cost you
  * nothing here, which happens and is reported as such.
  */
-function measureDeviation(row, { Board, sanToMove, engine, movetime = 300, depth = 10 }) {
+function measureDeviation(row, { Board, sanToMove, engine, nodes = 30000, depth = 10 }) {
   const board = new Board();
   for (const san of row.prefix) {
     const move = sanToMove(board, san);
@@ -210,7 +227,11 @@ function measureDeviation(row, { Board, sanToMove, engine, movetime = 300, depth
     engine.reset();
     // The score comes back from the side to move, which after our move is
     // theirs, so it is negated onto our side.
-    return -engine.search(copy, { movetime, maxDepth: depth }).score;
+    // THE SAME BUDGET ON BOTH SIDES OF THE SUBTRACTION, and a budget of work
+    // rather than of time — otherwise the second of the two searches could get
+    // a different amount done from the first and the difference between them
+    // would be partly the machine.
+    return -engine.search(copy, { nodes, maxDepth: depth }).score;
   };
 
   const yours = after(row.played);

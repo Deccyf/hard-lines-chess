@@ -93,18 +93,27 @@ const TRAP_DEFAULTS = {
   // position is forcing and alpha-beta cuts hard.
   deepDepth: 8,
 
+
   // Per candidate search, and there are at most `1 + shortlist` of them — see
   // the budget note on findTrap.
-  movetime: 150,
+  //
+  // POSITIONS, NOT MILLISECONDS, and this is the figure that shows why it had
+  // to change. Measured on the Légal position 2026-09-27: a candidate search
+  // on ...Bxd1 sees the mate that refutes it at 30,000 positions and does not
+  // at 15,000. Under the old millisecond budget a laptop was well past that
+  // line and a phone was well short of it — so the same trap was a lesson on
+  // one device and silence on the other. 45,000 puts every device on the same
+  // side of it with half as much again in hand.
+  nodes: 45000,
 
   // The root search gets its own, larger budget, because it is the one search
   // whose answer is SHOWN: the move the coach eventually reveals. Measured on
-  // the Légal position (36 legal moves) on 2026-09-04: at 180ms it reaches
-  // depth 4 and names the queen grab as its own best move — the trap, offered
-  // as the answer — and at 300ms it reaches depth 5 and does not. 400ms buys
-  // depth 5 to 6 there with room to spare on slower hardware. The invariant
-  // below is what stops this figure being load-bearing.
-  rootMovetime: 400,
+  // the Légal position (36 legal moves), re-measured in positions 2026-09-27:
+  // up to 60,000 it reaches depth 4 and names the queen grab as its own best
+  // move — the trap, offered as the answer — and at 100,000 it reaches depth 5
+  // and does not. 150,000 buys depth 6 there with half as much again in hand.
+  // The invariant below is what stops this figure being load-bearing.
+  rootNodes: 150000,
 
   // Below this, nothing is said. Two thirds of a pawn is under a minor piece
   // on purpose: a trap that costs an exchange is worth a warning, and one that
@@ -213,7 +222,7 @@ function trapScoreMove(engine, board, move, opts) {
 
   engine.reset();
   const reply = engine.search(board, {
-    movetime: opts.movetime,
+    nodes: opts.nodes,
     // One ply is already spent on `move`, so the total from the root is
     // deepDepth either way.
     maxDepth: Math.max(1, opts.deepDepth - 1),
@@ -237,15 +246,15 @@ function trapScoreMove(engine, board, move, opts) {
  *   shallowMargin  centipawns below the shallow best that still counts as tempting
  *   shortlist      how many tempting moves get a deep search (the cost ceiling)
  *   deepDepth      depth of the search that decides what a move is really worth
- *   movetime       ms per candidate search
- *   rootMovetime   ms for the one search that finds the move to offer
+ *   nodes          positions per candidate search
+ *   rootNodes      positions for the one search that finds the move to offer
  *   floor          minimum trappiness worth interrupting for
  *   decided        (used by trapGate, carried here so one options object serves both)
  *   engine         an Engine to reuse; one is made per call otherwise
  *
  * THE INVARIANT THE TWO SEARCHES SHARE. The root search and the candidate
  * searches are different searches at different budgets, and they can disagree:
- * measured on the Légal position, a 180ms root search names the queen grab as
+ * measured on the Légal position, a root search of 60,000 positions names the queen grab as
  * its own best move while a candidate search on the same move finds the mate
  * that refutes it. Two perfectly good answers, contradicting each other on one
  * screen, with nothing reporting an error — so the disagreement is resolved
@@ -259,13 +268,22 @@ function trapScoreMove(engine, board, move, opts) {
  * for the root's own move (free when that move is itself on the shortlist,
  * which is the common case in a quiet position), one per shortlisted move, and
  * one more only in the case below, where every tempting move turned out to be
- * the same move. At the defaults that is a ceiling of 400 + 5 × 150 = 1150ms.
+ * the same move. At the defaults that is a ceiling of 150,000 + 5 × 45,000 =
+ * 375,000 positions — and, being positions, that ceiling is the same ceiling
+ * on every device rather than a different one on each.
  *
- * MEASURED 2026-09-04, node 22, seven positions × five calls: 3 to 5 searches
- * per call, median 862ms, worst 1045ms. The shallow ranking is 2.2ms of that
- * at depth 1 and 5.6ms at depth 2; the gate's static evaluation is under a
- * microsecond. A snapshot, like every measurement in a docblock here —
- * re-measure on the hardware it has to run on.
+ * IT COSTS A PHONE MORE THAN THE OLD MILLISECOND CEILING DID, and that is the
+ * point rather than a regression: what the phone used to do inside 1150ms was
+ * a search too shallow to see the refutation, so the oldest trap in chess came
+ * back as either silence or — worse — the trap offered as the answer. The work
+ * is what finds the mate, and a device that does less of it does not find it.
+ *
+ * MEASURED 2026-09-04, node 22, seven positions × five calls, when this was
+ * still budgeted in milliseconds: 3 to 5 searches per call, median 862ms,
+ * worst 1045ms. The shallow ranking is 2.2ms of that at depth 1 and 5.6ms at
+ * depth 2; the gate's static evaluation is under a microsecond. A snapshot,
+ * like every measurement in a docblock here — re-measure on the hardware it
+ * has to run on.
  *
  * @returns {null|{intent:string, expectedMistake:{uci,san}, bestMove:{uci,san},
  *                 refutation:{uci,san}|null, trappiness:number, temptation:number,
@@ -292,7 +310,7 @@ function findTrap(board, options = {}) {
   const engine = opts.engine ?? new Engine();
 
   engine.reset();
-  const top = engine.search(board, { movetime: opts.rootMovetime, maxDepth: opts.deepDepth });
+  const top = engine.search(board, { nodes: opts.rootNodes, maxDepth: opts.deepDepth });
   if (!top.move) return null;
 
   // Every move that gets a number gets it the same way — the root's own choice
@@ -323,7 +341,7 @@ function findTrap(board, options = {}) {
   // about — which is right when the tempting move is genuinely best (a free
   // queen is not a trap), and wrong in the case this feature exists for: a
   // shortlist of one, where the root search ran out of time and picked the
-  // trap as well. Measured on the Légal position at a 180ms root budget, both
+  // trap as well. Measured on the Légal position at a 60,000-position root budget, both
   // halves name the queen grab and the oldest trap in chess comes back as
   // "nothing here".
   //

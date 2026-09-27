@@ -7,7 +7,27 @@ const GAME = '1. e4 e5 2. Qh5 Nc6 3. Qxe5+ Be7 4. Qxg7 Bf6 5. Qg3 d6 6. Nf3 Bg4 
   const page = await browser.newPage({ viewport: { width: 1100, height: 1000 } });
   const errors = [];
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
-  page.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('ERR_CONNECTION')) errors.push('console: ' + m.text()); });
+  // A RESOURCE THAT DID NOT LOAD IS WATCHED BY URL, NOT BY CONSOLE TEXT — the
+  // same way everything.cjs does it. The page asks one host for two fonts and
+  // is built to work without them, so a network that refuses that request is
+  // not a fault in the app; it is the APK's normal condition. Matching on the
+  // console text meant guessing the browser's wording for "no", and the guess
+  // ('ERR_CONNECTION') did not cover a network that answers with a certificate
+  // it cannot verify, so this driver failed everywhere behind a proxy.
+  page.on('console', (m) => {
+    if (m.type() !== 'error') return;
+    if (/Failed to load resource/.test(m.text())) return;
+    errors.push('console: ' + m.text());
+  });
+  const optional = /favicon\.ico|fonts\.(googleapis|gstatic)\.com/;
+  page.on('requestfailed', (r) => {
+    if (optional.test(r.url())) return;
+    errors.push(`request failed: ${r.failure()?.errorText ?? '?'} ${r.url()}`);
+  });
+  page.on('response', (r) => {
+    if (r.status() < 400 || optional.test(r.url())) return;
+    errors.push(`HTTP ${r.status()} ${r.url()}`);
+  });
 
   await page.goto(app('hard-lines-chess.html'));
   await page.waitForSelector('#tab-today');

@@ -91,7 +91,7 @@ for (const eg of ENDGAMES) {
     }
   } else {
     engine.reset();
-    const result = engine.search(new Board(eg.fen), { movetime: 2500, maxDepth: 30 });
+    const result = engine.search(new Board(eg.fen), { nodes: 400000, maxDepth: 30 });
     // A mate or a promotion to force needs an advantage the search is certain
     // of. Half a rook is the floor; every one of these is far past it.
     ok(`${eg.id}: the search sees it as winning`, result.score > 400, `score ${result.score}`);
@@ -201,7 +201,7 @@ function playOutEndgame(eg) {
     }
     if (!move) {
       engine.reset();
-      const result = engine.search(new Board(board.fen()), { movetime: 900, maxDepth: 20 });
+      const result = engine.search(new Board(board.fen()), { nodes: 150000, maxDepth: 20 });
       move = result.move && board.legalMoves().find((m) => m === result.move);
       if (!move && result.move) move = board.legalMoves()[0];
     }

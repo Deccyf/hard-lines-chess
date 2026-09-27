@@ -1029,9 +1029,9 @@
         <div class="fields">
           <label class="field"><span>Depth</span>
             <select id="walkDepth">
-              <option value="7" selected>Quick — a few seconds per game</option>
-              <option value="9">Normal</option>
-              <option value="12">Deep — slower, finds more</option>
+              <option value="7" selected>Quick — 25,000 positions a move</option>
+              <option value="9">Normal — 80,000 positions a move</option>
+              <option value="12">Deep — 250,000 positions a move, finds more</option>
             </select>
           </label>
         </div>
@@ -1073,9 +1073,9 @@
         <label class="field">
           <span>Depth</span>
           <select id="reviewDepth">
-            <option value="7">Quick — about 0.1s per move</option>
-            <option value="9" selected>Normal — about 0.3s per move</option>
-            <option value="12">Deep — about 0.7s per move, finds more</option>
+            <option value="7">Quick — 25,000 positions a move</option>
+            <option value="9" selected>Normal — 80,000 positions a move</option>
+            <option value="12">Deep — 250,000 positions a move, finds more</option>
           </select>
         </label>
       </div>
@@ -1533,9 +1533,9 @@
         <div class="panel">
           <h2>Engine</h2>
           <label class="field"><span>Thinking time on the analysis board</span>
-            <select id="settingThink"><option value="fast">Fast — 0.3s</option><option value="normal">Normal — 0.9s</option><option value="deep">Deep — 2.5s</option></select>
+            <select id="settingThink"><option value="fast">Fast — 30,000 positions</option><option value="normal">Normal — 90,000 positions</option><option value="deep">Deep — 250,000 positions</option></select>
           </label>
-          <p class="note">Opponents on Play have their own thinking time, fixed by level. Game review has its own setting.</p>
+          <p class="note">How hard the analysis board thinks, counted in positions rather than seconds so that a setting means the same thing on a phone as on a laptop. Opponents on Play have their own budget, fixed by level, and game review has its own setting.</p>
         </div>
         <div class="panel">
           <button class="btn" id="settingReset" type="button">Restore defaults</button>
@@ -2115,20 +2115,32 @@ class Board {
     return count >= 3;
   }
 
+  /**
+   * Whether neither side can force a mate with what is on the board.
+   *
+   * IT STOPS AT THE THIRD PIECE. Every node of the search asks this, and for
+   * all but the barest endings the answer is no — and a third piece that is not
+   * a king settles it, whatever it is. Counting the rest was a hundred and
+   * twenty-eight squares walked and an array of objects allocated per node to
+   * reach a conclusion the third piece had already given.
+   */
   insufficientMaterial() {
-    const pieces = [];
+    let found = 0;
+    let type1 = 0, light1 = 0, type2 = 0, light2 = 0;
     for (let sq = 0; sq < 128; sq++) {
       if (sq & 0x88) continue;
       const p = this.squares[sq];
-      if (p && typeOf(p) !== KING) pieces.push({ type: typeOf(p), colour: colourOf(p), sq });
+      if (!p || typeOf(p) === KING) continue;
+      if (++found > 2) return false;
+      const type = typeOf(p);
+      const light = (fileOf(sq) + rankOf(sq)) & 1;
+      if (found === 1) { type1 = type; light1 = light; } else { type2 = type; light2 = light; }
     }
-    if (pieces.length === 0) return true;
-    if (pieces.length === 1) return pieces[0].type === BISHOP || pieces[0].type === KNIGHT;
-    if (pieces.length === 2 && pieces.every((p) => p.type === BISHOP)) {
-      const light = (p) => (fileOf(p.sq) + rankOf(p.sq)) & 1;
-      return light(pieces[0]) === light(pieces[1]);
-    }
-    return false;
+    if (found === 0) return true;
+    if (found === 1) return type1 === BISHOP || type1 === KNIGHT;
+    // Two bishops, and only on squares of one colour: neither can reach the
+    // other's, so between them they cover half the board.
+    return type1 === BISHOP && type2 === BISHOP && light1 === light2;
   }
 
   /** null while the game is going, otherwise how it ended. */
@@ -2356,6 +2368,18 @@ const TT_EXACT = 0, TT_LOWER = 1, TT_UPPER = 2;
 const toTT = (score, ply) => score > MATE_THRESHOLD ? score + ply : (score < -MATE_THRESHOLD ? score - ply : score);
 const fromTT = (score, ply) => score > MATE_THRESHOLD ? score - ply : (score < -MATE_THRESHOLD ? score + ply : score);
 
+/**
+ * The wall clock's only remaining job: stop a search that a device this slow
+ * was never going to finish.
+ *
+ * It is not the budget — see search(). It exists so that a machine an order of
+ * magnitude slower than anything this was measured on cannot lock the page up,
+ * and when it fires the result says so, because a number produced under a
+ * different budget from the one asked for is not the number that was asked
+ * for.
+ */
+const BACKSTOP_MS = 20000;
+
 class Engine {
   constructor() {
     this.tt = new Map();
@@ -2364,6 +2388,8 @@ class Engine {
     this.nodes = 0;
     this.stop = false;
     this.deadline = 0;
+    this.nodeLimit = Infinity;
+    this.ranOutOfTime = false;
   }
 
   reset() {
@@ -2373,18 +2399,41 @@ class Engine {
   }
 
   /**
-   * Iterative deepening under a wall-clock budget.
+   * Iterative deepening under a budget of WORK, not of time.
    *
-   * Time, not depth, for the reason the server side budgets movetime: a depth
-   * budget makes a sharp position cost fifteen seconds and a quiet one a
-   * fraction of that, which is unplayable in exactly the positions worth
-   * playing. Each completed depth's best move is kept, so the clock can stop
-   * the search at any point and there is always an answer.
+   * NOT DEPTH, for the reason a server budgets a move at all: a depth budget
+   * makes a sharp position cost fifteen seconds and a quiet one a fraction of
+   * that — measured here, depth 9 ranges from 15,607 positions to 15,026,933
+   * — which is unplayable in exactly the positions worth playing. Each
+   * completed depth's best move is kept, so the budget can stop the search at
+   * any point and there is always an answer.
+   *
+   * AND NOT TIME, WHICH IS WHAT THIS USED TO BE, because a budget of
+   * milliseconds is a budget of whatever the machine can do in them. Two
+   * things followed from that and both were wrong. The same game reviewed
+   * twice gave a different accuracy and an estimate that moved by up to 220
+   * rating points, because the second run got a different number of positions
+   * out of the same 280 milliseconds. And a level labelled 1500 was a
+   * different opponent on a laptop than on a phone, which is not what a label
+   * on a ladder can mean.
+   *
+   * Positions searched is the same number everywhere. Give it the same
+   * position, the same budget and a cleared table and it returns the same move
+   * on any device, this year and next — which is what lets one game's figures
+   * be set beside another's at all.
+   *
+   * `movetime` is now only a backstop; see BACKSTOP_MS. A search that hits it
+   * comes back with `ranOutOfTime`, because it did less work than it was
+   * asked for and nothing downstream should quietly treat it as if it had not.
    */
-  search(board, { movetime = 1000, maxDepth = 64, randomness = 0, blunder = 0, lines = 1 } = {}) {
+  search(board, { nodes: nodeLimit = 0, movetime = 0, maxDepth = 64, randomness = 0, blunder = 0, lines = 1 } = {}) {
     this.nodes = 0;
     this.stop = false;
-    this.deadline = Date.now() + movetime;
+    this.ranOutOfTime = false;
+    // A caller that names neither gets the backstop and nothing else, which is
+    // an unlimited search — the shape the tools that measure this engine want.
+    this.nodeLimit = nodeLimit > 0 ? nodeLimit : Infinity;
+    this.deadline = Date.now() + (movetime > 0 ? movetime : BACKSTOP_MS);
     this.killers = Array.from({ length: maxDepth + 8 }, () => [0, 0]);
 
     let best = 0, bestScore = 0, bestLine = [], all = [], reached = 0;
@@ -2426,11 +2475,16 @@ class Engine {
       reached = depth;
       // A forced mate found: nothing deeper can improve on it.
       if (Math.abs(bestScore) > MATE_THRESHOLD) break;
-      if (Date.now() > this.deadline) break;
+      if (this.nodes >= this.nodeLimit) break;
+      if (Date.now() > this.deadline) { this.ranOutOfTime = true; break; }
     }
 
     return {
       move: best, score: bestScore, depth: reached, nodes: this.nodes, line: bestLine, blundered: false,
+      // TRUE ONLY WHEN THE CLOCK STOPPED IT, never when the work budget did.
+      // The caller needs to be able to tell "this is the answer you asked for"
+      // from "this is as far as it got".
+      ranOutOfTime: this.ranOutOfTime,
       lines: all.slice(0, Math.max(1, lines)),
     };
   }
@@ -2517,7 +2571,12 @@ class Engine {
   }
 
   negamax(board, depth, alpha, beta, ply, line) {
-    if ((this.nodes & 2047) === 0 && Date.now() > this.deadline) this.stop = true;
+    // THE WORK BUDGET IS CHECKED ON EVERY NODE, not sampled: an integer
+    // compare costs nothing, and sampling it every 2048 nodes would let the
+    // count overshoot by a different amount each run — which is the
+    // reproducibility this exists to buy, spent for nothing.
+    if (this.nodes >= this.nodeLimit) this.stop = true;
+    else if ((this.nodes & 2047) === 0 && Date.now() > this.deadline) { this.stop = true; this.ranOutOfTime = true; }
     if (this.stop) return 0;
     this.nodes++;
 
@@ -2615,7 +2674,12 @@ class Engine {
    * not.
    */
   quiesce(board, alpha, beta, ply) {
-    if ((this.nodes & 2047) === 0 && Date.now() > this.deadline) this.stop = true;
+    // THE WORK BUDGET IS CHECKED ON EVERY NODE, not sampled: an integer
+    // compare costs nothing, and sampling it every 2048 nodes would let the
+    // count overshoot by a different amount each run — which is the
+    // reproducibility this exists to buy, spent for nothing.
+    if (this.nodes >= this.nodeLimit) this.stop = true;
+    else if ((this.nodes & 2047) === 0 && Date.now() > this.deadline) { this.stop = true; this.ranOutOfTime = true; }
     if (this.stop) return 0;
     this.nodes++;
 
@@ -2692,32 +2756,44 @@ class Engine {
 //              shallow searching reproduces it: a one-ply search still sees a
 //              hanging queen, so a weak band has to actually drop pieces.
 //   depth    — how far it calculates when it is not blundering.
-//   movetime — a ceiling, so a sharp position cannot stall a phone.
+//   nodes    — a ceiling on the positions it may look at, so a sharp position
+//              cannot stall a phone.
+//
+// THE CEILING IS POSITIONS, NOT MILLISECONDS, and the difference is the whole
+// meaning of the label. A ceiling of 360ms is a ceiling of whatever the
+// machine manages in 360ms, so "1200" was a materially weaker opponent on a
+// phone than on a laptop — the same word for two different players. Positions
+// are the same number everywhere.
+//
+// The figures are the work a mid-range phone got through in the old
+// millisecond ceilings, at about a hundred thousand positions a second: so the
+// phone plays the ladder it always played, and every other device now plays
+// that same ladder instead of a stronger one wearing its labels.
 //
 // The bands are stored as their LOWER bound; the label prints the range.
 const BANDS = [
-  { elo: 0,    depth: 1,  blunder: 0.60, movetime: 60 },
-  { elo: 100,  depth: 1,  blunder: 0.50, movetime: 60 },
-  { elo: 200,  depth: 1,  blunder: 0.42, movetime: 60 },
-  { elo: 300,  depth: 2,  blunder: 0.36, movetime: 80 },
-  { elo: 400,  depth: 2,  blunder: 0.30, movetime: 80 },
-  { elo: 500,  depth: 2,  blunder: 0.25, movetime: 100 },
-  { elo: 600,  depth: 3,  blunder: 0.21, movetime: 120 },
-  { elo: 700,  depth: 3,  blunder: 0.17, movetime: 140 },
-  { elo: 800,  depth: 3,  blunder: 0.14, movetime: 160 },
-  { elo: 900,  depth: 4,  blunder: 0.11, movetime: 200 },
-  { elo: 1000, depth: 4,  blunder: 0.09, movetime: 240 },
-  { elo: 1100, depth: 5,  blunder: 0.07, movetime: 300 },
-  { elo: 1200, depth: 5,  blunder: 0.055, movetime: 360 },
-  { elo: 1300, depth: 6,  blunder: 0.045, movetime: 450 },
-  { elo: 1400, depth: 6,  blunder: 0.035, movetime: 550 },
-  { elo: 1500, depth: 7,  blunder: 0.027, movetime: 700 },
-  { elo: 1600, depth: 8,  blunder: 0.020, movetime: 850 },
-  { elo: 1700, depth: 9,  blunder: 0.014, movetime: 1000 },
-  { elo: 1800, depth: 10, blunder: 0.009, movetime: 1200 },
-  { elo: 1900, depth: 11, blunder: 0.005, movetime: 1500 },
-  { elo: 2000, depth: 12, blunder: 0.002, movetime: 1800 },
-  { elo: 2100, depth: 64, blunder: 0,     movetime: 2400 },
+  { elo: 0,    depth: 1,  blunder: 0.60, nodes: 6000 },
+  { elo: 100,  depth: 1,  blunder: 0.50, nodes: 6000 },
+  { elo: 200,  depth: 1,  blunder: 0.42, nodes: 6000 },
+  { elo: 300,  depth: 2,  blunder: 0.36, nodes: 8000 },
+  { elo: 400,  depth: 2,  blunder: 0.30, nodes: 8000 },
+  { elo: 500,  depth: 2,  blunder: 0.25, nodes: 10000 },
+  { elo: 600,  depth: 3,  blunder: 0.21, nodes: 12000 },
+  { elo: 700,  depth: 3,  blunder: 0.17, nodes: 14000 },
+  { elo: 800,  depth: 3,  blunder: 0.14, nodes: 16000 },
+  { elo: 900,  depth: 4,  blunder: 0.11, nodes: 20000 },
+  { elo: 1000, depth: 4,  blunder: 0.09, nodes: 24000 },
+  { elo: 1100, depth: 5,  blunder: 0.07, nodes: 30000 },
+  { elo: 1200, depth: 5,  blunder: 0.055, nodes: 36000 },
+  { elo: 1300, depth: 6,  blunder: 0.045, nodes: 45000 },
+  { elo: 1400, depth: 6,  blunder: 0.035, nodes: 55000 },
+  { elo: 1500, depth: 7,  blunder: 0.027, nodes: 70000 },
+  { elo: 1600, depth: 8,  blunder: 0.020, nodes: 85000 },
+  { elo: 1700, depth: 9,  blunder: 0.014, nodes: 100000 },
+  { elo: 1800, depth: 10, blunder: 0.009, nodes: 120000 },
+  { elo: 1900, depth: 11, blunder: 0.005, nodes: 150000 },
+  { elo: 2000, depth: 12, blunder: 0.002, nodes: 180000 },
+  { elo: 2100, depth: 64, blunder: 0,     nodes: 240000 },
 ];
 
 const bandLabel = (band, index, all) =>
@@ -2725,7 +2801,10 @@ const bandLabel = (band, index, all) =>
 
 const bandNote = (band) => {
   const parts = [];
-  parts.push(band.depth >= 64 ? 'searches as deep as the clock allows' : `looks ${band.depth} ${band.depth === 1 ? 'move' : 'moves'} ahead`);
+  // "as deep as the clock allows" was true when the budget was a clock. It is
+  // positions now, and the only honest phrase for the top band is that nothing
+  // stops it but the budget on the end of this same sentence.
+  parts.push(band.depth >= 64 ? 'calculates as far as its budget allows' : `looks ${band.depth} ${band.depth === 1 ? 'move' : 'moves'} ahead`);
   // "0%" for a band that DOES blunder was a lie by rounding: band 2000 plays a
   // random move one time in five hundred, and a reader who saw 0% and then lost
   // a piece to it had been told something false.
@@ -2741,11 +2820,12 @@ const bandNote = (band) => {
     : (pct < 6
       ? `plays a random move about one time in ${Math.round(1 / band.blunder)}`
       : `plays a random move about ${Math.round(pct)}% of the time`));
-  // Seconds, not milliseconds: "80ms" is an engine's unit, "0.08s" is a
-  // person's. bandNoteRate() reads only the blunder rate back, so the time can
-  // be worded freely.
-  const seconds = band.movetime / 1000;
-  parts.push(`${seconds < 1 ? seconds.toFixed(2).replace(/0$/, '') : seconds.toFixed(1)}s a move`);
+  // POSITIONS, NOT SECONDS, because that is now what the ceiling is — and
+  // saying seconds would be describing this machine rather than this level.
+  // Thousands, because "12000 positions" is a number to parse and "12,000" is
+  // a number to read. bandNoteRate() reads only the blunder rate back, so this
+  // can be worded freely.
+  parts.push(`up to ${band.nodes.toLocaleString('en-GB')} positions a move`);
   return parts.join(', ');
 };
 
@@ -5195,15 +5275,33 @@ function toSan(board, move) {
 
   // Check and mate are properties of the position AFTER the move, so they can
   // only be read by playing it.
+  //
+  // THE CHEAP QUESTION FIRST. Mate is a check with no reply, so a position that
+  // is not a check cannot be one and nothing more needs asking. This used to
+  // ask outcome() instead, which generates every legal move — and then checks
+  // the fifty-move rule, repetition and material, none of which spell anything
+  // — for every move written anywhere in the app. sanToMove() writes out the
+  // legal moves of a position to find the one matching a PGN token, so reading
+  // one game was hundreds of move generations answering "no" to "is this mate".
   const copy = board;
   if (copy.make(move)) {
-    const outcome = copy.outcome();
-    if (outcome === 'checkmate') san += '#';
-    else if (copy.inCheck()) san += '+';
+    if (copy.inCheck()) san += hasLegalReply(copy) ? '+' : '#';
     copy.unmake();
   }
 
   return san;
+}
+
+/**
+ * Whether the side to move has a legal move at all — stopping at the first one
+ * found rather than collecting them, which is the whole point: the answer is
+ * yes for all but the handful of positions that are mate or stalemate.
+ */
+function hasLegalReply(board) {
+  for (const move of board.generate()) {
+    if (board.make(move)) { board.unmake(); return true; }
+  }
+  return false;
 }
 
 /**
@@ -5350,6 +5448,18 @@ const Store = {
   db: null,
   ready: false,
   cache: {},
+  // THE LOCAL WRITE CAN FAIL SILENTLY, AND THE PAGE LOOKS FINE WHEN IT DOES.
+  // set() puts the value in `cache` first, so every screen goes on reading the
+  // new state for the rest of the session — and on the next load it is simply
+  // gone. That happens on a browser set to block site data, in a private
+  // window, and if the quota is ever reached.
+  //
+  // There is nowhere honest to put an error at the moment it happens: it
+  // happens during a save nobody asked for. So it is remembered here, and the
+  // one screen that makes a promise about your data reads it and says what is
+  // actually true. Never reset: once a write has failed, this session's copy
+  // is incomplete whatever happens afterwards.
+  localFailed: false,
   // Names whose last db write failed; retried on the next set() or init().
   // Kept in local storage as well, so a reload does not forget the debt.
   dirty: new Set(),
@@ -5364,13 +5474,25 @@ const Store = {
     try {
       const owed = JSON.parse(localStorage.getItem(this.key('__dirty')) ?? '[]');
       for (const name of owed) this.dirty.add(name);
-    } catch { /* nothing owed, or storage unreadable */ }
+    } catch { /* nothing owed, or storage unreadable — set() reports the write */ }
     if (this.db) await this.flushDirty();
     return this.db !== null;
   },
 
   key(name) {
     return `hardlines:${name}`;
+  },
+
+  /** Where your progress is actually kept, in a sentence, whatever is true. */
+  where() {
+    if (this.localFailed) {
+      return this.db
+        ? 'This browser is refusing to store anything — a private window, or site data blocked. Your progress is going to your Claude account, which is what will bring it back; nothing is being kept on this device.'
+        : 'NOTHING IS BEING SAVED. This browser refused to store data — usually a private window, or site data blocked for this site. The app works and this session is intact, but everything will be gone when the page is closed. Open it in a normal window, or allow site data, to keep your games.';
+    }
+    return this.db
+      ? 'Saved to your Claude account, so it follows you to another device, with a copy in this browser.'
+      : 'Saved in this browser only. It survives closing the tab, but not clearing site data or moving to another device.';
   },
 
   /** Read a stored value as { payload, updated, version }, whatever shape it was written in. */
@@ -5459,7 +5581,11 @@ const Store = {
     // makes it survive a new device.
     try {
       localStorage.setItem(this.key(name), JSON.stringify(doc));
-    } catch { /* private mode, quota, a browser set to block site data */ }
+    } catch {
+      // Private mode, the quota, or a browser set to block site data. See
+      // `localFailed` above for why this is remembered rather than thrown.
+      this.localFailed = true;
+    }
 
     if (this.db) {
       if (this.dirty.size) await this.flushDirty(name);
@@ -5588,7 +5714,22 @@ function sanToMove(board, san) {
   const wanted = san.replace(/[!?]+$/, '').replace(/[+#]$/, '').replace(/^0-0-0$/, 'O-O-O').replace(/^0-0$/, 'O-O');
   const legal = board.legalMoves();
 
+  // WHICH MOVES ARE WORTH WRITING OUT. Writing one out means playing it to see
+  // whether it gives check, so spelling all thirty-odd legal moves to find the
+  // one that reads "Nf3" costs thirty of those, on every token of every game
+  // ever read. Every move but castling ends in the square the piece went to,
+  // and the text says which square that is, so the candidates are the moves
+  // that go there.
+  //
+  // IT IS STILL MATCHED BY SPELLING IT. This only narrows which moves get
+  // spelled; when the text has no square in it to read — castling, or
+  // something malformed — it narrows nothing and every move is spelled, which
+  // is what it did before.
+  const shape = SAN_SHAPE.exec(wanted);
+  const to = shape ? nameToSquare(shape[4]) : -1;
+
   for (const move of legal) {
+    if (to >= 0 && moveTo(move) !== to) continue;
     if (toSan(board, move).replace(/[+#]$/, '') === wanted) return move;
   }
 
@@ -5599,12 +5740,10 @@ function sanToMove(board, san) {
   // somewhere decided to be explicit.
   if (wanted === 'O-O' || wanted === 'O-O-O') return null;
 
-  const parts = SAN_SHAPE.exec(wanted);
-  if (!parts) return null;
+  if (!shape) return null;
 
-  const [, letter, fromFile, fromRank, target, promoLetter] = parts;
+  const [, letter, fromFile, fromRank, , promoLetter] = shape;
   const type = letter ? PIECE_LETTER[letter] : PAWN;
-  const to = nameToSquare(target);
   const promo = promoLetter ? PIECE_LETTER[promoLetter] : 0;
 
   const matches = legal.filter((move) => {
@@ -5631,7 +5770,17 @@ function sanToMove(board, san) {
 // hand-typed test do.
 const HEADER = /\[(\w+)\s+"((?:[^"\\]|\\.)*)"\]/g;
 
-function parsePgn(text) {
+/**
+ * Read a recorded game.
+ *
+ * `maxPlies` STOPS EARLY, and it is not a nicety. Reading a ply means
+ * generating every legal move in the position and writing each one out to
+ * compare with the text, so a ninety-move game costs ninety of those — and the
+ * opening book only ever looks at the first sixteen. Without a way to say so
+ * it read four hundred endgames to learn what Black answers 1.e4 with, which
+ * is where the two-second pause on "New game" came from.
+ */
+function parsePgn(text, { maxPlies = Infinity } = {}) {
   const headers = {};
   const body0 = text.replace(HEADER, (whole, tag, value) => {
     headers[tag] = value.replace(/\\(["\\])/g, '$1');
@@ -5672,6 +5821,7 @@ function parsePgn(text) {
   let stoppedAt = null;
 
   for (const token of tokens) {
+    if (plies.length >= maxPlies) break;
     const move = sanToMove(board, token);
 
     // A token the rules refuse ends the game here rather than taking the whole
@@ -5693,7 +5843,11 @@ function parsePgn(text) {
   return {
     headers,
     plies,
-    truncated: plies.length < tokens.length,
+    // WHAT TRUNCATED MEANS: the rules refused a token, so the rest of the game
+    // could not be read. Asking for a ply limit is not a truncation — the
+    // caller asked for exactly that much — so this reads the refusal rather
+    // than comparing counts, which a limit would make wrong.
+    truncated: stoppedAt !== null,
     tokens: tokens.length,
     stoppedAt,
     startFen: start ?? null,
@@ -6599,7 +6753,7 @@ function classifyMistake(input) {
 
 
 // Generated by build.py from rating-calibration.json (calibrate-rating.mjs).
-const RATING_FIT = {"measured": "2026-09-05", "games": 2, "fits": {"7": {"m": -0.001506404149573719, "c": 4.330188973134295, "r2": 0.7523125795951393, "points": 32}, "9": {"m": -0.001530800529994809, "c": 4.411179622057393, "r2": 0.774320286797528, "points": 31}, "12": {"m": -0.0015308560008020639, "c": 4.529391807119187, "r2": 0.8106608693770841, "points": 28}}, "bands": [0, 300, 600, 900, 1200, 1500, 1800, 2100], "ceilings": {"7": 1200, "9": 1200, "12": 1500}, "noise": 15, "losses": {"7": {"0": 94.5, "300": 54.0, "600": 42.8, "900": 18.0, "1200": 7.5, "1500": 3.8, "1800": 10.5, "2100": 5.2}, "9": {"0": 96.8, "300": 48.8, "600": 43.5, "900": 27.8, "1200": 9.0, "1500": 3.0, "1800": 8.2, "2100": 5.2}, "12": {"0": 94.5, "300": 54.0, "600": 45.0, "900": 28.5, "1200": 17.2, "1500": 2.2, "1800": 6.0, "2100": 3.8}}};
+const RATING_FIT = {"measured": "2026-09-27", "games": 4, "fits": {"7": {"m": -0.0023433676325257773, "c": 4.7940892101159776, "r2": 0.8092873376069476, "points": 40}, "9": {"m": -0.0019438977075496692, "c": 4.689860834026733, "r2": 0.8206232985089816, "points": 40}, "12": {"m": -0.001648849098383525, "c": 4.668144921153728, "r2": 0.8258715022851009, "points": 40}}, "bands": [0, 300, 600, 900, 1200, 1500, 1800, 2100], "ceilings": {"7": 1200, "9": 1200, "12": 1200}, "noise": 15, "losses": {"7": {"0": 112, "300": 53.8, "600": 37.4, "900": 22.2, "1200": 6.6, "1500": 5.7, "1800": 9, "2100": 16.9}, "9": {"0": 109.2, "300": 55.3, "600": 36.4, "900": 27.7, "1200": 9.7, "1500": 4.9, "1800": 3.8, "2100": 6.7}, "12": {"0": 112.7, "300": 58, "600": 43.9, "900": 29.1, "1200": 14.7, "1500": 8.5, "1800": 3.4, "2100": 6}}, "budgets": {"7": 25000, "9": 80000, "12": 250000}};
 
 
 // ── walking a game and finding what went wrong ─────────────────────────────
@@ -6715,6 +6869,47 @@ const CHAR_CLS = Object.fromEntries(Object.entries(CLS_CHAR).map(([k, v]) => [v,
 const marksOf = (judged) => judged.map((j) => CLS_CHAR[j.cls] ?? '.').join('');
 
 /**
+ * What each of your moves cost, straight from the stored curve — no board.
+ *
+ * judgedFromStore() below rebuilds the whole move list, and to do that it needs
+ * the game parsed: every move replayed through the generator to get its
+ * notation and the position it was played in. That is the right shape for the
+ * review screen, which draws all of it.
+ *
+ * WHERE THE TIME GOES NEEDS TWO FIELDS OF IT — whether a move was yours, and
+ * what it lost — and both fall out of the curve and the index alone. Whose move
+ * ply i is, is the parity of i; what it cost is the step in the curve either
+ * side of it. Reading them this way turned the Progress screen's first paint
+ * from about six hundred milliseconds over a couple of hundred games into
+ * about ten, because replaying eight thousand moves was the whole of it.
+ */
+function lossesFromStore(curve, marks, side) {
+  const out = [];
+  if (!Array.isArray(curve) || typeof marks !== 'string') return out;
+  const count = Math.min(marks.length, curve.length - 1);
+  for (let i = 0; i < count; i++) {
+    const cls = CHAR_CLS[marks[i]] ?? 'good';
+    const white = i % 2 === 0;
+    const mate = cls === 'missed_mate' || cls === 'allowed_mate';
+    // The curve is from White's side throughout, so a loss for the mover is a
+    // FALL in it when White moved and a RISE when Black did — as in
+    // judgedFromStore, which this has to agree with exactly.
+    const drop = white ? curve[i] - curve[i + 1] : curve[i + 1] - curve[i];
+    out.push({
+      mine: (white ? 'white' : 'black') === side,
+      loss: mate ? null : (cls === 'best' ? 0 : Math.max(0, drop)),
+    });
+  }
+  return out;
+}
+
+/** One header out of a PGN, without parsing the moves. */
+function headerOf(text, name) {
+  const m = new RegExp(`\\[${name}\\s+"((?:[^"\\\\]|\\\\.)*)"\\]`).exec(String(text ?? ''));
+  return m ? m[1].replace(/\\(["\\\\])/g, '$1') : null;
+}
+
+/**
  * A stored game read back into the shape the review screen already draws.
  *
  * `parsed` is its PGN parsed again — which is where every move, its notation
@@ -6796,6 +6991,17 @@ function scoreFinished(outcome) {
 const MIN_JUDGED = 10;
 
 /**
+ * The second, harder look a candidate tactic gets before it is filed as one.
+ *
+ * A tactic claimed on the walk's own shallow budget is a tactic that may not
+ * be there, so every candidate is re-searched with this much work and two
+ * lines — enough to tell "there is one move here and it wins material" from
+ * "the first move the walk happened to like". Never less than the walk's own
+ * budget: the deepest setting already looks harder than this.
+ */
+const TACTIC_NODES = 200000;
+
+/**
  * The rough accuracy and the mean loss from a walk's totals, or null for
  * both when there were too few of his moves to say anything.
  */
@@ -6861,7 +7067,7 @@ const TACTIC = {
   perGame: 6,         // and only the biggest few, so one rout is not a course
 };
 
-async function reviewGame(parsed, side, { movetime = 180, depth = 8, onProgress = null, yieldEvery = 1, withTactics = true } = {}) {
+async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress = null, yieldEvery = 1, withTactics = true } = {}) {
   const engine = new Engine();
   const board = new Board(parsed.startFen ?? undefined);
   const positions = [];
@@ -6878,6 +7084,13 @@ async function reviewGame(parsed, side, { movetime = 180, depth = 8, onProgress 
 
   const evals = new Array(positions.length).fill(0);
   const best = new Array(positions.length).fill(null);
+  // HOW MANY SEARCHES DID LESS WORK THAN THEY WERE ASKED FOR. On any device
+  // this was measured on, none: the backstop is twenty seconds and the budget
+  // is a fraction of a second. But a review whose figures came out of a
+  // different amount of work from the one it claims is not comparable with the
+  // rest, and the screen has to be able to say so rather than print the number
+  // as if nothing happened.
+  let ranOutOfTime = 0;
 
   for (let i = 0; i < positions.length; i++) {
     const at = new Board(positions[i].fen);
@@ -6888,8 +7101,13 @@ async function reviewGame(parsed, side, { movetime = 180, depth = 8, onProgress 
     positions[i].mated = outcome === 'checkmate';
     if (outcome) { evals[i] = scoreFinished(outcome); best[i] = null; }
     else {
+      // RESET BEFORE EVERY POSITION, which is half of what makes a review
+      // repeatable: a table carried over from the previous position would make
+      // this search's answer depend on which game it was reading and where in
+      // it, so the same position could be judged two ways.
       engine.reset();
-      const result = engine.search(at, { movetime, maxDepth: depth });
+      const result = engine.search(at, { nodes, maxDepth: depth });
+      if (result.ranOutOfTime) ranOutOfTime++;
       evals[i] = result.score;
       // The LINE is kept as well as the move: a motif is demonstrated by the
       // punishing sequence, not by its first move, and re-searching for it
@@ -7048,10 +7266,12 @@ async function reviewGame(parsed, side, { movetime = 180, depth = 8, onProgress 
       const c = shortlist[n];
       const at = new Board(positions[c.i + 1].fen);
       engine.reset();
-      // Deeper and slower than the walk: this decides whether a position
+      // A HARDER LOOK THAN THE WALK GOT: this decides whether a position
       // becomes a puzzle at all, and a shallow search calls two moves equal
-      // that are not, or vice versa.
-      const check = engine.search(at, { movetime: Math.max(movetime, 600), maxDepth: depth + 2, lines: 2 });
+      // that are not, or vice versa. Never less than the walk's own budget,
+      // whichever setting is in use.
+      const check = engine.search(at, { nodes: Math.max(nodes, TACTIC_NODES), maxDepth: depth + 2, lines: 2 });
+      if (check.ranOutOfTime) ranOutOfTime++;
 
       if (onProgress) onProgress(n + 1, shortlist.length, 'tactics');
       await new Promise((r) => setTimeout(r, 0));
@@ -7111,7 +7331,7 @@ async function reviewGame(parsed, side, { movetime = 180, depth = 8, onProgress 
   // fewer than MIN_JUDGED of his moves to average over.
   const { accuracy, meanLoss } = accuracyFrom(lost, counted);
 
-  return { evals, mistakes, accuracy, counted, minJudged: MIN_JUDGED, judged, whiteCp, tactics, capped, tacticsPassed: passed, meanLoss, depth };
+  return { evals, mistakes, accuracy, counted, minJudged: MIN_JUDGED, judged, whiteCp, tactics, capped, tacticsPassed: passed, meanLoss, depth, nodes, ranOutOfTime };
 }
 
 
@@ -7410,15 +7630,19 @@ function timeTrouble(games) {
 
   for (const game of games ?? []) {
     if (!game?.pgn || !Array.isArray(game.curve) || typeof game.marks !== 'string') { skipped++; continue; }
-    let parsed;
-    try { parsed = parsePgn(game.pgn); } catch { skipped++; continue; }
-    const clocks = clocksFrom(game.pgn, parsed.plies.length);
+    const judged = lossesFromStore(game.curve, game.marks, game.side ?? 'white');
+    if (!judged.length) { skipped++; continue; }
+    // ONE CLOCK PER MOVE OF THE GAME, or none at all: a clock lined up against
+    // a move it does not belong to reports time trouble in the wrong half of
+    // the game. The count to check against is the game's own, stored when it
+    // was reviewed — NOT the number of moves judged, which is smaller whenever
+    // a curve stops short, and would throw away the moves it does cover.
+    const plies = Number.isFinite(game.plies) && game.plies >= judged.length ? game.plies : judged.length;
+    const clocks = clocksFrom(game.pgn, plies);
     if (!clocks) { skipped++; continue; }
-    const control = timeControlOf(parsed.headers?.TimeControl ?? game.timeControl);
+    const control = timeControlOf(headerOf(game.pgn, 'TimeControl') ?? game.timeControl);
     const spent = timeSpent(clocks, control);
     if (!spent) { skipped++; continue; }
-    const judged = judgedFromStore(parsed, game.curve, game.marks, game.side ?? 'white');
-    if (!judged.length) { skipped++; continue; }
 
     used++;
     for (let i = 0; i < judged.length; i++) {
@@ -7510,6 +7734,23 @@ function repertoireLines(openings) {
     }
   }
   return lines;
+}
+
+/**
+ * The deepest ply any line in the repertoire reaches, plus the one move that
+ * leaves it.
+ *
+ * Nothing here looks past this: a game is compared against a line only as far
+ * as the line goes, and the move reported is the first one that is not in it.
+ * So a caller reading games for this report can stop there too — which turns
+ * reading a ninety-move game into reading its opening. Derived from the
+ * repertoire rather than typed, so a longer line added later is not quietly
+ * cut off at a number somebody once wrote down.
+ */
+function repertoireDepth(openings) {
+  let deepest = 0;
+  for (const line of repertoireLines(openings)) deepest = Math.max(deepest, line.line.length);
+  return deepest + 1;
 }
 
 /** How many leading plies two move lists share. */
@@ -7641,7 +7882,7 @@ function collectDeviations(games, openings) {
  * A POSITIVE NUMBER IS A LOSS. Zero or below means leaving the book cost you
  * nothing here, which happens and is reported as such.
  */
-function measureDeviation(row, { Board, sanToMove, engine, movetime = 300, depth = 10 }) {
+function measureDeviation(row, { Board, sanToMove, engine, nodes = 30000, depth = 10 }) {
   const board = new Board();
   for (const san of row.prefix) {
     const move = sanToMove(board, san);
@@ -7661,7 +7902,11 @@ function measureDeviation(row, { Board, sanToMove, engine, movetime = 300, depth
     engine.reset();
     // The score comes back from the side to move, which after our move is
     // theirs, so it is negated onto our side.
-    return -engine.search(copy, { movetime, maxDepth: depth }).score;
+    // THE SAME BUDGET ON BOTH SIDES OF THE SUBTRACTION, and a budget of work
+    // rather than of time — otherwise the second of the two searches could get
+    // a different amount done from the first and the difference between them
+    // would be partly the machine.
+    return -engine.search(copy, { nodes, maxDepth: depth }).score;
   };
 
   const yours = after(row.played);
@@ -9362,18 +9607,27 @@ const TRAP_DEFAULTS = {
   // position is forcing and alpha-beta cuts hard.
   deepDepth: 8,
 
+
   // Per candidate search, and there are at most `1 + shortlist` of them — see
   // the budget note on findTrap.
-  movetime: 150,
+  //
+  // POSITIONS, NOT MILLISECONDS, and this is the figure that shows why it had
+  // to change. Measured on the Légal position 2026-09-27: a candidate search
+  // on ...Bxd1 sees the mate that refutes it at 30,000 positions and does not
+  // at 15,000. Under the old millisecond budget a laptop was well past that
+  // line and a phone was well short of it — so the same trap was a lesson on
+  // one device and silence on the other. 45,000 puts every device on the same
+  // side of it with half as much again in hand.
+  nodes: 45000,
 
   // The root search gets its own, larger budget, because it is the one search
   // whose answer is SHOWN: the move the coach eventually reveals. Measured on
-  // the Légal position (36 legal moves) on 2026-09-04: at 180ms it reaches
-  // depth 4 and names the queen grab as its own best move — the trap, offered
-  // as the answer — and at 300ms it reaches depth 5 and does not. 400ms buys
-  // depth 5 to 6 there with room to spare on slower hardware. The invariant
-  // below is what stops this figure being load-bearing.
-  rootMovetime: 400,
+  // the Légal position (36 legal moves), re-measured in positions 2026-09-27:
+  // up to 60,000 it reaches depth 4 and names the queen grab as its own best
+  // move — the trap, offered as the answer — and at 100,000 it reaches depth 5
+  // and does not. 150,000 buys depth 6 there with half as much again in hand.
+  // The invariant below is what stops this figure being load-bearing.
+  rootNodes: 150000,
 
   // Below this, nothing is said. Two thirds of a pawn is under a minor piece
   // on purpose: a trap that costs an exchange is worth a warning, and one that
@@ -9482,7 +9736,7 @@ function trapScoreMove(engine, board, move, opts) {
 
   engine.reset();
   const reply = engine.search(board, {
-    movetime: opts.movetime,
+    nodes: opts.nodes,
     // One ply is already spent on `move`, so the total from the root is
     // deepDepth either way.
     maxDepth: Math.max(1, opts.deepDepth - 1),
@@ -9506,15 +9760,15 @@ function trapScoreMove(engine, board, move, opts) {
  *   shallowMargin  centipawns below the shallow best that still counts as tempting
  *   shortlist      how many tempting moves get a deep search (the cost ceiling)
  *   deepDepth      depth of the search that decides what a move is really worth
- *   movetime       ms per candidate search
- *   rootMovetime   ms for the one search that finds the move to offer
+ *   nodes          positions per candidate search
+ *   rootNodes      positions for the one search that finds the move to offer
  *   floor          minimum trappiness worth interrupting for
  *   decided        (used by trapGate, carried here so one options object serves both)
  *   engine         an Engine to reuse; one is made per call otherwise
  *
  * THE INVARIANT THE TWO SEARCHES SHARE. The root search and the candidate
  * searches are different searches at different budgets, and they can disagree:
- * measured on the Légal position, a 180ms root search names the queen grab as
+ * measured on the Légal position, a root search of 60,000 positions names the queen grab as
  * its own best move while a candidate search on the same move finds the mate
  * that refutes it. Two perfectly good answers, contradicting each other on one
  * screen, with nothing reporting an error — so the disagreement is resolved
@@ -9528,13 +9782,22 @@ function trapScoreMove(engine, board, move, opts) {
  * for the root's own move (free when that move is itself on the shortlist,
  * which is the common case in a quiet position), one per shortlisted move, and
  * one more only in the case below, where every tempting move turned out to be
- * the same move. At the defaults that is a ceiling of 400 + 5 × 150 = 1150ms.
+ * the same move. At the defaults that is a ceiling of 150,000 + 5 × 45,000 =
+ * 375,000 positions — and, being positions, that ceiling is the same ceiling
+ * on every device rather than a different one on each.
  *
- * MEASURED 2026-09-04, node 22, seven positions × five calls: 3 to 5 searches
- * per call, median 862ms, worst 1045ms. The shallow ranking is 2.2ms of that
- * at depth 1 and 5.6ms at depth 2; the gate's static evaluation is under a
- * microsecond. A snapshot, like every measurement in a docblock here —
- * re-measure on the hardware it has to run on.
+ * IT COSTS A PHONE MORE THAN THE OLD MILLISECOND CEILING DID, and that is the
+ * point rather than a regression: what the phone used to do inside 1150ms was
+ * a search too shallow to see the refutation, so the oldest trap in chess came
+ * back as either silence or — worse — the trap offered as the answer. The work
+ * is what finds the mate, and a device that does less of it does not find it.
+ *
+ * MEASURED 2026-09-04, node 22, seven positions × five calls, when this was
+ * still budgeted in milliseconds: 3 to 5 searches per call, median 862ms,
+ * worst 1045ms. The shallow ranking is 2.2ms of that at depth 1 and 5.6ms at
+ * depth 2; the gate's static evaluation is under a microsecond. A snapshot,
+ * like every measurement in a docblock here — re-measure on the hardware it
+ * has to run on.
  *
  * @returns {null|{intent:string, expectedMistake:{uci,san}, bestMove:{uci,san},
  *                 refutation:{uci,san}|null, trappiness:number, temptation:number,
@@ -9561,7 +9824,7 @@ function findTrap(board, options = {}) {
   const engine = opts.engine ?? new Engine();
 
   engine.reset();
-  const top = engine.search(board, { movetime: opts.rootMovetime, maxDepth: opts.deepDepth });
+  const top = engine.search(board, { nodes: opts.rootNodes, maxDepth: opts.deepDepth });
   if (!top.move) return null;
 
   // Every move that gets a number gets it the same way — the root's own choice
@@ -9592,7 +9855,7 @@ function findTrap(board, options = {}) {
   // about — which is right when the tempting move is genuinely best (a free
   // queen is not a trap), and wrong in the case this feature exists for: a
   // shortlist of one, where the root search ran out of time and picked the
-  // trap as well. Measured on the Légal position at a 180ms root budget, both
+  // trap as well. Measured on the Légal position at a 60,000-position root budget, both
   // halves name the queen grab and the oldest trap in chess comes back as
   // "nothing here".
   //
@@ -9983,10 +10246,48 @@ const Book = {
   games: 0,
   replies: 0,
   skipped: 0,       // games from a set-up position, which have no place in a book keyed from move one
+  // WHAT EACH GAME PUT IN, so a game is read once and not once per rebuild.
+  // The book is rebuilt every time a game starts, ends, or is reviewed, and
+  // reading a PGN means replaying it through the move generator: four hundred
+  // stored games rebuilt from scratch was a two-second freeze on "New game".
+  // Keyed by everything the reading depends on — where the game is stored, its
+  // timestamp, which side he was, whether it was set up, and the length of its
+  // PGN — so a record that is edited in place is read again rather than
+  // answered from a stale slot. It holds the reading and not the PGN, so the
+  // cache stays small.
+  read: new Map(),  // '<h|r>:<at>:<side>:<setup>:<pgn length>' -> null | { skipped } | { replies: [[key, uci], …] }
 };
 
 /** Beyond this many plies a "book" is a transcript of one game, not a habit. */
 const BOOK_MAX_PLIES = 16;
+
+/**
+ * What one game contributes: its opponent's moves, each keyed by the moves
+ * before it. `null` when the game cannot go in a book at all.
+ *
+ * A GAME FROM A SET-UP POSITION IS NOT USED. Its plies are keyed by the moves
+ * before them, and from a set-up position there are none: a pasted game that
+ * began after 1.e4 e5 filed its 2.Nf3 as an answer to nothing, and the book
+ * offered 1.Nf3 at the start "because your opponent played it". Counted, and
+ * said on the note, rather than dropped quietly.
+ */
+function bookReadingOf(source) {
+  let parsed;
+  // Only as far as the book goes. The rest of the game is ninety per cent of
+  // the reading cost and none of the book.
+  try { parsed = parsePgn(source.pgn, { maxPlies: BOOK_MAX_PLIES }); } catch { return null; }
+  if (!parsed.plies.length) return null;
+  if (source.from || parsed.startFen) return { skipped: true };
+
+  const theirs = source.mine === 'white' ? 'black' : 'white';
+  const replies = [];
+  const history = [];
+  for (const ply of parsed.plies) {
+    if (ply.colour === theirs) replies.push([history.join(' '), ply.uci]);
+    history.push(ply.uci);
+  }
+  return { replies };
+}
 
 function buildBook() {
   const book = {};
@@ -9994,32 +10295,31 @@ function buildBook() {
   let skipped = 0;
 
   const sources = [];
-  for (const g of App.history.games) if (g.pgn) sources.push({ pgn: g.pgn, mine: g.colour, from: g.from ?? null });
-  for (const r of App.reviews.games) if (r.pgn) sources.push({ pgn: r.pgn, mine: r.side, from: null });
+  const sourceOf = (where, at, pgn, mine, from) => ({
+    key: `${where}:${at}:${mine}:${from ? 1 : 0}:${pgn.length}`, pgn, mine, from, at,
+  });
+  for (const g of App.history.games) if (g.pgn) sources.push(sourceOf('h', g.at, g.pgn, g.colour, g.from ?? null));
+  for (const r of App.reviews.games) if (r.pgn) sources.push(sourceOf('r', r.at, r.pgn, r.side, null));
 
+  const fresh = new Map();
   for (const source of sources) {
-    let parsed;
-    try { parsed = parsePgn(source.pgn); } catch { continue; }
-    if (!parsed.plies.length) continue;
-    // A GAME FROM A SET-UP POSITION IS NOT USED. Its plies are keyed by the
-    // moves before them, and from a set-up position there are none: a pasted
-    // game that began after 1.e4 e5 filed its 2.Nf3 as an answer to nothing,
-    // and the book offered 1.Nf3 at the start "because your opponent played
-    // it". Counted, and said on the note, rather than dropped quietly.
-    if (source.from || parsed.startFen) { skipped++; continue; }
+    // A game with no timestamp is read every time rather than sharing a cache
+    // slot with every other game that has none.
+    const cacheable = source.at !== undefined && source.at !== null;
+    let reading = cacheable ? Book.read.get(source.key) : undefined;
+    if (reading === undefined) reading = bookReadingOf(source);
+    if (cacheable) fresh.set(source.key, reading);
+    if (reading === null) continue;
+    if (reading.skipped) { skipped++; continue; }
     games++;
-
-    const theirs = source.mine === 'white' ? 'black' : 'white';
-    const history = [];
-    for (const ply of parsed.plies.slice(0, BOOK_MAX_PLIES)) {
-      if (ply.colour === theirs) {
-        const key = history.join(' ');
-        book[key] ??= {};
-        book[key][ply.uci] = (book[key][ply.uci] ?? 0) + 1;
-      }
-      history.push(ply.uci);
+    for (const [key, uci] of reading.replies) {
+      book[key] ??= {};
+      book[key][uci] = (book[key][uci] ?? 0) + 1;
     }
   }
+  // Only the games that are still stored: a cache that only ever grew would
+  // outlive the history it was read from.
+  Book.read = fresh;
 
   Book.built = book;
   Book.games = games;
@@ -10254,9 +10554,12 @@ const DEFAULT_PREFS = {
 };
 
 const THINK = {
-  fast: { movetime: 300, depth: 8 },
-  normal: { movetime: 900, depth: 12 },
-  deep: { movetime: 2500, depth: 20 },
+  // Positions, not milliseconds — see Engine.search. A setting called "deep"
+  // has to be the same depth on a phone as on a laptop or it is a setting
+  // called "whatever this machine manages".
+  fast: { nodes: 30000, depth: 8 },
+  normal: { nodes: 90000, depth: 12 },
+  deep: { nodes: 250000, depth: 20 },
 };
 
 function applyPrefs() {
@@ -10400,6 +10703,12 @@ function dueDrills() {
 }
 
 function renderToday() {
+  // REREAD EVERY TIME, because a write can start failing long after the page
+  // loaded — the quota fills, or the browser tightens up mid-session — and
+  // this is the one line that promises anything about your data.
+  const note = $('storeNote');
+  if (note) note.textContent = Store.where();
+
   const box = $('todayList');
   box.innerHTML = '';
 
@@ -10876,7 +11185,7 @@ function engineMove() {
     let result;
     try {
       result = App.engine.search(Play.view.board, {
-        movetime: Play.game.band.movetime,
+        nodes: Play.game.band.nodes,
         maxDepth: Play.game.band.depth,
         blunder: Play.game.band.blunder,
       });
@@ -10891,12 +11200,12 @@ function engineMove() {
       return;
     }
 
-    // A FLOOR ON THE PAUSE, not on the search. The weakest bands think for a
-    // sixtieth of a second, and a reply that lands before your finger has left
-    // the board reads as a reflex rather than as an opponent — and it hides
-    // your own move, which is still sliding. The engine has already decided;
-    // this only holds the answer back, and never extends a search that took
-    // longer than the floor anyway.
+    // A FLOOR ON THE PAUSE, not on the search. The weakest bands look at six
+    // thousand positions, which on anything modern is over in a moment, and a
+    // reply that lands before your finger has left the board reads as a reflex
+    // rather than as an opponent — and it hides your own move, which is still
+    // sliding. The engine has already decided; this only holds the answer
+    // back, and never extends a search that took longer than the floor anyway.
     const elapsed = Date.now() - startedAt;
     const wait = Math.max(0, MIN_REPLY_MS - elapsed);
 
@@ -11420,13 +11729,31 @@ const Review = {
   running: false,
 };
 
+/**
+ * The three review settings, as positions looked at per move.
+ *
+ * WORK, NOT TIME, and this is the number every figure on the Progress screen
+ * rests on. Reviewing the same game twice under a millisecond budget gave a
+ * different accuracy and an estimate that moved by up to 220 rating points,
+ * because the second run got a different number of positions out of the same
+ * milliseconds — and a chart of numbers that move on their own is a chart of
+ * the machine, not of the player. Under a budget of positions the same game
+ * reviews to the same figures on any device, which is what makes two of your
+ * games comparable at all.
+ *
+ * The depth cap is the second ceiling and rarely the binding one: measured
+ * here, a depth-9 search ranges from 15,607 positions to 15,026,933, so the
+ * work budget is what decides, and the cap only stops a quiet ending from
+ * running away.
+ *
+ * Three settings that are actually different. The old ones shared a movetime,
+ * so Quick and Normal reached the same depth in the same time and only the
+ * label changed.
+ */
 const REVIEW_BUDGET = {
-  // Three settings that are actually different. The old ones shared a
-  // movetime, so Quick and Normal reached the same depth in the same time and
-  // only the label changed.
-  7: { movetime: 120 },
-  9: { movetime: 280 },
-  12: { movetime: 650 },
+  7: { nodes: 25000 },
+  9: { nodes: 80000 },
+  12: { nodes: 250000 },
 };
 
 async function runReview() {
@@ -11477,7 +11804,7 @@ async function runReview() {
   let result;
   try {
     result = await reviewGame(parsed, Review.side, {
-      movetime: budget.movetime,
+      nodes: budget.nodes,
       depth,
       onProgress: (done, total, phase) => {
         $('reviewFill').style.width = `${Math.round((done / total) * 100)}%`;
@@ -11522,6 +11849,13 @@ async function runReview() {
     tactics: result.tactics.length,
     meanLoss: result.meanLoss,
     depth,
+    // WHAT BUDGET THIS FIGURE CAME OUT OF, stored because the estimate is
+    // calibrated against it. A game reviewed before the reviewer counted
+    // positions has no `nodes` and was measured under a clock — which means
+    // whatever the machine managed that day — so it cannot be set beside these
+    // ones without saying so — see the note the Progress screen adds when the
+    // set it is averaging has any of them in it.
+    nodes: budget.nodes,
     // WHAT IT TOOK TO WORK ALL THAT OUT, kept so the game reopens without it
     // being worked out again. A review is minutes of searching; before this
     // the only thing that survived it was the list of mistakes, so every one
@@ -11875,7 +12209,7 @@ function fillBestMove(j, depth) {
     const at = new Board(j.fen);
     if (at.outcome()) { j.noBest = true; return false; }
     App.engine.reset();
-    const found = App.engine.search(at, { movetime: budget.movetime, maxDepth: depth });
+    const found = App.engine.search(at, { nodes: budget.nodes, maxDepth: depth });
     if (!found?.move) { j.noBest = true; return false; }
     j.best = { uci: moveToUci(found.move), san: toSan(new Board(j.fen), found.move) };
     return true;
@@ -12639,7 +12973,8 @@ function renderProgressChart(games) {
   // A difference smaller than this is not worth a word either way, and the
   // number of games here is never large enough to prove one.
   const meaningful = Math.abs(change) >= (measure.better === 'up' ? Math.max(1, span * 0.08) : 0.3);
-  const halves = `First ${half} games: ${measure.format(earlier)}. Last ${scored.length - half}: ${measure.format(later)}.`;
+  // "First 1 games" is what three scored games used to read as.
+  const halves = `First ${half} ${half === 1 ? 'game' : 'games'}: ${measure.format(earlier)}. Last ${scored.length - half}: ${measure.format(later)}.`;
 
   const verdict = el('p', 'note');
   verdict.textContent = flat
@@ -12758,6 +13093,15 @@ function renderProgress() {
   // elo 0, and a truthy test dropped exactly the worst games from the median.
   const rated = games.filter((g) => Number.isFinite(g.estimate?.elo)).slice(-8);
   if (rated.length) {
+    // HOW MANY OF THESE WERE MEASURED BY A CLOCK. The reviewer used to be
+    // given milliseconds rather than a number of positions, so what it got
+    // through depended on the machine and the moment — the same game reviewed
+    // twice came out up to 220 rating points apart. Those games are still
+    // shown, because they are still the games you played, but a figure built
+    // partly out of them has a wobble in it that the new ones do not, and a
+    // screen that averaged the two without a word would be presenting the
+    // machine's variation as yours.
+    const byClock = rated.filter((g) => !Number.isFinite(g.nodes)).length;
     const elos = rated.map((g) => g.estimate.elo).sort((a, b) => a - b);
     const median = elos[Math.floor(elos.length / 2)];
     const measured = measuredBands();
@@ -12784,7 +13128,8 @@ function renderProgress() {
         <div><span class="k">Played like level</span><span class="v">${esc(measuredBandLabel(measuredIndex, measured))}</span></div>
       </div>
       ${atFloor > rated.length / 2 && Number.isFinite(rated[rated.length - 1].estimate?.floorLoss) ? `<p class="note"><strong>The scale has run out below you, which is not the same as a low number.</strong> ${atFloor} of these ${rated.length} games lost more per move than the weakest opponent this app has ever measured — about ${(rated[rated.length - 1].estimate.floorLoss / 100).toFixed(2)} points a move. No weaker level has been measured, so there is nothing to compare them against and the figure cannot separate them. Mistakes a game, above, is the measure that still works here.</p>` : ''}
-      <p class="note">The middle value of the per-game estimates from your last ${rated.length} reviewed ${rated.length === 1 ? 'game' : 'games'} (they ranged ${range}). Each one compares your average loss per move with this app's own levels, whose numbers are targets rather than measured ratings — so this says which level your recent games resemble, and nothing about your rating anywhere else. The level named is one the calibration actually played, measured at ${step}-point steps${atFloor > rated.length / 2 ? '' : `; the button below picks the nearest level available, ${esc(play.label)}`}.</p>`;
+      <p class="note">The middle value of the per-game estimates from your last ${rated.length} reviewed ${rated.length === 1 ? 'game' : 'games'} (they ranged ${range}). Each one compares your average loss per move with this app's own levels, whose numbers are targets rather than measured ratings — so this says which level your recent games resemble, and nothing about your rating anywhere else. The level named is one the calibration actually played, measured at ${step}-point steps${atFloor > rated.length / 2 ? '' : `; the button below picks the nearest level available, ${esc(play.label)}`}.</p>
+      ${byClock ? `<p class="note">${byClock === rated.length ? 'All' : `${byClock}`} of these ${rated.length} ${byClock === 1 ? 'was' : 'were'} reviewed before the reviewer was given a fixed amount of work to do, when it was given a fixed amount of time instead — so what it managed depended on the device and the moment, and the same game reviewed twice could come out up to 220 points apart. Review ${byClock === 1 ? 'it' : 'them'} again and every figure here rests on the same measurement.</p>` : ''}`;
     // NO BAND BUTTON OFF A FLOORED ESTIMATE. The nearest rung to an estimate
     // pinned at the bottom is the weakest band there is — an opponent that
     // plays a random move three times in five — and offering that to somebody
@@ -13114,13 +13459,13 @@ function suggestPractice() {
   Practice.busy = true;
   Practice.view.locked = true;
   $('practiceSuggest').disabled = true;
-  $('practiceVerdict').textContent = `Thinking, up to ${(budget.movetime / 1000).toFixed(1)}s…`;
+  $('practiceVerdict').textContent = `Thinking — up to ${budget.nodes.toLocaleString('en-GB')} positions…`;
 
   requestAnimationFrame(() => setTimeout(() => {
     let result;
     try {
       App.engine.reset();
-      result = App.engine.search(new Board(board.fen()), { movetime: budget.movetime, maxDepth: budget.depth, lines: 3 });
+      result = App.engine.search(new Board(board.fen()), { nodes: budget.nodes, maxDepth: budget.depth, lines: 3 });
     } finally {
       Practice.busy = false;
       Practice.view.locked = false;
@@ -13214,7 +13559,7 @@ function showThreat() {
     if (generation !== Practice.generation || Practice.busy || !Practice.threats) return;
     if (Practice.view.board.fen() !== fen) return;
     App.engine.reset();
-    const result = App.engine.search(passed, { movetime: 250, maxDepth: 7 });
+    const result = App.engine.search(passed, { nodes: 25000, maxDepth: 7 });
     if (generation !== Practice.generation || Practice.view.board.fen() !== fen) return;
     if (!result.move) { note.textContent = ''; return; }
     const san = toSan(passed, result.move);
@@ -13908,7 +14253,7 @@ async function scanGamesForTactics() {
     }
 
     const result = await reviewGame(parsed, game.side, {
-      movetime: 160,
+      nodes: 16000,
       depth: 8,
       onProgress: (a, b, phase) => {
         const share = phase === 'tactics' ? 1 : a / b;
@@ -14114,7 +14459,7 @@ function coachThreat(board) {
   try { passed = new Board(parts.join(' ')); } catch { return { blocked: 'the turn cannot be passed here', san: null }; }
   if (passed.inCheck()) return { blocked: 'the turn cannot be passed here', san: null };
   App.engine.reset();
-  const result = App.engine.search(passed, { movetime: 250, maxDepth: 8 });
+  const result = App.engine.search(passed, { nodes: 25000, maxDepth: 8 });
   if (!result.move) return { blocked: 'nothing came back', san: null };
   const them = passed.turn === WHITE ? 'White' : 'Black';
   return {
@@ -14174,7 +14519,7 @@ function buildCoachBundle(board, question) {
 
   App.engine.reset();
   const top = App.engine.search(new Board(board.fen()), {
-    movetime: budget.movetime, maxDepth: budget.depth, lines: 4,
+    nodes: budget.nodes, maxDepth: budget.depth, lines: 4,
   });
 
   // Each named move searched ON ITS OWN, and what comes back is the
@@ -14186,7 +14531,7 @@ function buildCoachBundle(board, question) {
     let reply = null;
     if (!after.outcome()) {
       App.engine.reset();
-      reply = App.engine.search(after, { movetime: Math.round(budget.movetime * 0.6), maxDepth: budget.depth - 1 });
+      reply = App.engine.search(after, { nodes: Math.round(budget.nodes * 0.6), maxDepth: budget.depth - 1 });
     }
     const scoreAfter = reply ? -reply.score : (after.outcome() === 'checkmate' ? 30000 : 0);
 
@@ -15229,7 +15574,7 @@ function scheduleEndgameReply() {
     let result = null;
     try {
       App.engine.reset();
-      result = App.engine.search(new Board(Endgames.board.fen()), { movetime: 600, maxDepth: 18 });
+      result = App.engine.search(new Board(Endgames.board.fen()), { nodes: 60000, maxDepth: 18 });
     } catch { result = null; }
     setTimeout(() => play(result?.move ? moveToUci(result.move) : null), MIN_REPLY_MS);
   }, 0));
@@ -15881,12 +16226,13 @@ const WATCH_RANDOMNESS = 40;
 /** How many plies of a drawn opening to follow before they are on their own. */
 const WATCH_BOOK_PLIES = 8;
 // HOW STRONG THE PAIRING MAY BE, and this is a phone limit rather than a chess
-// one. The top bands are given up to 2.4 seconds a move, and a 2.4-second
-// search on the page's own thread is 2.4 seconds of a frozen board — on a
-// screen whose whole purpose is watching, that reads as a crash. Capped here
-// the slowest side thinks for a second, which is a pause rather than a hang.
+// one. The top band looks at up to 240,000 positions a move, and that search
+// runs on the page's own thread — on a phone it is a second or two of frozen
+// board, and on a screen whose whole purpose is watching, that reads as a
+// crash. Capped here the slowest side looks at 100,000, which is a pause
+// rather than a hang.
 const WATCH_WEAKEST = 3;   // BANDS[3]  — 300
-const WATCH_STRONGEST = 17; // BANDS[17] — 1700, movetime 1000
+const WATCH_STRONGEST = 17; // BANDS[17] — 1700, 100,000 positions a move
 
 // ── setting one up ─────────────────────────────────────────────────────────
 
@@ -15991,7 +16337,7 @@ function ensureWatchMove(ply) {
     const band = board.turn === WHITE ? Watch.bands.white : Watch.bands.black;
     App.engine.reset();
     const result = App.engine.search(board, {
-      movetime: band.movetime,
+      nodes: band.nodes,
       maxDepth: band.depth,
       blunder: band.blunder,
       randomness: WATCH_RANDOMNESS,
@@ -16142,7 +16488,7 @@ function explainWatchPly(ply) {
     let judged = null;
     try {
       App.engine.reset();
-      const result = App.engine.search(new Board(before.fen()), { movetime: 260, maxDepth: 12 });
+      const result = App.engine.search(new Board(before.fen()), { nodes: 26000, maxDepth: 12 });
       if (result.move) {
         const best = toSan(new Board(before.fen()), result.move);
         const after = new Board(before.fen());
@@ -16153,7 +16499,7 @@ function explainWatchPly(ply) {
         else if (ended) scoreAfter = 0;
         else {
           App.engine.reset();
-          const reply = App.engine.search(after, { movetime: 200, maxDepth: 11 });
+          const reply = App.engine.search(after, { nodes: 20000, maxDepth: 11 });
           scoreAfter = -reply.score;
         }
         judged = {
@@ -16536,18 +16882,19 @@ const Deviations = {
 };
 
 /**
- * HOW FAR BACK IT LOOKS. Every stored game has to be read out of its PGN, and
- * reading one means replaying it through the move generator — cheap once,
- * noticeable four hundred times on a page that is supposed to open instantly.
- * The most recent sixty are walked and the screen says sixty, because a report
- * that quietly ignored half your games while printing a total would be lying
- * about its own sample.
+ * HOW FAR BACK IT LOOKS, and it is every game.
+ *
+ * It used to be the most recent sixty, because reading a game means replaying
+ * its PGN through the move generator and four hundred of those froze the page.
+ * Two things changed that: a game is now read only as deep as the deepest line
+ * in the repertoire — the report cannot see past that anyway — and writing a
+ * move out no longer costs a move generation per candidate. Reading every
+ * stored game now costs less than reading sixty did, so there is no longer a
+ * reason to leave games out, and the sample is the whole history.
  */
-const DEVIATION_GAMES = 60;
-
-/** Every stored game that can be compared with a line, as moves from move one. */
 function deviationGames() {
   const games = [];
+  const depth = repertoireDepth(OPENINGS);
 
   const add = (key, side, pgn, label, startFen) => {
     if (!pgn || !side) return;
@@ -16555,7 +16902,7 @@ function deviationGames() {
     let sans = Deviations.parsed.get(key);
     if (sans === undefined) {
       try {
-        const parsed = parsePgn(pgn);
+        const parsed = parsePgn(pgn, { maxPlies: depth });
         sans = parsed.startFen ? null : parsed.plies.map((p) => p.san);
       } catch { sans = null; }
       Deviations.parsed.set(key, sans);
@@ -16568,7 +16915,7 @@ function deviationGames() {
       label: `against level ${bandLabelFor(g.band)}` })),
     ...(App.reviews?.games ?? []).map((g) => ({ at: g.at, side: g.side, pgn: g.pgn, from: null,
       label: `${g.white ?? '?'} vs ${g.black ?? '?'}` })),
-  ].sort((a, b) => (b.at ?? 0) - (a.at ?? 0)).slice(0, DEVIATION_GAMES);
+  ].sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
 
   for (const game of stored) add(game.at, game.side, game.pgn, game.label, game.from);
   return games;
@@ -16595,13 +16942,24 @@ function buildDeviations() {
 }
 
 /**
- * The cost of the top rows, one search pair at a time, yielding between each.
+ * How many rows the report shows, and therefore how many get a price.
+ *
+ * ONE NUMBER FOR BOTH. It was eight shown and six measured, so the last two
+ * rows said "Measuring what it cost…" for as long as the screen was open, with
+ * nothing measuring them. A row that is shown is a row that gets an answer,
+ * even if the answer is that the cost could not be measured.
+ */
+const DEVIATION_ROWS = 8;
+
+/**
+ * The cost of the rows on screen, one search pair at a time, yielding between
+ * each.
  *
  * Only the rows on screen, and only once: a report that froze the page for
  * three seconds to price twenty rows nobody scrolled to would be worse than
  * one that priced none.
  */
-function measureDeviations(limit = 6) {
+function measureDeviations(limit = DEVIATION_ROWS) {
   if (Deviations.measuring) return;
   const todo = Deviations.rows.slice(0, limit).filter((r) => !(r.key in Deviations.costs));
   if (!todo.length) return;
@@ -16612,7 +16970,7 @@ function measureDeviations(limit = 6) {
     if (!row) { Deviations.measuring = false; return; }
     let cost = null;
     try {
-      cost = measureDeviation(row, { Board, sanToMove, engine: App.engine, movetime: 260, depth: 10 });
+      cost = measureDeviation(row, { Board, sanToMove, engine: App.engine, nodes: 26000, depth: 10 });
     } catch { cost = null; }
     Deviations.costs[row.key] = cost;
     renderDeviationRows();
@@ -16653,7 +17011,7 @@ function renderDeviationRows() {
     return;
   }
 
-  for (const row of Deviations.rows.slice(0, 8)) {
+  for (const row of Deviations.rows.slice(0, DEVIATION_ROWS)) {
     const item = el('div', 'endgame-row');
     const head = el('div', 'endgame-head');
     head.appendChild(el('strong', null, `${row.name}${row.variation ? ` — ${row.variation}` : ''}`));
@@ -16703,8 +17061,8 @@ function renderDeviationRows() {
     box.appendChild(item);
   }
 
-  if (Deviations.rows.length > 8) {
-    box.appendChild(el('p', 'note', `${Deviations.rows.length - 8} more, seen fewer times.`));
+  if (Deviations.rows.length > DEVIATION_ROWS) {
+    box.appendChild(el('p', 'note', `${Deviations.rows.length - DEVIATION_ROWS} more, seen fewer times.`));
   }
 }
 
@@ -16887,10 +17245,11 @@ function renderImport() {
 // stopped and picked up later — a game already walked is never walked again.
 //
 // THE QUICK SETTING IS THE DEFAULT HERE and it is a different trade from a
-// single review. One game at 650ms a position is worth waiting for; a hundred
-// of them is forty minutes. The estimate a review prints is calibrated per
-// depth, so a shallower walk is not a worse measurement, it is a measurement
-// of a different thing, and the depth is stored beside the result.
+// single review. One game at 250,000 positions a move is worth waiting for; a
+// hundred of them is an afternoon. The estimate a review prints is calibrated
+// per setting, so a shallower walk is not a worse measurement, it is a
+// measurement of a different thing, and the setting is stored beside the
+// result.
 
 const Walk = { running: false, cancelled: false, done: 0, total: 0, failed: 0, drills: 0 };
 
@@ -16928,7 +17287,7 @@ async function walkImported() {
       const parsed = parsePgn(game.pgn);
       if (!parsed.plies.length) throw new Error('no moves');
       const result = await reviewGame(parsed, game.side, {
-        movetime: budget.movetime,
+        nodes: budget.nodes,
         depth,
         onProgress: (at, of) => {
           $('walkFill').style.width = `${Math.round(((Walk.done + at / of) / Walk.total) * 100)}%`;
@@ -16942,6 +17301,7 @@ async function walkImported() {
       game.mistakes = result.mistakes;
       game.tactics = result.tactics.length;
       game.depth = depth;
+      game.nodes = budget.nodes;
       game.estimate = result.meanLoss === null ? null : estimateRating(result.meanLoss, depth);
       // AND THE MISTAKES BECOME DRILLS, which is the whole point of walking
       // them. This did not happen: addMistakesToDrills had exactly one caller,
@@ -17064,7 +17424,7 @@ async function boot() {
 
   // Progress is loaded BEFORE anything renders, so the first paint is the real
   // state rather than an empty one that fills in a moment later.
-  const hasStore = await Store.init();
+  await Store.init();
   App.openings = await Store.get('openings', { cards: {} });
   App.drills = await Store.get('drills', { items: [] });
   App.history = await Store.get('history', { bands: {}, games: [] });
@@ -17089,9 +17449,9 @@ async function boot() {
   Endgames.results ??= {};
   Vision.best ??= {};
 
-  $('storeNote').textContent = hasStore
-    ? 'Saved to your Claude account, so it follows you to another device, with a copy in this browser.'
-    : 'Saved in this browser only. It survives closing the tab, but not clearing site data or moving to another device.';
+  // Store.where() rather than a sentence built here, because it has to be able
+  // to say "nothing is being saved" — see Store.localFailed.
+  $('storeNote').textContent = Store.where();
 
   // Boards. All of them share one implementation, so they cannot disagree about
   // what a legal move is.

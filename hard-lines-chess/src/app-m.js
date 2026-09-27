@@ -63,12 +63,13 @@ const WATCH_RANDOMNESS = 40;
 /** How many plies of a drawn opening to follow before they are on their own. */
 const WATCH_BOOK_PLIES = 8;
 // HOW STRONG THE PAIRING MAY BE, and this is a phone limit rather than a chess
-// one. The top bands are given up to 2.4 seconds a move, and a 2.4-second
-// search on the page's own thread is 2.4 seconds of a frozen board — on a
-// screen whose whole purpose is watching, that reads as a crash. Capped here
-// the slowest side thinks for a second, which is a pause rather than a hang.
+// one. The top band looks at up to 240,000 positions a move, and that search
+// runs on the page's own thread — on a phone it is a second or two of frozen
+// board, and on a screen whose whole purpose is watching, that reads as a
+// crash. Capped here the slowest side looks at 100,000, which is a pause
+// rather than a hang.
 const WATCH_WEAKEST = 3;   // BANDS[3]  — 300
-const WATCH_STRONGEST = 17; // BANDS[17] — 1700, movetime 1000
+const WATCH_STRONGEST = 17; // BANDS[17] — 1700, 100,000 positions a move
 
 // ── setting one up ─────────────────────────────────────────────────────────
 
@@ -173,7 +174,7 @@ function ensureWatchMove(ply) {
     const band = board.turn === WHITE ? Watch.bands.white : Watch.bands.black;
     App.engine.reset();
     const result = App.engine.search(board, {
-      movetime: band.movetime,
+      nodes: band.nodes,
       maxDepth: band.depth,
       blunder: band.blunder,
       randomness: WATCH_RANDOMNESS,
@@ -324,7 +325,7 @@ function explainWatchPly(ply) {
     let judged = null;
     try {
       App.engine.reset();
-      const result = App.engine.search(new Board(before.fen()), { movetime: 260, maxDepth: 12 });
+      const result = App.engine.search(new Board(before.fen()), { nodes: 26000, maxDepth: 12 });
       if (result.move) {
         const best = toSan(new Board(before.fen()), result.move);
         const after = new Board(before.fen());
@@ -335,7 +336,7 @@ function explainWatchPly(ply) {
         else if (ended) scoreAfter = 0;
         else {
           App.engine.reset();
-          const reply = App.engine.search(after, { movetime: 200, maxDepth: 11 });
+          const reply = App.engine.search(after, { nodes: 20000, maxDepth: 11 });
           scoreAfter = -reply.score;
         }
         judged = {

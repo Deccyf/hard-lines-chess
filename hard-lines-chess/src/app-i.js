@@ -342,7 +342,7 @@ function scheduleEndgameReply() {
     let result = null;
     try {
       App.engine.reset();
-      result = App.engine.search(new Board(Endgames.board.fen()), { movetime: 600, maxDepth: 18 });
+      result = App.engine.search(new Board(Endgames.board.fen()), { nodes: 60000, maxDepth: 18 });
     } catch { result = null; }
     setTimeout(() => play(result?.move ? moveToUci(result.move) : null), MIN_REPLY_MS);
   }, 0));

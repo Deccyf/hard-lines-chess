@@ -111,6 +111,47 @@ const CHAR_CLS = Object.fromEntries(Object.entries(CLS_CHAR).map(([k, v]) => [v,
 const marksOf = (judged) => judged.map((j) => CLS_CHAR[j.cls] ?? '.').join('');
 
 /**
+ * What each of your moves cost, straight from the stored curve — no board.
+ *
+ * judgedFromStore() below rebuilds the whole move list, and to do that it needs
+ * the game parsed: every move replayed through the generator to get its
+ * notation and the position it was played in. That is the right shape for the
+ * review screen, which draws all of it.
+ *
+ * WHERE THE TIME GOES NEEDS TWO FIELDS OF IT — whether a move was yours, and
+ * what it lost — and both fall out of the curve and the index alone. Whose move
+ * ply i is, is the parity of i; what it cost is the step in the curve either
+ * side of it. Reading them this way turned the Progress screen's first paint
+ * from about six hundred milliseconds over a couple of hundred games into
+ * about ten, because replaying eight thousand moves was the whole of it.
+ */
+function lossesFromStore(curve, marks, side) {
+  const out = [];
+  if (!Array.isArray(curve) || typeof marks !== 'string') return out;
+  const count = Math.min(marks.length, curve.length - 1);
+  for (let i = 0; i < count; i++) {
+    const cls = CHAR_CLS[marks[i]] ?? 'good';
+    const white = i % 2 === 0;
+    const mate = cls === 'missed_mate' || cls === 'allowed_mate';
+    // The curve is from White's side throughout, so a loss for the mover is a
+    // FALL in it when White moved and a RISE when Black did — as in
+    // judgedFromStore, which this has to agree with exactly.
+    const drop = white ? curve[i] - curve[i + 1] : curve[i + 1] - curve[i];
+    out.push({
+      mine: (white ? 'white' : 'black') === side,
+      loss: mate ? null : (cls === 'best' ? 0 : Math.max(0, drop)),
+    });
+  }
+  return out;
+}
+
+/** One header out of a PGN, without parsing the moves. */
+function headerOf(text, name) {
+  const m = new RegExp(`\\[${name}\\s+"((?:[^"\\\\]|\\\\.)*)"\\]`).exec(String(text ?? ''));
+  return m ? m[1].replace(/\\(["\\\\])/g, '$1') : null;
+}
+
+/**
  * A stored game read back into the shape the review screen already draws.
  *
  * `parsed` is its PGN parsed again — which is where every move, its notation
@@ -192,6 +233,17 @@ function scoreFinished(outcome) {
 const MIN_JUDGED = 10;
 
 /**
+ * The second, harder look a candidate tactic gets before it is filed as one.
+ *
+ * A tactic claimed on the walk's own shallow budget is a tactic that may not
+ * be there, so every candidate is re-searched with this much work and two
+ * lines — enough to tell "there is one move here and it wins material" from
+ * "the first move the walk happened to like". Never less than the walk's own
+ * budget: the deepest setting already looks harder than this.
+ */
+const TACTIC_NODES = 200000;
+
+/**
  * The rough accuracy and the mean loss from a walk's totals, or null for
  * both when there were too few of his moves to say anything.
  */
@@ -257,7 +309,7 @@ const TACTIC = {
   perGame: 6,         // and only the biggest few, so one rout is not a course
 };
 
-async function reviewGame(parsed, side, { movetime = 180, depth = 8, onProgress = null, yieldEvery = 1, withTactics = true } = {}) {
+async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress = null, yieldEvery = 1, withTactics = true } = {}) {
   const engine = new Engine();
   const board = new Board(parsed.startFen ?? undefined);
   const positions = [];
@@ -274,6 +326,13 @@ async function reviewGame(parsed, side, { movetime = 180, depth = 8, onProgress 
 
   const evals = new Array(positions.length).fill(0);
   const best = new Array(positions.length).fill(null);
+  // HOW MANY SEARCHES DID LESS WORK THAN THEY WERE ASKED FOR. On any device
+  // this was measured on, none: the backstop is twenty seconds and the budget
+  // is a fraction of a second. But a review whose figures came out of a
+  // different amount of work from the one it claims is not comparable with the
+  // rest, and the screen has to be able to say so rather than print the number
+  // as if nothing happened.
+  let ranOutOfTime = 0;
 
   for (let i = 0; i < positions.length; i++) {
     const at = new Board(positions[i].fen);
@@ -284,8 +343,13 @@ async function reviewGame(parsed, side, { movetime = 180, depth = 8, onProgress 
     positions[i].mated = outcome === 'checkmate';
     if (outcome) { evals[i] = scoreFinished(outcome); best[i] = null; }
     else {
+      // RESET BEFORE EVERY POSITION, which is half of what makes a review
+      // repeatable: a table carried over from the previous position would make
+      // this search's answer depend on which game it was reading and where in
+      // it, so the same position could be judged two ways.
       engine.reset();
-      const result = engine.search(at, { movetime, maxDepth: depth });
+      const result = engine.search(at, { nodes, maxDepth: depth });
+      if (result.ranOutOfTime) ranOutOfTime++;
       evals[i] = result.score;
       // The LINE is kept as well as the move: a motif is demonstrated by the
       // punishing sequence, not by its first move, and re-searching for it
@@ -444,10 +508,12 @@ async function reviewGame(parsed, side, { movetime = 180, depth = 8, onProgress 
       const c = shortlist[n];
       const at = new Board(positions[c.i + 1].fen);
       engine.reset();
-      // Deeper and slower than the walk: this decides whether a position
+      // A HARDER LOOK THAN THE WALK GOT: this decides whether a position
       // becomes a puzzle at all, and a shallow search calls two moves equal
-      // that are not, or vice versa.
-      const check = engine.search(at, { movetime: Math.max(movetime, 600), maxDepth: depth + 2, lines: 2 });
+      // that are not, or vice versa. Never less than the walk's own budget,
+      // whichever setting is in use.
+      const check = engine.search(at, { nodes: Math.max(nodes, TACTIC_NODES), maxDepth: depth + 2, lines: 2 });
+      if (check.ranOutOfTime) ranOutOfTime++;
 
       if (onProgress) onProgress(n + 1, shortlist.length, 'tactics');
       await new Promise((r) => setTimeout(r, 0));
@@ -507,7 +573,7 @@ async function reviewGame(parsed, side, { movetime = 180, depth = 8, onProgress 
   // fewer than MIN_JUDGED of his moves to average over.
   const { accuracy, meanLoss } = accuracyFrom(lost, counted);
 
-  return { evals, mistakes, accuracy, counted, minJudged: MIN_JUDGED, judged, whiteCp, tactics, capped, tacticsPassed: passed, meanLoss, depth };
+  return { evals, mistakes, accuracy, counted, minJudged: MIN_JUDGED, judged, whiteCp, tactics, capped, tacticsPassed: passed, meanLoss, depth, nodes, ranOutOfTime };
 }
 
 
@@ -806,15 +872,19 @@ function timeTrouble(games) {
 
   for (const game of games ?? []) {
     if (!game?.pgn || !Array.isArray(game.curve) || typeof game.marks !== 'string') { skipped++; continue; }
-    let parsed;
-    try { parsed = parsePgn(game.pgn); } catch { skipped++; continue; }
-    const clocks = clocksFrom(game.pgn, parsed.plies.length);
+    const judged = lossesFromStore(game.curve, game.marks, game.side ?? 'white');
+    if (!judged.length) { skipped++; continue; }
+    // ONE CLOCK PER MOVE OF THE GAME, or none at all: a clock lined up against
+    // a move it does not belong to reports time trouble in the wrong half of
+    // the game. The count to check against is the game's own, stored when it
+    // was reviewed — NOT the number of moves judged, which is smaller whenever
+    // a curve stops short, and would throw away the moves it does cover.
+    const plies = Number.isFinite(game.plies) && game.plies >= judged.length ? game.plies : judged.length;
+    const clocks = clocksFrom(game.pgn, plies);
     if (!clocks) { skipped++; continue; }
-    const control = timeControlOf(parsed.headers?.TimeControl ?? game.timeControl);
+    const control = timeControlOf(headerOf(game.pgn, 'TimeControl') ?? game.timeControl);
     const spent = timeSpent(clocks, control);
     if (!spent) { skipped++; continue; }
-    const judged = judgedFromStore(parsed, game.curve, game.marks, game.side ?? 'white');
-    if (!judged.length) { skipped++; continue; }
 
     used++;
     for (let i = 0; i < judged.length; i++) {

@@ -163,7 +163,7 @@ function coachThreat(board) {
   try { passed = new Board(parts.join(' ')); } catch { return { blocked: 'the turn cannot be passed here', san: null }; }
   if (passed.inCheck()) return { blocked: 'the turn cannot be passed here', san: null };
   App.engine.reset();
-  const result = App.engine.search(passed, { movetime: 250, maxDepth: 8 });
+  const result = App.engine.search(passed, { nodes: 25000, maxDepth: 8 });
   if (!result.move) return { blocked: 'nothing came back', san: null };
   const them = passed.turn === WHITE ? 'White' : 'Black';
   return {
@@ -223,7 +223,7 @@ function buildCoachBundle(board, question) {
 
   App.engine.reset();
   const top = App.engine.search(new Board(board.fen()), {
-    movetime: budget.movetime, maxDepth: budget.depth, lines: 4,
+    nodes: budget.nodes, maxDepth: budget.depth, lines: 4,
   });
 
   // Each named move searched ON ITS OWN, and what comes back is the
@@ -235,7 +235,7 @@ function buildCoachBundle(board, question) {
     let reply = null;
     if (!after.outcome()) {
       App.engine.reset();
-      reply = App.engine.search(after, { movetime: Math.round(budget.movetime * 0.6), maxDepth: budget.depth - 1 });
+      reply = App.engine.search(after, { nodes: Math.round(budget.nodes * 0.6), maxDepth: budget.depth - 1 });
     }
     const scoreAfter = reply ? -reply.score : (after.outcome() === 'checkmate' ? 30000 : 0);
 
