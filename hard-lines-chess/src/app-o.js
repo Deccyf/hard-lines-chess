@@ -115,7 +115,7 @@ function measureDeviations(limit = DEVIATION_ROWS) {
     if (!row) { Deviations.measuring = false; return; }
     let cost = null;
     try {
-      cost = measureDeviation(row, { Board, sanToMove, engine: App.engine, movetime: 260, depth: 10 });
+      cost = measureDeviation(row, { Board, sanToMove, engine: App.engine, nodes: 26000, depth: 10 });
     } catch { cost = null; }
     Deviations.costs[row.key] = cost;
     renderDeviationRows();

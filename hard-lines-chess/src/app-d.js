@@ -201,13 +201,13 @@ function suggestPractice() {
   Practice.busy = true;
   Practice.view.locked = true;
   $('practiceSuggest').disabled = true;
-  $('practiceVerdict').textContent = `Thinking, up to ${(budget.movetime / 1000).toFixed(1)}s…`;
+  $('practiceVerdict').textContent = `Thinking — up to ${budget.nodes.toLocaleString('en-GB')} positions…`;
 
   requestAnimationFrame(() => setTimeout(() => {
     let result;
     try {
       App.engine.reset();
-      result = App.engine.search(new Board(board.fen()), { movetime: budget.movetime, maxDepth: budget.depth, lines: 3 });
+      result = App.engine.search(new Board(board.fen()), { nodes: budget.nodes, maxDepth: budget.depth, lines: 3 });
     } finally {
       Practice.busy = false;
       Practice.view.locked = false;
@@ -301,7 +301,7 @@ function showThreat() {
     if (generation !== Practice.generation || Practice.busy || !Practice.threats) return;
     if (Practice.view.board.fen() !== fen) return;
     App.engine.reset();
-    const result = App.engine.search(passed, { movetime: 250, maxDepth: 7 });
+    const result = App.engine.search(passed, { nodes: 25000, maxDepth: 7 });
     if (generation !== Practice.generation || Practice.view.board.fen() !== fen) return;
     if (!result.move) { note.textContent = ''; return; }
     const san = toSan(passed, result.move);

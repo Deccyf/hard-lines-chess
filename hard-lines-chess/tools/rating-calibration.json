@@ -1,6 +1,48 @@
 {
-  "measured": "2026-09-05",
-  "games": 2,
+  "measured": "2026-09-27",
+  "games": 4,
+  "budgets": {
+    "7": 25000,
+    "9": 80000,
+    "12": 250000
+  },
+  "ceilings": {
+    "7": 1200,
+    "9": 1200,
+    "12": 1200
+  },
+  "losses": {
+    "7": {
+      "0": 112,
+      "300": 53.8,
+      "600": 37.4,
+      "900": 22.2,
+      "1200": 6.6,
+      "1500": 5.7,
+      "1800": 9,
+      "2100": 16.9
+    },
+    "9": {
+      "0": 109.2,
+      "300": 55.3,
+      "600": 36.4,
+      "900": 27.7,
+      "1200": 9.7,
+      "1500": 4.9,
+      "1800": 3.8,
+      "2100": 6.7
+    },
+    "12": {
+      "0": 112.7,
+      "300": 58,
+      "600": 43.9,
+      "900": 29.1,
+      "1200": 14.7,
+      "1500": 8.5,
+      "1800": 3.4,
+      "2100": 6
+    }
+  },
   "rows": [
     {
       "elo": 0,
@@ -9,8 +51,8 @@
       "side": "white",
       "plies": 100,
       "counted": 50,
-      "accuracy": 67,
-      "meanLoss": 99
+      "accuracy": 64,
+      "meanLoss": 108.12
     },
     {
       "elo": 0,
@@ -19,8 +61,8 @@
       "side": "black",
       "plies": 100,
       "counted": 50,
-      "accuracy": 76,
-      "meanLoss": 72
+      "accuracy": 61,
+      "meanLoss": 117.94
     },
     {
       "elo": 0,
@@ -29,8 +71,8 @@
       "side": "white",
       "plies": 100,
       "counted": 50,
-      "accuracy": 66,
-      "meanLoss": 102
+      "accuracy": 62,
+      "meanLoss": 112.54
     },
     {
       "elo": 0,
@@ -39,58 +81,58 @@
       "side": "black",
       "plies": 100,
       "counted": 50,
-      "accuracy": 74,
-      "meanLoss": 78
+      "accuracy": 59,
+      "meanLoss": 123.68
     },
     {
       "elo": 0,
       "game": 0,
       "depth": 12,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 63,
+      "meanLoss": 112.08
+    },
+    {
+      "elo": 0,
+      "game": 0,
+      "depth": 12,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 57,
+      "meanLoss": 127.58
+    },
+    {
+      "elo": 0,
+      "game": 1,
+      "depth": 7,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 64,
+      "meanLoss": 107.72
+    },
+    {
+      "elo": 0,
+      "game": 1,
+      "depth": 7,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 60,
+      "meanLoss": 121.5
+    },
+    {
+      "elo": 0,
+      "game": 1,
+      "depth": 9,
       "side": "white",
       "plies": 100,
       "counted": 50,
       "accuracy": 68,
-      "meanLoss": 96
-    },
-    {
-      "elo": 0,
-      "game": 0,
-      "depth": 12,
-      "side": "black",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 76,
-      "meanLoss": 72
-    },
-    {
-      "elo": 0,
-      "game": 1,
-      "depth": 7,
-      "side": "white",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 67,
-      "meanLoss": 99
-    },
-    {
-      "elo": 0,
-      "game": 1,
-      "depth": 7,
-      "side": "black",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 64,
-      "meanLoss": 108
-    },
-    {
-      "elo": 0,
-      "game": 1,
-      "depth": 9,
-      "side": "white",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 67,
-      "meanLoss": 99
+      "meanLoss": 96.58
     },
     {
       "elo": 0,
@@ -100,7 +142,7 @@
       "plies": 100,
       "counted": 50,
       "accuracy": 64,
-      "meanLoss": 108
+      "meanLoss": 106.62
     },
     {
       "elo": 0,
@@ -110,7 +152,7 @@
       "plies": 100,
       "counted": 50,
       "accuracy": 65,
-      "meanLoss": 105
+      "meanLoss": 104.64
     },
     {
       "elo": 0,
@@ -119,178 +161,178 @@
       "side": "black",
       "plies": 100,
       "counted": 50,
-      "accuracy": 65,
-      "meanLoss": 105
+      "accuracy": 66,
+      "meanLoss": 101.92
     },
     {
-      "elo": 2100,
-      "game": 0,
+      "elo": 0,
+      "game": 2,
       "depth": 7,
       "side": "white",
       "plies": 100,
       "counted": 50,
-      "accuracy": 99,
-      "meanLoss": 3
+      "accuracy": 60,
+      "meanLoss": 119.44
     },
     {
-      "elo": 2100,
-      "game": 0,
+      "elo": 0,
+      "game": 2,
       "depth": 7,
       "side": "black",
       "plies": 100,
       "counted": 50,
-      "accuracy": 98,
-      "meanLoss": 6
+      "accuracy": 72,
+      "meanLoss": 84.68
     },
     {
-      "elo": 2100,
-      "game": 0,
+      "elo": 0,
+      "game": 2,
       "depth": 9,
       "side": "white",
       "plies": 100,
       "counted": 50,
-      "accuracy": 98,
-      "meanLoss": 6
+      "accuracy": 62,
+      "meanLoss": 114.48
     },
     {
-      "elo": 2100,
-      "game": 0,
+      "elo": 0,
+      "game": 2,
       "depth": 9,
       "side": "black",
       "plies": 100,
       "counted": 50,
-      "accuracy": 99,
-      "meanLoss": 3
+      "accuracy": 72,
+      "meanLoss": 85.18
     },
     {
-      "elo": 2100,
-      "game": 0,
+      "elo": 0,
+      "game": 2,
       "depth": 12,
       "side": "white",
       "plies": 100,
       "counted": 50,
-      "accuracy": 98,
-      "meanLoss": 6
+      "accuracy": 59,
+      "meanLoss": 121.68
     },
     {
-      "elo": 2100,
-      "game": 0,
+      "elo": 0,
+      "game": 2,
       "depth": 12,
       "side": "black",
       "plies": 100,
       "counted": 50,
-      "accuracy": 99,
-      "meanLoss": 3
+      "accuracy": 69,
+      "meanLoss": 94.16
     },
     {
-      "elo": 2100,
-      "game": 1,
+      "elo": 0,
+      "game": 3,
       "depth": 7,
       "side": "white",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 98,
-      "meanLoss": 6
+      "plies": 62,
+      "counted": 31,
+      "accuracy": 62,
+      "meanLoss": 113.38709677419355
     },
     {
-      "elo": 2100,
-      "game": 1,
+      "elo": 0,
+      "game": 3,
       "depth": 7,
       "side": "black",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 98,
-      "meanLoss": 6
+      "plies": 62,
+      "counted": 31,
+      "accuracy": 59,
+      "meanLoss": 123.48387096774194
     },
     {
-      "elo": 2100,
-      "game": 1,
+      "elo": 0,
+      "game": 3,
       "depth": 9,
       "side": "white",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 98,
-      "meanLoss": 6
+      "plies": 62,
+      "counted": 31,
+      "accuracy": 62,
+      "meanLoss": 113.96774193548387
     },
     {
-      "elo": 2100,
-      "game": 1,
+      "elo": 0,
+      "game": 3,
       "depth": 9,
       "side": "black",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 98,
-      "meanLoss": 6
+      "plies": 62,
+      "counted": 31,
+      "accuracy": 60,
+      "meanLoss": 120.74193548387096
     },
     {
-      "elo": 2100,
-      "game": 1,
+      "elo": 0,
+      "game": 3,
       "depth": 12,
       "side": "white",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 99,
-      "meanLoss": 3
+      "plies": 62,
+      "counted": 31,
+      "accuracy": 62,
+      "meanLoss": 114.6774193548387
     },
     {
-      "elo": 2100,
-      "game": 1,
+      "elo": 0,
+      "game": 3,
       "depth": 12,
       "side": "black",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 99,
-      "meanLoss": 3
+      "plies": 62,
+      "counted": 31,
+      "accuracy": 58,
+      "meanLoss": 124.64516129032258
     },
     {
       "elo": 300,
       "game": 0,
       "depth": 7,
-      "side": "white",
-      "plies": 27,
-      "counted": 14,
-      "accuracy": 79,
-      "meanLoss": 63
-    },
-    {
-      "elo": 300,
-      "game": 0,
-      "depth": 7,
-      "side": "black",
-      "plies": 27,
-      "counted": 13,
-      "accuracy": 79,
-      "meanLoss": 63
-    },
-    {
-      "elo": 300,
-      "game": 0,
-      "depth": 9,
-      "side": "white",
-      "plies": 27,
-      "counted": 14,
-      "accuracy": 81,
-      "meanLoss": 57
-    },
-    {
-      "elo": 300,
-      "game": 0,
-      "depth": 9,
-      "side": "black",
-      "plies": 27,
-      "counted": 13,
-      "accuracy": 80,
-      "meanLoss": 60
-    },
-    {
-      "elo": 300,
-      "game": 0,
-      "depth": 12,
       "side": "white",
       "plies": 27,
       "counted": 14,
       "accuracy": 78,
-      "meanLoss": 66
+      "meanLoss": 65.28571428571429
+    },
+    {
+      "elo": 300,
+      "game": 0,
+      "depth": 7,
+      "side": "black",
+      "plies": 27,
+      "counted": 13,
+      "accuracy": 77,
+      "meanLoss": 68
+    },
+    {
+      "elo": 300,
+      "game": 0,
+      "depth": 9,
+      "side": "white",
+      "plies": 27,
+      "counted": 14,
+      "accuracy": 80,
+      "meanLoss": 59.857142857142854
+    },
+    {
+      "elo": 300,
+      "game": 0,
+      "depth": 9,
+      "side": "black",
+      "plies": 27,
+      "counted": 13,
+      "accuracy": 79,
+      "meanLoss": 61.76923076923077
+    },
+    {
+      "elo": 300,
+      "game": 0,
+      "depth": 12,
+      "side": "white",
+      "plies": 27,
+      "counted": 14,
+      "accuracy": 79,
+      "meanLoss": 63.07142857142857
     },
     {
       "elo": 300,
@@ -300,37 +342,37 @@
       "plies": 27,
       "counted": 13,
       "accuracy": 79,
-      "meanLoss": 63
+      "meanLoss": 63.15384615384615
     },
     {
       "elo": 300,
       "game": 1,
       "depth": 7,
+      "side": "white",
+      "plies": 35,
+      "counted": 18,
+      "accuracy": 87,
+      "meanLoss": 37.611111111111114
+    },
+    {
+      "elo": 300,
+      "game": 1,
+      "depth": 7,
+      "side": "black",
+      "plies": 35,
+      "counted": 17,
+      "accuracy": 87,
+      "meanLoss": 40
+    },
+    {
+      "elo": 300,
+      "game": 1,
+      "depth": 9,
       "side": "white",
       "plies": 35,
       "counted": 18,
       "accuracy": 84,
-      "meanLoss": 48
-    },
-    {
-      "elo": 300,
-      "game": 1,
-      "depth": 7,
-      "side": "black",
-      "plies": 35,
-      "counted": 17,
-      "accuracy": 86,
-      "meanLoss": 42
-    },
-    {
-      "elo": 300,
-      "game": 1,
-      "depth": 9,
-      "side": "white",
-      "plies": 35,
-      "counted": 18,
-      "accuracy": 86,
-      "meanLoss": 42
+      "meanLoss": 47.611111111111114
     },
     {
       "elo": 300,
@@ -339,8 +381,8 @@
       "side": "black",
       "plies": 35,
       "counted": 17,
-      "accuracy": 88,
-      "meanLoss": 36
+      "accuracy": 85,
+      "meanLoss": 43.529411764705884
     },
     {
       "elo": 300,
@@ -350,7 +392,7 @@
       "plies": 35,
       "counted": 18,
       "accuracy": 83,
-      "meanLoss": 51
+      "meanLoss": 50.77777777777778
     },
     {
       "elo": 300,
@@ -360,277 +402,1117 @@
       "plies": 35,
       "counted": 17,
       "accuracy": 88,
-      "meanLoss": 36
+      "meanLoss": 36.529411764705884
     },
     {
-      "elo": 900,
+      "elo": 300,
+      "game": 2,
+      "depth": 7,
+      "side": "white",
+      "plies": 56,
+      "counted": 28,
+      "accuracy": 78,
+      "meanLoss": 66.39285714285714
+    },
+    {
+      "elo": 300,
+      "game": 2,
+      "depth": 7,
+      "side": "black",
+      "plies": 56,
+      "counted": 28,
+      "accuracy": 84,
+      "meanLoss": 46.964285714285715
+    },
+    {
+      "elo": 300,
+      "game": 2,
+      "depth": 9,
+      "side": "white",
+      "plies": 56,
+      "counted": 28,
+      "accuracy": 78,
+      "meanLoss": 66.10714285714286
+    },
+    {
+      "elo": 300,
+      "game": 2,
+      "depth": 9,
+      "side": "black",
+      "plies": 56,
+      "counted": 28,
+      "accuracy": 84,
+      "meanLoss": 46.607142857142854
+    },
+    {
+      "elo": 300,
+      "game": 2,
+      "depth": 12,
+      "side": "white",
+      "plies": 56,
+      "counted": 28,
+      "accuracy": 76,
+      "meanLoss": 72.53571428571429
+    },
+    {
+      "elo": 300,
+      "game": 2,
+      "depth": 12,
+      "side": "black",
+      "plies": 56,
+      "counted": 28,
+      "accuracy": 82,
+      "meanLoss": 52.535714285714285
+    },
+    {
+      "elo": 300,
+      "game": 3,
+      "depth": 7,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 83,
+      "meanLoss": 49.86
+    },
+    {
+      "elo": 300,
+      "game": 3,
+      "depth": 7,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 81,
+      "meanLoss": 56.02
+    },
+    {
+      "elo": 300,
+      "game": 3,
+      "depth": 9,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 81,
+      "meanLoss": 56.5
+    },
+    {
+      "elo": 300,
+      "game": 3,
+      "depth": 9,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 80,
+      "meanLoss": 60.16
+    },
+    {
+      "elo": 300,
+      "game": 3,
+      "depth": 12,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 79,
+      "meanLoss": 64.12
+    },
+    {
+      "elo": 300,
+      "game": 3,
+      "depth": 12,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 80,
+      "meanLoss": 61.48
+    },
+    {
+      "elo": 1200,
       "game": 0,
       "depth": 7,
       "side": "white",
-      "plies": 60,
-      "counted": 30,
-      "accuracy": 94,
-      "meanLoss": 18
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 100,
+      "meanLoss": 1.26
     },
     {
-      "elo": 900,
+      "elo": 1200,
       "game": 0,
       "depth": 7,
       "side": "black",
-      "plies": 60,
-      "counted": 30,
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 99,
+      "meanLoss": 2.62
+    },
+    {
+      "elo": 1200,
+      "game": 0,
+      "depth": 9,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 98,
+      "meanLoss": 5.06
+    },
+    {
+      "elo": 1200,
+      "game": 0,
+      "depth": 9,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 95,
+      "meanLoss": 15.56
+    },
+    {
+      "elo": 1200,
+      "game": 0,
+      "depth": 12,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 96,
+      "meanLoss": 11.68
+    },
+    {
+      "elo": 1200,
+      "game": 0,
+      "depth": 12,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 92,
+      "meanLoss": 24.94
+    },
+    {
+      "elo": 1200,
+      "game": 1,
+      "depth": 7,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 98,
+      "meanLoss": 6.1
+    },
+    {
+      "elo": 1200,
+      "game": 1,
+      "depth": 7,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 96,
+      "meanLoss": 11.04
+    },
+    {
+      "elo": 1200,
+      "game": 1,
+      "depth": 9,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 97,
+      "meanLoss": 7.52
+    },
+    {
+      "elo": 1200,
+      "game": 1,
+      "depth": 9,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 95,
+      "meanLoss": 14.26
+    },
+    {
+      "elo": 1200,
+      "game": 1,
+      "depth": 12,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 96,
+      "meanLoss": 11.34
+    },
+    {
+      "elo": 1200,
+      "game": 1,
+      "depth": 12,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 95,
+      "meanLoss": 14.3
+    },
+    {
+      "elo": 1200,
+      "game": 2,
+      "depth": 7,
+      "side": "white",
+      "plies": 84,
+      "counted": 42,
+      "accuracy": 97,
+      "meanLoss": 9.047619047619047
+    },
+    {
+      "elo": 1200,
+      "game": 2,
+      "depth": 7,
+      "side": "black",
+      "plies": 84,
+      "counted": 42,
+      "accuracy": 98,
+      "meanLoss": 7.142857142857143
+    },
+    {
+      "elo": 1200,
+      "game": 2,
+      "depth": 9,
+      "side": "white",
+      "plies": 84,
+      "counted": 42,
+      "accuracy": 96,
+      "meanLoss": 13.19047619047619
+    },
+    {
+      "elo": 1200,
+      "game": 2,
+      "depth": 9,
+      "side": "black",
+      "plies": 84,
+      "counted": 42,
+      "accuracy": 99,
+      "meanLoss": 3.857142857142857
+    },
+    {
+      "elo": 1200,
+      "game": 2,
+      "depth": 12,
+      "side": "white",
+      "plies": 84,
+      "counted": 42,
+      "accuracy": 92,
+      "meanLoss": 25.095238095238095
+    },
+    {
+      "elo": 1200,
+      "game": 2,
+      "depth": 12,
+      "side": "black",
+      "plies": 84,
+      "counted": 42,
+      "accuracy": 96,
+      "meanLoss": 10.952380952380953
+    },
+    {
+      "elo": 1200,
+      "game": 3,
+      "depth": 7,
+      "side": "white",
+      "plies": 69,
+      "counted": 35,
+      "accuracy": 99,
+      "meanLoss": 2.9714285714285715
+    },
+    {
+      "elo": 1200,
+      "game": 3,
+      "depth": 7,
+      "side": "black",
+      "plies": 69,
+      "counted": 34,
+      "accuracy": 96,
+      "meanLoss": 12.647058823529411
+    },
+    {
+      "elo": 1200,
+      "game": 3,
+      "depth": 9,
+      "side": "white",
+      "plies": 69,
+      "counted": 35,
+      "accuracy": 98,
+      "meanLoss": 5.228571428571429
+    },
+    {
+      "elo": 1200,
+      "game": 3,
+      "depth": 9,
+      "side": "black",
+      "plies": 69,
+      "counted": 34,
+      "accuracy": 96,
+      "meanLoss": 13
+    },
+    {
+      "elo": 1200,
+      "game": 3,
+      "depth": 12,
+      "side": "white",
+      "plies": 69,
+      "counted": 35,
+      "accuracy": 98,
+      "meanLoss": 6.914285714285715
+    },
+    {
+      "elo": 1200,
+      "game": 3,
+      "depth": 12,
+      "side": "black",
+      "plies": 69,
+      "counted": 34,
+      "accuracy": 96,
+      "meanLoss": 12.705882352941176
+    },
+    {
+      "elo": 1500,
+      "game": 0,
+      "depth": 7,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 95,
+      "meanLoss": 15.52
+    },
+    {
+      "elo": 1500,
+      "game": 0,
+      "depth": 7,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 99,
+      "meanLoss": 2.62
+    },
+    {
+      "elo": 1500,
+      "game": 0,
+      "depth": 9,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 96,
+      "meanLoss": 11.22
+    },
+    {
+      "elo": 1500,
+      "game": 0,
+      "depth": 9,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 99,
+      "meanLoss": 1.54
+    },
+    {
+      "elo": 1500,
+      "game": 0,
+      "depth": 12,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 95,
+      "meanLoss": 13.98
+    },
+    {
+      "elo": 1500,
+      "game": 0,
+      "depth": 12,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 99,
+      "meanLoss": 3.36
+    },
+    {
+      "elo": 1500,
+      "game": 1,
+      "depth": 7,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 99,
+      "meanLoss": 3.4
+    },
+    {
+      "elo": 1500,
+      "game": 1,
+      "depth": 7,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 97,
+      "meanLoss": 9.02
+    },
+    {
+      "elo": 1500,
+      "game": 1,
+      "depth": 9,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 100,
+      "meanLoss": 0.44
+    },
+    {
+      "elo": 1500,
+      "game": 1,
+      "depth": 9,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 98,
+      "meanLoss": 6.1
+    },
+    {
+      "elo": 1500,
+      "game": 1,
+      "depth": 12,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 98,
+      "meanLoss": 5.8
+    },
+    {
+      "elo": 1500,
+      "game": 1,
+      "depth": 12,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 97,
+      "meanLoss": 9.48
+    },
+    {
+      "elo": 1500,
+      "game": 2,
+      "depth": 7,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 99,
+      "meanLoss": 3.64
+    },
+    {
+      "elo": 1500,
+      "game": 2,
+      "depth": 7,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 99,
+      "meanLoss": 2.6
+    },
+    {
+      "elo": 1500,
+      "game": 2,
+      "depth": 9,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 99,
+      "meanLoss": 2.64
+    },
+    {
+      "elo": 1500,
+      "game": 2,
+      "depth": 9,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 98,
+      "meanLoss": 5.76
+    },
+    {
+      "elo": 1500,
+      "game": 2,
+      "depth": 12,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 98,
+      "meanLoss": 5.26
+    },
+    {
+      "elo": 1500,
+      "game": 2,
+      "depth": 12,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 96,
+      "meanLoss": 12.46
+    },
+    {
+      "elo": 1500,
+      "game": 3,
+      "depth": 7,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 98,
+      "meanLoss": 7.04
+    },
+    {
+      "elo": 1500,
+      "game": 3,
+      "depth": 7,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 99,
+      "meanLoss": 2.1
+    },
+    {
+      "elo": 1500,
+      "game": 3,
+      "depth": 9,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 97,
+      "meanLoss": 9.32
+    },
+    {
+      "elo": 1500,
+      "game": 3,
+      "depth": 9,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 99,
+      "meanLoss": 2.4
+    },
+    {
+      "elo": 1500,
+      "game": 3,
+      "depth": 12,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 96,
+      "meanLoss": 12.94
+    },
+    {
+      "elo": 1500,
+      "game": 3,
+      "depth": 12,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 98,
+      "meanLoss": 4.92
+    },
+    {
+      "elo": 1800,
+      "game": 0,
+      "depth": 7,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 98,
+      "meanLoss": 5.78
+    },
+    {
+      "elo": 1800,
+      "game": 0,
+      "depth": 7,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 97,
+      "meanLoss": 9.4
+    },
+    {
+      "elo": 1800,
+      "game": 0,
+      "depth": 9,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 100,
+      "meanLoss": 1.38
+    },
+    {
+      "elo": 1800,
+      "game": 0,
+      "depth": 9,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 98,
+      "meanLoss": 6.76
+    },
+    {
+      "elo": 1800,
+      "game": 0,
+      "depth": 12,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 99,
+      "meanLoss": 3.36
+    },
+    {
+      "elo": 1800,
+      "game": 0,
+      "depth": 12,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 97,
+      "meanLoss": 8.62
+    },
+    {
+      "elo": 1800,
+      "game": 1,
+      "depth": 7,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 96,
+      "meanLoss": 13.44
+    },
+    {
+      "elo": 1800,
+      "game": 1,
+      "depth": 7,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 98,
+      "meanLoss": 5.58
+    },
+    {
+      "elo": 1800,
+      "game": 1,
+      "depth": 9,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 98,
+      "meanLoss": 7.28
+    },
+    {
+      "elo": 1800,
+      "game": 1,
+      "depth": 9,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 100,
+      "meanLoss": 0.18
+    },
+    {
+      "elo": 1800,
+      "game": 1,
+      "depth": 12,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 99,
+      "meanLoss": 3.24
+    },
+    {
+      "elo": 1800,
+      "game": 1,
+      "depth": 12,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 99,
+      "meanLoss": 1.86
+    },
+    {
+      "elo": 1800,
+      "game": 2,
+      "depth": 7,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 96,
+      "meanLoss": 13.44
+    },
+    {
+      "elo": 1800,
+      "game": 2,
+      "depth": 7,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 98,
+      "meanLoss": 5.58
+    },
+    {
+      "elo": 1800,
+      "game": 2,
+      "depth": 9,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 98,
+      "meanLoss": 7.28
+    },
+    {
+      "elo": 1800,
+      "game": 2,
+      "depth": 9,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 100,
+      "meanLoss": 0.18
+    },
+    {
+      "elo": 1800,
+      "game": 2,
+      "depth": 12,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 99,
+      "meanLoss": 3.24
+    },
+    {
+      "elo": 1800,
+      "game": 2,
+      "depth": 12,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 99,
+      "meanLoss": 1.86
+    },
+    {
+      "elo": 1800,
+      "game": 3,
+      "depth": 7,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 96,
+      "meanLoss": 13.44
+    },
+    {
+      "elo": 1800,
+      "game": 3,
+      "depth": 7,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 98,
+      "meanLoss": 5.58
+    },
+    {
+      "elo": 1800,
+      "game": 3,
+      "depth": 9,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 98,
+      "meanLoss": 7.28
+    },
+    {
+      "elo": 1800,
+      "game": 3,
+      "depth": 9,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 100,
+      "meanLoss": 0.18
+    },
+    {
+      "elo": 1800,
+      "game": 3,
+      "depth": 12,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 99,
+      "meanLoss": 3.24
+    },
+    {
+      "elo": 1800,
+      "game": 3,
+      "depth": 12,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 99,
+      "meanLoss": 1.86
+    },
+    {
+      "elo": 2100,
+      "game": 0,
+      "depth": 7,
+      "side": "white",
+      "plies": 49,
+      "counted": 25,
+      "accuracy": 97,
+      "meanLoss": 8.4
+    },
+    {
+      "elo": 2100,
+      "game": 0,
+      "depth": 7,
+      "side": "black",
+      "plies": 49,
+      "counted": 24,
+      "accuracy": 92,
+      "meanLoss": 25.375
+    },
+    {
+      "elo": 2100,
+      "game": 0,
+      "depth": 9,
+      "side": "white",
+      "plies": 49,
+      "counted": 25,
+      "accuracy": 100,
+      "meanLoss": 0.16
+    },
+    {
+      "elo": 2100,
+      "game": 0,
+      "depth": 9,
+      "side": "black",
+      "plies": 49,
+      "counted": 24,
+      "accuracy": 96,
+      "meanLoss": 13.208333333333334
+    },
+    {
+      "elo": 2100,
+      "game": 0,
+      "depth": 12,
+      "side": "white",
+      "plies": 49,
+      "counted": 25,
       "accuracy": 96,
       "meanLoss": 12
     },
     {
-      "elo": 900,
-      "game": 0,
-      "depth": 9,
-      "side": "white",
-      "plies": 60,
-      "counted": 30,
-      "accuracy": 88,
-      "meanLoss": 36
-    },
-    {
-      "elo": 900,
-      "game": 0,
-      "depth": 9,
-      "side": "black",
-      "plies": 60,
-      "counted": 30,
-      "accuracy": 95,
-      "meanLoss": 15
-    },
-    {
-      "elo": 900,
-      "game": 0,
-      "depth": 12,
-      "side": "white",
-      "plies": 60,
-      "counted": 30,
-      "accuracy": 87,
-      "meanLoss": 39
-    },
-    {
-      "elo": 900,
+      "elo": 2100,
       "game": 0,
       "depth": 12,
       "side": "black",
-      "plies": 60,
-      "counted": 30,
-      "accuracy": 95,
-      "meanLoss": 15
-    },
-    {
-      "elo": 900,
-      "game": 1,
-      "depth": 7,
-      "side": "white",
-      "plies": 61,
-      "counted": 31,
-      "accuracy": 93,
-      "meanLoss": 21
-    },
-    {
-      "elo": 900,
-      "game": 1,
-      "depth": 7,
-      "side": "black",
-      "plies": 61,
-      "counted": 30,
-      "accuracy": 93,
-      "meanLoss": 21
-    },
-    {
-      "elo": 900,
-      "game": 1,
-      "depth": 9,
-      "side": "white",
-      "plies": 61,
-      "counted": 31,
-      "accuracy": 93,
-      "meanLoss": 21
-    },
-    {
-      "elo": 900,
-      "game": 1,
-      "depth": 9,
-      "side": "black",
-      "plies": 61,
-      "counted": 30,
-      "accuracy": 87,
-      "meanLoss": 39
-    },
-    {
-      "elo": 900,
-      "game": 1,
-      "depth": 12,
-      "side": "white",
-      "plies": 61,
-      "counted": 31,
-      "accuracy": 91,
-      "meanLoss": 27
-    },
-    {
-      "elo": 900,
-      "game": 1,
-      "depth": 12,
-      "side": "black",
-      "plies": 61,
-      "counted": 30,
-      "accuracy": 89,
-      "meanLoss": 33
-    },
-    {
-      "elo": 1500,
-      "game": 0,
-      "depth": 7,
-      "side": "white",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 99,
-      "meanLoss": 3
-    },
-    {
-      "elo": 1500,
-      "game": 0,
-      "depth": 7,
-      "side": "black",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 99,
-      "meanLoss": 3
-    },
-    {
-      "elo": 1500,
-      "game": 0,
-      "depth": 9,
-      "side": "white",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 98,
-      "meanLoss": 6
-    },
-    {
-      "elo": 1500,
-      "game": 0,
-      "depth": 9,
-      "side": "black",
-      "plies": 100,
-      "counted": 50,
+      "plies": 49,
+      "counted": 24,
       "accuracy": 100,
       "meanLoss": 0
     },
     {
-      "elo": 1500,
-      "game": 0,
-      "depth": 12,
+      "elo": 2100,
+      "game": 1,
+      "depth": 7,
       "side": "white",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 98,
-      "meanLoss": 6
+      "plies": 49,
+      "counted": 25,
+      "accuracy": 97,
+      "meanLoss": 8.4
     },
     {
-      "elo": 1500,
-      "game": 0,
+      "elo": 2100,
+      "game": 1,
+      "depth": 7,
+      "side": "black",
+      "plies": 49,
+      "counted": 24,
+      "accuracy": 92,
+      "meanLoss": 25.375
+    },
+    {
+      "elo": 2100,
+      "game": 1,
+      "depth": 9,
+      "side": "white",
+      "plies": 49,
+      "counted": 25,
+      "accuracy": 100,
+      "meanLoss": 0.16
+    },
+    {
+      "elo": 2100,
+      "game": 1,
+      "depth": 9,
+      "side": "black",
+      "plies": 49,
+      "counted": 24,
+      "accuracy": 96,
+      "meanLoss": 13.208333333333334
+    },
+    {
+      "elo": 2100,
+      "game": 1,
+      "depth": 12,
+      "side": "white",
+      "plies": 49,
+      "counted": 25,
+      "accuracy": 96,
+      "meanLoss": 12
+    },
+    {
+      "elo": 2100,
+      "game": 1,
       "depth": 12,
       "side": "black",
-      "plies": 100,
-      "counted": 50,
+      "plies": 49,
+      "counted": 24,
       "accuracy": 100,
       "meanLoss": 0
     },
     {
-      "elo": 1500,
-      "game": 1,
+      "elo": 2100,
+      "game": 2,
       "depth": 7,
       "side": "white",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 98,
-      "meanLoss": 6
+      "plies": 49,
+      "counted": 25,
+      "accuracy": 97,
+      "meanLoss": 8.4
     },
     {
-      "elo": 1500,
-      "game": 1,
+      "elo": 2100,
+      "game": 2,
       "depth": 7,
       "side": "black",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 99,
-      "meanLoss": 3
+      "plies": 49,
+      "counted": 24,
+      "accuracy": 92,
+      "meanLoss": 25.375
     },
     {
-      "elo": 1500,
-      "game": 1,
+      "elo": 2100,
+      "game": 2,
       "depth": 9,
       "side": "white",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 99,
-      "meanLoss": 3
+      "plies": 49,
+      "counted": 25,
+      "accuracy": 100,
+      "meanLoss": 0.16
     },
     {
-      "elo": 1500,
-      "game": 1,
+      "elo": 2100,
+      "game": 2,
       "depth": 9,
       "side": "black",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 99,
-      "meanLoss": 3
+      "plies": 49,
+      "counted": 24,
+      "accuracy": 96,
+      "meanLoss": 13.208333333333334
     },
     {
-      "elo": 1500,
-      "game": 1,
+      "elo": 2100,
+      "game": 2,
       "depth": 12,
       "side": "white",
-      "plies": 100,
-      "counted": 50,
+      "plies": 49,
+      "counted": 25,
+      "accuracy": 96,
+      "meanLoss": 12
+    },
+    {
+      "elo": 2100,
+      "game": 2,
+      "depth": 12,
+      "side": "black",
+      "plies": 49,
+      "counted": 24,
       "accuracy": 100,
       "meanLoss": 0
     },
     {
-      "elo": 1500,
-      "game": 1,
+      "elo": 2100,
+      "game": 3,
+      "depth": 7,
+      "side": "white",
+      "plies": 49,
+      "counted": 25,
+      "accuracy": 97,
+      "meanLoss": 8.4
+    },
+    {
+      "elo": 2100,
+      "game": 3,
+      "depth": 7,
+      "side": "black",
+      "plies": 49,
+      "counted": 24,
+      "accuracy": 92,
+      "meanLoss": 25.375
+    },
+    {
+      "elo": 2100,
+      "game": 3,
+      "depth": 9,
+      "side": "white",
+      "plies": 49,
+      "counted": 25,
+      "accuracy": 100,
+      "meanLoss": 0.16
+    },
+    {
+      "elo": 2100,
+      "game": 3,
+      "depth": 9,
+      "side": "black",
+      "plies": 49,
+      "counted": 24,
+      "accuracy": 96,
+      "meanLoss": 13.208333333333334
+    },
+    {
+      "elo": 2100,
+      "game": 3,
+      "depth": 12,
+      "side": "white",
+      "plies": 49,
+      "counted": 25,
+      "accuracy": 96,
+      "meanLoss": 12
+    },
+    {
+      "elo": 2100,
+      "game": 3,
       "depth": 12,
       "side": "black",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 99,
-      "meanLoss": 3
+      "plies": 49,
+      "counted": 24,
+      "accuracy": 100,
+      "meanLoss": 0
     },
     {
       "elo": 600,
       "game": 0,
       "depth": 7,
+      "side": "white",
+      "plies": 77,
+      "counted": 39,
+      "accuracy": 91,
+      "meanLoss": 27.358974358974358
+    },
+    {
+      "elo": 600,
+      "game": 0,
+      "depth": 7,
+      "side": "black",
+      "plies": 77,
+      "counted": 38,
+      "accuracy": 83,
+      "meanLoss": 51.078947368421055
+    },
+    {
+      "elo": 600,
+      "game": 0,
+      "depth": 9,
       "side": "white",
       "plies": 77,
       "counted": 39,
       "accuracy": 92,
-      "meanLoss": 24
-    },
-    {
-      "elo": 600,
-      "game": 0,
-      "depth": 7,
-      "side": "black",
-      "plies": 77,
-      "counted": 38,
-      "accuracy": 82,
-      "meanLoss": 54
-    },
-    {
-      "elo": 600,
-      "game": 0,
-      "depth": 9,
-      "side": "white",
-      "plies": 77,
-      "counted": 39,
-      "accuracy": 91,
-      "meanLoss": 27
+      "meanLoss": 23.05128205128205
     },
     {
       "elo": 600,
@@ -639,8 +1521,8 @@
       "side": "black",
       "plies": 77,
       "counted": 38,
-      "accuracy": 83,
-      "meanLoss": 51
+      "accuracy": 81,
+      "meanLoss": 56.6578947368421
     },
     {
       "elo": 600,
@@ -650,7 +1532,7 @@
       "plies": 77,
       "counted": 39,
       "accuracy": 90,
-      "meanLoss": 30
+      "meanLoss": 28.846153846153847
     },
     {
       "elo": 600,
@@ -660,327 +1542,447 @@
       "plies": 77,
       "counted": 38,
       "accuracy": 83,
-      "meanLoss": 51
+      "meanLoss": 49.76315789473684
     },
     {
       "elo": 600,
       "game": 1,
       "depth": 7,
       "side": "white",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 82,
-      "meanLoss": 54
-    },
-    {
-      "elo": 600,
-      "game": 1,
-      "depth": 7,
-      "side": "black",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 87,
-      "meanLoss": 39
-    },
-    {
-      "elo": 600,
-      "game": 1,
-      "depth": 9,
-      "side": "white",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 82,
-      "meanLoss": 54
-    },
-    {
-      "elo": 600,
-      "game": 1,
-      "depth": 9,
-      "side": "black",
-      "plies": 100,
-      "counted": 50,
+      "plies": 36,
+      "counted": 18,
       "accuracy": 86,
-      "meanLoss": 42
+      "meanLoss": 42.611111111111114
+    },
+    {
+      "elo": 600,
+      "game": 1,
+      "depth": 7,
+      "side": "black",
+      "plies": 36,
+      "counted": 18,
+      "accuracy": 94,
+      "meanLoss": 16.88888888888889
+    },
+    {
+      "elo": 600,
+      "game": 1,
+      "depth": 9,
+      "side": "white",
+      "plies": 36,
+      "counted": 18,
+      "accuracy": 87,
+      "meanLoss": 38.05555555555556
+    },
+    {
+      "elo": 600,
+      "game": 1,
+      "depth": 9,
+      "side": "black",
+      "plies": 36,
+      "counted": 18,
+      "accuracy": 93,
+      "meanLoss": 19.833333333333332
     },
     {
       "elo": 600,
       "game": 1,
       "depth": 12,
       "side": "white",
-      "plies": 100,
-      "counted": 50,
-      "accuracy": 82,
-      "meanLoss": 54
+      "plies": 36,
+      "counted": 18,
+      "accuracy": 72,
+      "meanLoss": 84.83333333333333
     },
     {
       "elo": 600,
       "game": 1,
       "depth": 12,
       "side": "black",
+      "plies": 36,
+      "counted": 18,
+      "accuracy": 86,
+      "meanLoss": 43
+    },
+    {
+      "elo": 600,
+      "game": 2,
+      "depth": 7,
+      "side": "white",
+      "plies": 90,
+      "counted": 45,
+      "accuracy": 84,
+      "meanLoss": 47.53333333333333
+    },
+    {
+      "elo": 600,
+      "game": 2,
+      "depth": 7,
+      "side": "black",
+      "plies": 90,
+      "counted": 45,
+      "accuracy": 85,
+      "meanLoss": 45.111111111111114
+    },
+    {
+      "elo": 600,
+      "game": 2,
+      "depth": 9,
+      "side": "white",
+      "plies": 90,
+      "counted": 45,
+      "accuracy": 84,
+      "meanLoss": 47.08888888888889
+    },
+    {
+      "elo": 600,
+      "game": 2,
+      "depth": 9,
+      "side": "black",
+      "plies": 90,
+      "counted": 45,
+      "accuracy": 90,
+      "meanLoss": 30.77777777777778
+    },
+    {
+      "elo": 600,
+      "game": 2,
+      "depth": 12,
+      "side": "white",
+      "plies": 90,
+      "counted": 45,
+      "accuracy": 85,
+      "meanLoss": 43.51111111111111
+    },
+    {
+      "elo": 600,
+      "game": 2,
+      "depth": 12,
+      "side": "black",
+      "plies": 90,
+      "counted": 45,
+      "accuracy": 91,
+      "meanLoss": 25.8
+    },
+    {
+      "elo": 600,
+      "game": 3,
+      "depth": 7,
+      "side": "white",
       "plies": 100,
       "counted": 50,
       "accuracy": 85,
-      "meanLoss": 45
+      "meanLoss": 44.58
     },
     {
-      "elo": 1200,
+      "elo": 600,
+      "game": 3,
+      "depth": 7,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 92,
+      "meanLoss": 24.06
+    },
+    {
+      "elo": 600,
+      "game": 3,
+      "depth": 9,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 84,
+      "meanLoss": 48.22
+    },
+    {
+      "elo": 600,
+      "game": 3,
+      "depth": 9,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 91,
+      "meanLoss": 27.38
+    },
+    {
+      "elo": 600,
+      "game": 3,
+      "depth": 12,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 83,
+      "meanLoss": 50.54
+    },
+    {
+      "elo": 600,
+      "game": 3,
+      "depth": 12,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 92,
+      "meanLoss": 24.84
+    },
+    {
+      "elo": 900,
       "game": 0,
       "depth": 7,
       "side": "white",
-      "plies": 81,
-      "counted": 41,
-      "accuracy": 98,
-      "meanLoss": 6
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 92,
+      "meanLoss": 23.7
     },
     {
-      "elo": 1200,
+      "elo": 900,
       "game": 0,
       "depth": 7,
       "side": "black",
-      "plies": 81,
-      "counted": 40,
-      "accuracy": 97,
-      "meanLoss": 9
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 96,
+      "meanLoss": 12.14
     },
     {
-      "elo": 1200,
+      "elo": 900,
       "game": 0,
       "depth": 9,
       "side": "white",
-      "plies": 81,
-      "counted": 41,
-      "accuracy": 99,
-      "meanLoss": 3
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 92,
+      "meanLoss": 24.78
     },
     {
-      "elo": 1200,
+      "elo": 900,
       "game": 0,
       "depth": 9,
       "side": "black",
-      "plies": 81,
-      "counted": 40,
-      "accuracy": 95,
-      "meanLoss": 15
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 96,
+      "meanLoss": 10.94
     },
     {
-      "elo": 1200,
+      "elo": 900,
       "game": 0,
       "depth": 12,
       "side": "white",
-      "plies": 81,
-      "counted": 41,
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 90,
+      "meanLoss": 29.26
+    },
+    {
+      "elo": 900,
+      "game": 0,
+      "depth": 12,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 95,
+      "meanLoss": 14.84
+    },
+    {
+      "elo": 900,
+      "game": 1,
+      "depth": 7,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
       "accuracy": 93,
       "meanLoss": 21
     },
     {
-      "elo": 1200,
-      "game": 0,
-      "depth": 12,
-      "side": "black",
-      "plies": 81,
-      "counted": 40,
-      "accuracy": 90,
-      "meanLoss": 30
-    },
-    {
-      "elo": 1200,
-      "game": 1,
-      "depth": 7,
-      "side": "white",
-      "plies": 83,
-      "counted": 42,
-      "accuracy": 99,
-      "meanLoss": 3
-    },
-    {
-      "elo": 1200,
+      "elo": 900,
       "game": 1,
       "depth": 7,
       "side": "black",
-      "plies": 83,
-      "counted": 41,
-      "accuracy": 96,
-      "meanLoss": 12
-    },
-    {
-      "elo": 1200,
-      "game": 1,
-      "depth": 9,
-      "side": "white",
-      "plies": 83,
-      "counted": 42,
-      "accuracy": 98,
-      "meanLoss": 6
-    },
-    {
-      "elo": 1200,
-      "game": 1,
-      "depth": 9,
-      "side": "black",
-      "plies": 83,
-      "counted": 41,
-      "accuracy": 96,
-      "meanLoss": 12
-    },
-    {
-      "elo": 1200,
-      "game": 1,
-      "depth": 12,
-      "side": "white",
-      "plies": 83,
-      "counted": 42,
-      "accuracy": 99,
-      "meanLoss": 3
-    },
-    {
-      "elo": 1200,
-      "game": 1,
-      "depth": 12,
-      "side": "black",
-      "plies": 83,
-      "counted": 41,
+      "plies": 100,
+      "counted": 50,
       "accuracy": 95,
-      "meanLoss": 15
+      "meanLoss": 15.76
     },
     {
-      "elo": 1800,
-      "game": 0,
+      "elo": 900,
+      "game": 1,
+      "depth": 9,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 92,
+      "meanLoss": 24.3
+    },
+    {
+      "elo": 900,
+      "game": 1,
+      "depth": 9,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 94,
+      "meanLoss": 18.66
+    },
+    {
+      "elo": 900,
+      "game": 1,
+      "depth": 12,
+      "side": "white",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 91,
+      "meanLoss": 25.98
+    },
+    {
+      "elo": 900,
+      "game": 1,
+      "depth": 12,
+      "side": "black",
+      "plies": 100,
+      "counted": 50,
+      "accuracy": 93,
+      "meanLoss": 20.2
+    },
+    {
+      "elo": 900,
+      "game": 2,
       "depth": 7,
       "side": "white",
       "plies": 100,
       "counted": 50,
-      "accuracy": 95,
-      "meanLoss": 15
+      "accuracy": 91,
+      "meanLoss": 25.88
     },
     {
-      "elo": 1800,
-      "game": 0,
+      "elo": 900,
+      "game": 2,
       "depth": 7,
       "side": "black",
       "plies": 100,
       "counted": 50,
       "accuracy": 94,
-      "meanLoss": 18
+      "meanLoss": 18.82
     },
     {
-      "elo": 1800,
-      "game": 0,
+      "elo": 900,
+      "game": 2,
       "depth": 9,
       "side": "white",
       "plies": 100,
       "counted": 50,
-      "accuracy": 96,
-      "meanLoss": 12
+      "accuracy": 85,
+      "meanLoss": 44.6
     },
     {
-      "elo": 1800,
-      "game": 0,
+      "elo": 900,
+      "game": 2,
       "depth": 9,
       "side": "black",
       "plies": 100,
       "counted": 50,
-      "accuracy": 95,
-      "meanLoss": 15
+      "accuracy": 88,
+      "meanLoss": 35.74
     },
     {
-      "elo": 1800,
-      "game": 0,
+      "elo": 900,
+      "game": 2,
       "depth": 12,
       "side": "white",
       "plies": 100,
       "counted": 50,
-      "accuracy": 96,
-      "meanLoss": 12
+      "accuracy": 84,
+      "meanLoss": 47.12
     },
     {
-      "elo": 1800,
-      "game": 0,
+      "elo": 900,
+      "game": 2,
       "depth": 12,
       "side": "black",
       "plies": 100,
       "counted": 50,
-      "accuracy": 96,
-      "meanLoss": 12
+      "accuracy": 89,
+      "meanLoss": 31.64
     },
     {
-      "elo": 1800,
-      "game": 1,
+      "elo": 900,
+      "game": 3,
       "depth": 7,
       "side": "white",
       "plies": 100,
       "counted": 50,
-      "accuracy": 98,
-      "meanLoss": 6
+      "accuracy": 91,
+      "meanLoss": 28.22
     },
     {
-      "elo": 1800,
-      "game": 1,
+      "elo": 900,
+      "game": 3,
       "depth": 7,
       "side": "black",
       "plies": 100,
       "counted": 50,
-      "accuracy": 99,
-      "meanLoss": 3
+      "accuracy": 89,
+      "meanLoss": 32
     },
     {
-      "elo": 1800,
-      "game": 1,
+      "elo": 900,
+      "game": 3,
       "depth": 9,
       "side": "white",
       "plies": 100,
       "counted": 50,
-      "accuracy": 99,
-      "meanLoss": 3
+      "accuracy": 90,
+      "meanLoss": 28.92
     },
     {
-      "elo": 1800,
-      "game": 1,
+      "elo": 900,
+      "game": 3,
       "depth": 9,
       "side": "black",
       "plies": 100,
       "counted": 50,
-      "accuracy": 99,
-      "meanLoss": 3
+      "accuracy": 89,
+      "meanLoss": 33.66
     },
     {
-      "elo": 1800,
-      "game": 1,
+      "elo": 900,
+      "game": 3,
       "depth": 12,
       "side": "white",
       "plies": 100,
       "counted": 50,
-      "accuracy": 100,
-      "meanLoss": 0
+      "accuracy": 90,
+      "meanLoss": 29.7
     },
     {
-      "elo": 1800,
-      "game": 1,
+      "elo": 900,
+      "game": 3,
       "depth": 12,
       "side": "black",
       "plies": 100,
       "counted": 50,
-      "accuracy": 100,
-      "meanLoss": 0
+      "accuracy": 89,
+      "meanLoss": 34.36
     }
   ],
   "fits": {
     "7": {
-      "m": -0.001506404149573719,
-      "c": 4.330188973134295,
-      "r2": 0.7523125795951393,
-      "points": 32
+      "m": -0.0023433676325257773,
+      "c": 4.7940892101159776,
+      "r2": 0.8092873376069476,
+      "points": 40
     },
     "9": {
-      "m": -0.001530800529994809,
-      "c": 4.411179622057393,
-      "r2": 0.774320286797528,
-      "points": 31
+      "m": -0.0019438977075496692,
+      "c": 4.689860834026733,
+      "r2": 0.8206232985089816,
+      "points": 40
     },
     "12": {
-      "m": -0.0015308560008020639,
-      "c": 4.529391807119187,
-      "r2": 0.8106608693770841,
-      "points": 28
+      "m": -0.001648849098383525,
+      "c": 4.668144921153728,
+      "r2": 0.8258715022851009,
+      "points": 40
     }
   }
 }

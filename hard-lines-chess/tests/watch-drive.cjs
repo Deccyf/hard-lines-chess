@@ -145,7 +145,7 @@ const { launch, serve, DIST, gotoSection } = require('./browser.cjs');
   check('and no two of them are the same moves', new Set(games.map((g) => g.moves)).size, 3);
   check('and the two bands are never equal', games.every((g) => g.white !== g.black), true);
   check('and neither side is slower than a second',
-    await page.evaluate(() => Math.max(Watch.bands.white.movetime, Watch.bands.black.movetime) <= 1000), true);
+    await page.evaluate(() => Math.max(Watch.bands.white.nodes, Watch.bands.black.nodes) <= 100000), true);
 
   // ── stepping back and forward lands on the same position ─────────────────
   const around = await page.evaluate(() => {

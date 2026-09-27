@@ -65,7 +65,7 @@ function playGame(weakIndex, strongIndex, seed, weakIsWhite) {
   for (let ply = 0; ply < 140 && !board.outcome(); ply++) {
     const band = board.turn === WHITE ? white : black;
     engine.reset();
-    const result = engine.search(board, { movetime: band.movetime, maxDepth: band.depth, blunder: band.blunder });
+    const result = engine.search(board, { nodes: band.nodes, maxDepth: band.depth, blunder: band.blunder });
     if (!result.move) break;
     sans.push(toSan(board, result.move));
     board.make(result.move);
@@ -82,7 +82,7 @@ function stillClear(tactic) {
   const engine = new Engine();
   engine.reset();
   const board = new Board(tactic.fen);
-  const result = engine.search(board, { movetime: 1200, maxDepth: 18, lines: 2 });
+  const result = engine.search(board, { nodes: 400000, maxDepth: 18, lines: 2 });
   if (!result.move) return null;
   if (moveToUci(result.move) !== tactic.best.uci) return null;
   const [top, second] = result.lines;
@@ -115,7 +115,7 @@ for (let g = 0; g < GAMES; g++) {
   played++;
 
   for (const side of ['white', 'black']) {
-    const result = await reviewGame(parsed, side, { movetime: 150, depth: 9, withTactics: true });
+    const result = await reviewGame(parsed, side, { nodes: 80000, depth: 9, withTactics: true });
     for (const tactic of result.tactics ?? []) {
       found++;
       if (bank.has(tactic.fen)) continue;

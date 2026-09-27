@@ -16,7 +16,7 @@ positions from engine output, with or without a model to write the sentences.
 Everything is one HTML file. It works offline once loaded and can be installed
 as an app from any web address.
 
-## The one rule
+## Two rules
 
 **The engine is the source of truth. The model is the narrator.**
 
@@ -25,6 +25,30 @@ moves, tactics, motifs and traps are all measured by the engine on the board;
 the coach turns verified engine output into English and is never asked to
 evaluate anything. Where a measurement cannot support a figure, the screen says
 so instead of printing one.
+
+**The engine is budgeted in positions, never in milliseconds.**
+
+Every search — the opponent's, the reviewer's, the coach's, the trap-setter's —
+is given a number of positions to look at. Not a number of seconds. A budget of
+seconds is a budget of whatever the machine manages in them, and two things
+followed from that:
+
+- Reviewing the same game twice gave a different accuracy and a strength
+  estimate that moved by **up to 220 rating points**, measured over five runs
+  at one setting. A progress chart built out of those is partly a chart of the
+  machine.
+- A level labelled 1500 was a materially weaker opponent on a phone than on a
+  laptop. One word, two different players.
+- The trap coach needed 30,000 positions to see the refutation of the oldest
+  trap in chess. In 150 milliseconds a phone was nowhere near it, so the lesson
+  was silence on a phone and a lesson on a laptop — and at the shallow end it
+  offered the trap itself as the answer.
+
+Same position, same budget, same answer, on any device. `tests/repeatable.test.mjs`
+holds it to that: 48 searches repeated four times, and the same game reviewed
+three times agreeing to the last move, the last mark on the curve and the last
+rating point. The wall clock survives only as a twenty-second backstop, and a
+search it stops says so rather than passing off short measure as the answer.
 
 ## What it says about you
 
@@ -49,6 +73,18 @@ them is this app's opinion and which is not.
   cost, grouped by seconds spent and by time left. Bullet, blitz and rapid
   filter apart across the whole screen, because averaging them describes
   nothing anybody played.
+
+The three review settings are 25,000, 80,000 and 250,000 positions a move, with
+a depth cap of 7, 9 and 12 behind them that rarely binds — measured here, a
+depth-9 search ranges from 15,607 positions to 15,026,933, so the work budget is
+what decides. The ladder runs from 6,000 positions at the bottom to 240,000 at
+the top: what a mid-range phone got through under the old millisecond ceilings,
+so the phone plays the ladder it always played and every other device now plays
+that same ladder instead of a stronger one wearing its labels.
+
+Games reviewed before this change have no budget recorded, and the strength
+panel says how many of them are in the figure rather than averaging the two
+kinds together in silence.
 
 A reviewed game keeps the evaluation after every move and one character per
 move saying what the reviewer called it — about 180 bytes for a 33-ply game,
@@ -181,10 +217,11 @@ over every one- and two-piece ending.
 
 ```
 npm install            # playwright, for the browser drivers
-npm test               # 17 node suites: perft, motifs, traps, mate cap, multi-line
+npm test               # 18 node suites: perft, motifs, traps, mate cap, multi-line
                        # search, the solved table, endgame and opening prose,
                        # notation, clocks, evaluation symmetry, the fast paths
-                       # against the long way round, interface vocabulary
+                       # against the long way round, repeatability, interface
+                       # vocabulary
 npm run test:browser   # 44 Playwright drivers against dist/
 npm run verify:openings
 ```
@@ -234,12 +271,16 @@ way.
   climbs (level 800 beat level 0 six of six; 1600 scored 5½/6 against 800) but
   neighbouring levels were not separated.
 - **The per-game strength estimate** is calibrated: eight levels played
-  themselves, 96 reviews, log-linear fit of mean centipawn loss against level,
-  R² 0.75–0.81. Above 1200 (1500 at the Deep setting) the reviewer cannot tell
-  levels apart, so the page says "or above". See `tools/calibrate-rating.mjs`.
-  That calibration is four samples a level and is not monotonic above 1200 —
-  which is why the estimate from your own rated games sits beside it and is the
-  better answer whenever there is enough of your own history to give it.
+  themselves, every game reviewed at each of the three settings, log-linear fit
+  of mean centipawn loss against level. Above some level the reviewer cannot
+  tell levels apart, so the page says "or above" instead of a number. See
+  `tools/calibrate-rating.mjs`. That calibration is a handful of samples a level
+  — which is why the estimate from your own rated games sits beside it and is
+  the better answer whenever there is enough of your own history to give it.
+  The budgets it was measured under are written into
+  `tools/rating-calibration.json`, and `tests/repeatable.test.mjs` holds the
+  app's own review settings to them: a fit maps a loss onto a rating, and a
+  loss measured under a different amount of work is a different loss.
 - **Traps** are measured as shallow-search preference against deep-search
   truth. That finds material traps and not positional ones.
 - **Every counted claim in the openings prose** is checked on the board by

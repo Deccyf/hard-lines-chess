@@ -233,6 +233,17 @@ function scoreFinished(outcome) {
 const MIN_JUDGED = 10;
 
 /**
+ * The second, harder look a candidate tactic gets before it is filed as one.
+ *
+ * A tactic claimed on the walk's own shallow budget is a tactic that may not
+ * be there, so every candidate is re-searched with this much work and two
+ * lines — enough to tell "there is one move here and it wins material" from
+ * "the first move the walk happened to like". Never less than the walk's own
+ * budget: the deepest setting already looks harder than this.
+ */
+const TACTIC_NODES = 200000;
+
+/**
  * The rough accuracy and the mean loss from a walk's totals, or null for
  * both when there were too few of his moves to say anything.
  */
@@ -298,7 +309,7 @@ const TACTIC = {
   perGame: 6,         // and only the biggest few, so one rout is not a course
 };
 
-async function reviewGame(parsed, side, { movetime = 180, depth = 8, onProgress = null, yieldEvery = 1, withTactics = true } = {}) {
+async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress = null, yieldEvery = 1, withTactics = true } = {}) {
   const engine = new Engine();
   const board = new Board(parsed.startFen ?? undefined);
   const positions = [];
@@ -315,6 +326,13 @@ async function reviewGame(parsed, side, { movetime = 180, depth = 8, onProgress 
 
   const evals = new Array(positions.length).fill(0);
   const best = new Array(positions.length).fill(null);
+  // HOW MANY SEARCHES DID LESS WORK THAN THEY WERE ASKED FOR. On any device
+  // this was measured on, none: the backstop is twenty seconds and the budget
+  // is a fraction of a second. But a review whose figures came out of a
+  // different amount of work from the one it claims is not comparable with the
+  // rest, and the screen has to be able to say so rather than print the number
+  // as if nothing happened.
+  let ranOutOfTime = 0;
 
   for (let i = 0; i < positions.length; i++) {
     const at = new Board(positions[i].fen);
@@ -325,8 +343,13 @@ async function reviewGame(parsed, side, { movetime = 180, depth = 8, onProgress 
     positions[i].mated = outcome === 'checkmate';
     if (outcome) { evals[i] = scoreFinished(outcome); best[i] = null; }
     else {
+      // RESET BEFORE EVERY POSITION, which is half of what makes a review
+      // repeatable: a table carried over from the previous position would make
+      // this search's answer depend on which game it was reading and where in
+      // it, so the same position could be judged two ways.
       engine.reset();
-      const result = engine.search(at, { movetime, maxDepth: depth });
+      const result = engine.search(at, { nodes, maxDepth: depth });
+      if (result.ranOutOfTime) ranOutOfTime++;
       evals[i] = result.score;
       // The LINE is kept as well as the move: a motif is demonstrated by the
       // punishing sequence, not by its first move, and re-searching for it
@@ -485,10 +508,12 @@ async function reviewGame(parsed, side, { movetime = 180, depth = 8, onProgress 
       const c = shortlist[n];
       const at = new Board(positions[c.i + 1].fen);
       engine.reset();
-      // Deeper and slower than the walk: this decides whether a position
+      // A HARDER LOOK THAN THE WALK GOT: this decides whether a position
       // becomes a puzzle at all, and a shallow search calls two moves equal
-      // that are not, or vice versa.
-      const check = engine.search(at, { movetime: Math.max(movetime, 600), maxDepth: depth + 2, lines: 2 });
+      // that are not, or vice versa. Never less than the walk's own budget,
+      // whichever setting is in use.
+      const check = engine.search(at, { nodes: Math.max(nodes, TACTIC_NODES), maxDepth: depth + 2, lines: 2 });
+      if (check.ranOutOfTime) ranOutOfTime++;
 
       if (onProgress) onProgress(n + 1, shortlist.length, 'tactics');
       await new Promise((r) => setTimeout(r, 0));
@@ -548,7 +573,7 @@ async function reviewGame(parsed, side, { movetime = 180, depth = 8, onProgress 
   // fewer than MIN_JUDGED of his moves to average over.
   const { accuracy, meanLoss } = accuracyFrom(lost, counted);
 
-  return { evals, mistakes, accuracy, counted, minJudged: MIN_JUDGED, judged, whiteCp, tactics, capped, tacticsPassed: passed, meanLoss, depth };
+  return { evals, mistakes, accuracy, counted, minJudged: MIN_JUDGED, judged, whiteCp, tactics, capped, tacticsPassed: passed, meanLoss, depth, nodes, ranOutOfTime };
 }
 
 

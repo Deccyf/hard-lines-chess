@@ -8,7 +8,7 @@
 // same object into words and only one of them knew the floor existed.
 //
 // AND THE DEEPER PROBLEM THE WORDING WAS HIDING. At the quick setting the
-// weakest opponent this app has measured loses about 0.95 pawns a move. A
+// weakest opponent this app has measured loses about a pawn a move. A
 // player losing more than that lands below the whole scale, so every one of
 // their games reads the same and the figure tells them nothing. That is a real
 // limit of the measurement and the screen now says so, with the measured
@@ -56,15 +56,25 @@ const { launch, serve, DIST, gotoSection } = require('./browser.cjs');
     await page.evaluate(() => RATING_FIT.losses['7'][String(RATING_FIT.bands[0])]), floorLoss);
 
   // ── the Games-reviewed row, which is where it was seen ───────────────────
+  //
+  // A LOSS BELOW THE SCALE, WORKED OUT FROM THE SCALE. This used to be the
+  // number 93, typed in because the weakest band lost about 95 at the time.
+  // Re-calibrating moved the floor to 112 and 93 became a perfectly measurable
+  // game, so every check below failed while the app was behaving correctly —
+  // the test was pinned to a figure it had just finished insisting must never
+  // be typed in.
+  const belowFloor = Math.round(floorLoss * 1.15);
+  say('a loss below the weakest band measured', `${belowFloor}cp a move, against a floor of ${floorLoss}`);
+  check('and it really is below it', await page.evaluate((l) => estimateRating(l, 7).floorHit, belowFloor), true);
   await page.evaluate((loss) => {
     const rough = (n) => ({
       at: n, white: 'Someone', black: 'You', result: '0-1', side: 'black', plies: 60,
       reviewed: true, accuracy: 69, meanLoss: loss, depth: 7, mistakes: [],
       estimate: estimateRating(loss, 7), pgn: '1. e4 e5',
     });
-    App.reviews.games = [1, 2, 3, 4, 5].map((n) => rough(93 + n));
+    App.reviews.games = [1, 2, 3, 4, 5].map((n) => rough(loss + n));
     show('progress');
-  }, 93);
+  }, belowFloor);
   await page.waitForTimeout(400);
   const progress = await page.$eval('#progressOut', (e) => e.textContent);
   say('the row now reads', (progress.match(/looked like [^·\n]*/) ?? ['(none)'])[0].trim().slice(0, 40));

@@ -23,7 +23,10 @@ import {
 import { Engine } from '../src/engine/search.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const MOVETIME = 600;
+// A budget of WORK, so this check is the same check on every machine it is
+// run on — a verification that passes on a fast laptop and fails on a slow one
+// is not a verification.
+const SEARCH_NODES = 100000;
 // "Not worse than about 1.2 pawns" for the student, in centipawns.
 const LOST_THRESHOLD = -120;
 
@@ -1860,7 +1863,7 @@ for (const [index, opening] of openings.entries()) {
   if (legal) {
     const { board } = played;
     const student = opening.side === 'white' ? WHITE : BLACK;
-    const result = new Engine().search(board, { movetime: MOVETIME });
+    const result = new Engine().search(board, { nodes: SEARCH_NODES });
     // search() scores from the side to move's point of view; flip it when the
     // student is the one waiting.
     cp = board.turn === student ? result.score : -result.score;
@@ -1883,7 +1886,7 @@ for (const [index, opening] of openings.entries()) {
     let line = 'not evaluated';
     if (failures.length === beforeBranch && replayed) {
       const student = opening.side === 'white' ? WHITE : BLACK;
-      const result = new Engine().search(replayed.board, { movetime: MOVETIME });
+      const result = new Engine().search(replayed.board, { nodes: SEARCH_NODES });
       const bcp = replayed.board.turn === student ? result.score : -result.score;
       const best = result.move ? toSan(replayed.board, result.move) : '-';
       line = `${bcp >= 0 ? '+' : ''}${(bcp / 100).toFixed(2)} for ${opening.side} (engine would play ${best})`;

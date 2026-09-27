@@ -328,7 +328,7 @@ async function scanGamesForTactics() {
     }
 
     const result = await reviewGame(parsed, game.side, {
-      movetime: 160,
+      nodes: 16000,
       depth: 8,
       onProgress: (a, b, phase) => {
         const share = phase === 'tactics' ? 1 : a / b;

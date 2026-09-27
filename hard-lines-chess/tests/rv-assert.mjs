@@ -43,7 +43,7 @@ check('bandNoteDrift() is empty', api.bandNoteDrift().length === 0);
 
 // 7. search
 const e = new Engine();
-check('blunder branch returns lines: []', Array.isArray(e.search(new Board(), { movetime: 30, maxDepth: 1, blunder: 1 }).lines));
-check('TT entries carry a verification word', (() => { e.reset(); e.search(new Board(), { movetime: 100, maxDepth: 3 }); const [, v] = e.tt.entries().next().value; return typeof v.check === 'number'; })());
+check('blunder branch returns lines: []', Array.isArray(e.search(new Board(), { nodes: 5000, maxDepth: 1, blunder: 1 }).lines));
+check('TT entries carry a verification word', (() => { e.reset(); e.search(new Board(), { nodes: 20000, maxDepth: 3 }); const [, v] = e.tt.entries().next().value; return typeof v.check === 'number'; })());
 check('Board.clone() carries repetition', g.clone().repetition.length === g.repetition.length);
 console.log(`${n} assertions pass`);

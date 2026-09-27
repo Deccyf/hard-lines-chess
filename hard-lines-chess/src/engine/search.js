@@ -204,6 +204,18 @@ const TT_EXACT = 0, TT_LOWER = 1, TT_UPPER = 2;
 const toTT = (score, ply) => score > MATE_THRESHOLD ? score + ply : (score < -MATE_THRESHOLD ? score - ply : score);
 const fromTT = (score, ply) => score > MATE_THRESHOLD ? score - ply : (score < -MATE_THRESHOLD ? score + ply : score);
 
+/**
+ * The wall clock's only remaining job: stop a search that a device this slow
+ * was never going to finish.
+ *
+ * It is not the budget — see search(). It exists so that a machine an order of
+ * magnitude slower than anything this was measured on cannot lock the page up,
+ * and when it fires the result says so, because a number produced under a
+ * different budget from the one asked for is not the number that was asked
+ * for.
+ */
+const BACKSTOP_MS = 20000;
+
 export class Engine {
   constructor() {
     this.tt = new Map();
@@ -212,6 +224,8 @@ export class Engine {
     this.nodes = 0;
     this.stop = false;
     this.deadline = 0;
+    this.nodeLimit = Infinity;
+    this.ranOutOfTime = false;
   }
 
   reset() {
@@ -221,18 +235,41 @@ export class Engine {
   }
 
   /**
-   * Iterative deepening under a wall-clock budget.
+   * Iterative deepening under a budget of WORK, not of time.
    *
-   * Time, not depth, for the reason the server side budgets movetime: a depth
-   * budget makes a sharp position cost fifteen seconds and a quiet one a
-   * fraction of that, which is unplayable in exactly the positions worth
-   * playing. Each completed depth's best move is kept, so the clock can stop
-   * the search at any point and there is always an answer.
+   * NOT DEPTH, for the reason a server budgets a move at all: a depth budget
+   * makes a sharp position cost fifteen seconds and a quiet one a fraction of
+   * that — measured here, depth 9 ranges from 15,607 positions to 15,026,933
+   * — which is unplayable in exactly the positions worth playing. Each
+   * completed depth's best move is kept, so the budget can stop the search at
+   * any point and there is always an answer.
+   *
+   * AND NOT TIME, WHICH IS WHAT THIS USED TO BE, because a budget of
+   * milliseconds is a budget of whatever the machine can do in them. Two
+   * things followed from that and both were wrong. The same game reviewed
+   * twice gave a different accuracy and an estimate that moved by up to 220
+   * rating points, because the second run got a different number of positions
+   * out of the same 280 milliseconds. And a level labelled 1500 was a
+   * different opponent on a laptop than on a phone, which is not what a label
+   * on a ladder can mean.
+   *
+   * Positions searched is the same number everywhere. Give it the same
+   * position, the same budget and a cleared table and it returns the same move
+   * on any device, this year and next — which is what lets one game's figures
+   * be set beside another's at all.
+   *
+   * `movetime` is now only a backstop; see BACKSTOP_MS. A search that hits it
+   * comes back with `ranOutOfTime`, because it did less work than it was
+   * asked for and nothing downstream should quietly treat it as if it had not.
    */
-  search(board, { movetime = 1000, maxDepth = 64, randomness = 0, blunder = 0, lines = 1 } = {}) {
+  search(board, { nodes: nodeLimit = 0, movetime = 0, maxDepth = 64, randomness = 0, blunder = 0, lines = 1 } = {}) {
     this.nodes = 0;
     this.stop = false;
-    this.deadline = Date.now() + movetime;
+    this.ranOutOfTime = false;
+    // A caller that names neither gets the backstop and nothing else, which is
+    // an unlimited search — the shape the tools that measure this engine want.
+    this.nodeLimit = nodeLimit > 0 ? nodeLimit : Infinity;
+    this.deadline = Date.now() + (movetime > 0 ? movetime : BACKSTOP_MS);
     this.killers = Array.from({ length: maxDepth + 8 }, () => [0, 0]);
 
     let best = 0, bestScore = 0, bestLine = [], all = [], reached = 0;
@@ -274,11 +311,16 @@ export class Engine {
       reached = depth;
       // A forced mate found: nothing deeper can improve on it.
       if (Math.abs(bestScore) > MATE_THRESHOLD) break;
-      if (Date.now() > this.deadline) break;
+      if (this.nodes >= this.nodeLimit) break;
+      if (Date.now() > this.deadline) { this.ranOutOfTime = true; break; }
     }
 
     return {
       move: best, score: bestScore, depth: reached, nodes: this.nodes, line: bestLine, blundered: false,
+      // TRUE ONLY WHEN THE CLOCK STOPPED IT, never when the work budget did.
+      // The caller needs to be able to tell "this is the answer you asked for"
+      // from "this is as far as it got".
+      ranOutOfTime: this.ranOutOfTime,
       lines: all.slice(0, Math.max(1, lines)),
     };
   }
@@ -365,7 +407,12 @@ export class Engine {
   }
 
   negamax(board, depth, alpha, beta, ply, line) {
-    if ((this.nodes & 2047) === 0 && Date.now() > this.deadline) this.stop = true;
+    // THE WORK BUDGET IS CHECKED ON EVERY NODE, not sampled: an integer
+    // compare costs nothing, and sampling it every 2048 nodes would let the
+    // count overshoot by a different amount each run — which is the
+    // reproducibility this exists to buy, spent for nothing.
+    if (this.nodes >= this.nodeLimit) this.stop = true;
+    else if ((this.nodes & 2047) === 0 && Date.now() > this.deadline) { this.stop = true; this.ranOutOfTime = true; }
     if (this.stop) return 0;
     this.nodes++;
 
@@ -463,7 +510,12 @@ export class Engine {
    * not.
    */
   quiesce(board, alpha, beta, ply) {
-    if ((this.nodes & 2047) === 0 && Date.now() > this.deadline) this.stop = true;
+    // THE WORK BUDGET IS CHECKED ON EVERY NODE, not sampled: an integer
+    // compare costs nothing, and sampling it every 2048 nodes would let the
+    // count overshoot by a different amount each run — which is the
+    // reproducibility this exists to buy, spent for nothing.
+    if (this.nodes >= this.nodeLimit) this.stop = true;
+    else if ((this.nodes & 2047) === 0 && Date.now() > this.deadline) { this.stop = true; this.ranOutOfTime = true; }
     if (this.stop) return 0;
     this.nodes++;
 

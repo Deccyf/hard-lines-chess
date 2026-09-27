@@ -207,7 +207,7 @@ function collectDeviations(games, openings) {
  * A POSITIVE NUMBER IS A LOSS. Zero or below means leaving the book cost you
  * nothing here, which happens and is reported as such.
  */
-function measureDeviation(row, { Board, sanToMove, engine, movetime = 300, depth = 10 }) {
+function measureDeviation(row, { Board, sanToMove, engine, nodes = 30000, depth = 10 }) {
   const board = new Board();
   for (const san of row.prefix) {
     const move = sanToMove(board, san);
@@ -227,7 +227,11 @@ function measureDeviation(row, { Board, sanToMove, engine, movetime = 300, depth
     engine.reset();
     // The score comes back from the side to move, which after our move is
     // theirs, so it is negated onto our side.
-    return -engine.search(copy, { movetime, maxDepth: depth }).score;
+    // THE SAME BUDGET ON BOTH SIDES OF THE SUBTRACTION, and a budget of work
+    // rather than of time — otherwise the second of the two searches could get
+    // a different amount done from the first and the difference between them
+    // would be partly the machine.
+    return -engine.search(copy, { nodes, maxDepth: depth }).score;
   };
 
   const yours = after(row.played);

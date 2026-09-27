@@ -421,13 +421,31 @@ const Review = {
   running: false,
 };
 
+/**
+ * The three review settings, as positions looked at per move.
+ *
+ * WORK, NOT TIME, and this is the number every figure on the Progress screen
+ * rests on. Reviewing the same game twice under a millisecond budget gave a
+ * different accuracy and an estimate that moved by up to 220 rating points,
+ * because the second run got a different number of positions out of the same
+ * milliseconds — and a chart of numbers that move on their own is a chart of
+ * the machine, not of the player. Under a budget of positions the same game
+ * reviews to the same figures on any device, which is what makes two of your
+ * games comparable at all.
+ *
+ * The depth cap is the second ceiling and rarely the binding one: measured
+ * here, a depth-9 search ranges from 15,607 positions to 15,026,933, so the
+ * work budget is what decides, and the cap only stops a quiet ending from
+ * running away.
+ *
+ * Three settings that are actually different. The old ones shared a movetime,
+ * so Quick and Normal reached the same depth in the same time and only the
+ * label changed.
+ */
 const REVIEW_BUDGET = {
-  // Three settings that are actually different. The old ones shared a
-  // movetime, so Quick and Normal reached the same depth in the same time and
-  // only the label changed.
-  7: { movetime: 120 },
-  9: { movetime: 280 },
-  12: { movetime: 650 },
+  7: { nodes: 25000 },
+  9: { nodes: 80000 },
+  12: { nodes: 250000 },
 };
 
 async function runReview() {
@@ -478,7 +496,7 @@ async function runReview() {
   let result;
   try {
     result = await reviewGame(parsed, Review.side, {
-      movetime: budget.movetime,
+      nodes: budget.nodes,
       depth,
       onProgress: (done, total, phase) => {
         $('reviewFill').style.width = `${Math.round((done / total) * 100)}%`;
@@ -523,6 +541,13 @@ async function runReview() {
     tactics: result.tactics.length,
     meanLoss: result.meanLoss,
     depth,
+    // WHAT BUDGET THIS FIGURE CAME OUT OF, stored because the estimate is
+    // calibrated against it. A game reviewed before the reviewer counted
+    // positions has no `nodes` and was measured under a clock — which means
+    // whatever the machine managed that day — so it cannot be set beside these
+    // ones without saying so — see the note the Progress screen adds when the
+    // set it is averaging has any of them in it.
+    nodes: budget.nodes,
     // WHAT IT TOOK TO WORK ALL THAT OUT, kept so the game reopens without it
     // being worked out again. A review is minutes of searching; before this
     // the only thing that survived it was the list of mistakes, so every one
@@ -876,7 +901,7 @@ function fillBestMove(j, depth) {
     const at = new Board(j.fen);
     if (at.outcome()) { j.noBest = true; return false; }
     App.engine.reset();
-    const found = App.engine.search(at, { movetime: budget.movetime, maxDepth: depth });
+    const found = App.engine.search(at, { nodes: budget.nodes, maxDepth: depth });
     if (!found?.move) { j.noBest = true; return false; }
     j.best = { uci: moveToUci(found.move), san: toSan(new Board(j.fen), found.move) };
     return true;
@@ -1760,6 +1785,15 @@ function renderProgress() {
   // elo 0, and a truthy test dropped exactly the worst games from the median.
   const rated = games.filter((g) => Number.isFinite(g.estimate?.elo)).slice(-8);
   if (rated.length) {
+    // HOW MANY OF THESE WERE MEASURED BY A CLOCK. The reviewer used to be
+    // given milliseconds rather than a number of positions, so what it got
+    // through depended on the machine and the moment — the same game reviewed
+    // twice came out up to 220 rating points apart. Those games are still
+    // shown, because they are still the games you played, but a figure built
+    // partly out of them has a wobble in it that the new ones do not, and a
+    // screen that averaged the two without a word would be presenting the
+    // machine's variation as yours.
+    const byClock = rated.filter((g) => !Number.isFinite(g.nodes)).length;
     const elos = rated.map((g) => g.estimate.elo).sort((a, b) => a - b);
     const median = elos[Math.floor(elos.length / 2)];
     const measured = measuredBands();
@@ -1786,7 +1820,8 @@ function renderProgress() {
         <div><span class="k">Played like level</span><span class="v">${esc(measuredBandLabel(measuredIndex, measured))}</span></div>
       </div>
       ${atFloor > rated.length / 2 && Number.isFinite(rated[rated.length - 1].estimate?.floorLoss) ? `<p class="note"><strong>The scale has run out below you, which is not the same as a low number.</strong> ${atFloor} of these ${rated.length} games lost more per move than the weakest opponent this app has ever measured — about ${(rated[rated.length - 1].estimate.floorLoss / 100).toFixed(2)} points a move. No weaker level has been measured, so there is nothing to compare them against and the figure cannot separate them. Mistakes a game, above, is the measure that still works here.</p>` : ''}
-      <p class="note">The middle value of the per-game estimates from your last ${rated.length} reviewed ${rated.length === 1 ? 'game' : 'games'} (they ranged ${range}). Each one compares your average loss per move with this app's own levels, whose numbers are targets rather than measured ratings — so this says which level your recent games resemble, and nothing about your rating anywhere else. The level named is one the calibration actually played, measured at ${step}-point steps${atFloor > rated.length / 2 ? '' : `; the button below picks the nearest level available, ${esc(play.label)}`}.</p>`;
+      <p class="note">The middle value of the per-game estimates from your last ${rated.length} reviewed ${rated.length === 1 ? 'game' : 'games'} (they ranged ${range}). Each one compares your average loss per move with this app's own levels, whose numbers are targets rather than measured ratings — so this says which level your recent games resemble, and nothing about your rating anywhere else. The level named is one the calibration actually played, measured at ${step}-point steps${atFloor > rated.length / 2 ? '' : `; the button below picks the nearest level available, ${esc(play.label)}`}.</p>
+      ${byClock ? `<p class="note">${byClock === rated.length ? 'All' : `${byClock}`} of these ${rated.length} ${byClock === 1 ? 'was' : 'were'} reviewed before the reviewer was given a fixed amount of work to do, when it was given a fixed amount of time instead — so what it managed depended on the device and the moment, and the same game reviewed twice could come out up to 220 points apart. Review ${byClock === 1 ? 'it' : 'them'} again and every figure here rests on the same measurement.</p>` : ''}`;
     // NO BAND BUTTON OFF A FLOORED ESTIMATE. The nearest rung to an estimate
     // pinned at the bottom is the weakest band there is — an opponent that
     // plays a random move three times in five — and offering that to somebody

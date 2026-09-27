@@ -163,7 +163,7 @@ ok('enough cases were built to mean something', cases >= 20, `${cases} cases`);
   const { rows } = S.collectDeviations([{ at: 1, side: 'white', sans: game, label: 'g' }], S.OPENINGS);
   if (rows.length) {
     const engine = new S.Engine();
-    const cost = S.measureDeviation(rows[0], { Board: S.Board, sanToMove: S.sanToMove, engine, movetime: 200, depth: 8 });
+    const cost = S.measureDeviation(rows[0], { Board: S.Board, sanToMove: S.sanToMove, engine, nodes: 20000, depth: 8 });
     ok('a cost comes back', cost !== null);
     ok('with both scores and their difference',
       cost && Number.isFinite(cost.yours) && Number.isFinite(cost.book) && cost.loss === cost.book - cost.yours);

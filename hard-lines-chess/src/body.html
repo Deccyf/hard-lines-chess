@@ -320,9 +320,9 @@
         <div class="fields">
           <label class="field"><span>Depth</span>
             <select id="walkDepth">
-              <option value="7" selected>Quick — a few seconds per game</option>
-              <option value="9">Normal</option>
-              <option value="12">Deep — slower, finds more</option>
+              <option value="7" selected>Quick — 25,000 positions a move</option>
+              <option value="9">Normal — 80,000 positions a move</option>
+              <option value="12">Deep — 250,000 positions a move, finds more</option>
             </select>
           </label>
         </div>
@@ -364,9 +364,9 @@
         <label class="field">
           <span>Depth</span>
           <select id="reviewDepth">
-            <option value="7">Quick — about 0.1s per move</option>
-            <option value="9" selected>Normal — about 0.3s per move</option>
-            <option value="12">Deep — about 0.7s per move, finds more</option>
+            <option value="7">Quick — 25,000 positions a move</option>
+            <option value="9" selected>Normal — 80,000 positions a move</option>
+            <option value="12">Deep — 250,000 positions a move, finds more</option>
           </select>
         </label>
       </div>
@@ -824,9 +824,9 @@
         <div class="panel">
           <h2>Engine</h2>
           <label class="field"><span>Thinking time on the analysis board</span>
-            <select id="settingThink"><option value="fast">Fast — 0.3s</option><option value="normal">Normal — 0.9s</option><option value="deep">Deep — 2.5s</option></select>
+            <select id="settingThink"><option value="fast">Fast — 30,000 positions</option><option value="normal">Normal — 90,000 positions</option><option value="deep">Deep — 250,000 positions</option></select>
           </label>
-          <p class="note">Opponents on Play have their own thinking time, fixed by level. Game review has its own setting.</p>
+          <p class="note">How hard the analysis board thinks, counted in positions rather than seconds so that a setting means the same thing on a phone as on a laptop. Opponents on Play have their own budget, fixed by level, and game review has its own setting.</p>
         </div>
         <div class="panel">
           <button class="btn" id="settingReset" type="button">Restore defaults</button>

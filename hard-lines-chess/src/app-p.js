@@ -159,10 +159,11 @@ function renderImport() {
 // stopped and picked up later — a game already walked is never walked again.
 //
 // THE QUICK SETTING IS THE DEFAULT HERE and it is a different trade from a
-// single review. One game at 650ms a position is worth waiting for; a hundred
-// of them is forty minutes. The estimate a review prints is calibrated per
-// depth, so a shallower walk is not a worse measurement, it is a measurement
-// of a different thing, and the depth is stored beside the result.
+// single review. One game at 250,000 positions a move is worth waiting for; a
+// hundred of them is an afternoon. The estimate a review prints is calibrated
+// per setting, so a shallower walk is not a worse measurement, it is a
+// measurement of a different thing, and the setting is stored beside the
+// result.
 
 const Walk = { running: false, cancelled: false, done: 0, total: 0, failed: 0, drills: 0 };
 
@@ -200,7 +201,7 @@ async function walkImported() {
       const parsed = parsePgn(game.pgn);
       if (!parsed.plies.length) throw new Error('no moves');
       const result = await reviewGame(parsed, game.side, {
-        movetime: budget.movetime,
+        nodes: budget.nodes,
         depth,
         onProgress: (at, of) => {
           $('walkFill').style.width = `${Math.round(((Walk.done + at / of) / Walk.total) * 100)}%`;
@@ -214,6 +215,7 @@ async function walkImported() {
       game.mistakes = result.mistakes;
       game.tactics = result.tactics.length;
       game.depth = depth;
+      game.nodes = budget.nodes;
       game.estimate = result.meanLoss === null ? null : estimateRating(result.meanLoss, depth);
       // AND THE MISTAKES BECOME DRILLS, which is the whole point of walking
       // them. This did not happen: addMistakesToDrills had exactly one caller,

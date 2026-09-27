@@ -61,9 +61,12 @@ const DEFAULT_PREFS = {
 };
 
 const THINK = {
-  fast: { movetime: 300, depth: 8 },
-  normal: { movetime: 900, depth: 12 },
-  deep: { movetime: 2500, depth: 20 },
+  // Positions, not milliseconds — see Engine.search. A setting called "deep"
+  // has to be the same depth on a phone as on a laptop or it is a setting
+  // called "whatever this machine manages".
+  fast: { nodes: 30000, depth: 8 },
+  normal: { nodes: 90000, depth: 12 },
+  deep: { nodes: 250000, depth: 20 },
 };
 
 function applyPrefs() {
@@ -689,7 +692,7 @@ function engineMove() {
     let result;
     try {
       result = App.engine.search(Play.view.board, {
-        movetime: Play.game.band.movetime,
+        nodes: Play.game.band.nodes,
         maxDepth: Play.game.band.depth,
         blunder: Play.game.band.blunder,
       });
@@ -704,12 +707,12 @@ function engineMove() {
       return;
     }
 
-    // A FLOOR ON THE PAUSE, not on the search. The weakest bands think for a
-    // sixtieth of a second, and a reply that lands before your finger has left
-    // the board reads as a reflex rather than as an opponent — and it hides
-    // your own move, which is still sliding. The engine has already decided;
-    // this only holds the answer back, and never extends a search that took
-    // longer than the floor anyway.
+    // A FLOOR ON THE PAUSE, not on the search. The weakest bands look at six
+    // thousand positions, which on anything modern is over in a moment, and a
+    // reply that lands before your finger has left the board reads as a reflex
+    // rather than as an opponent — and it hides your own move, which is still
+    // sliding. The engine has already decided; this only holds the answer
+    // back, and never extends a search that took longer than the floor anyway.
     const elapsed = Date.now() - startedAt;
     const wait = Math.max(0, MIN_REPLY_MS - elapsed);
 
