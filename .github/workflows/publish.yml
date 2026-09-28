@@ -88,7 +88,7 @@ jobs:
       - name: Check the kit is complete
         working-directory: hard-lines-chess
         run: |
-          for f in index.html manifest.webmanifest sw.js icon-192.png icon-512.png icon-maskable-512.png; do
+          for f in index.html manifest.webmanifest sw.js icon-192.png icon-512.png icon-maskable-512.png stockfish.js stockfish.wasm; do
             test -s "dist/pwa/$f" || { echo "dist/pwa/$f is missing or empty"; exit 1; }
           done
           grep -q 'rel="manifest"' dist/pwa/index.html || { echo 'dist/pwa/index.html does not link the manifest'; exit 1; }
@@ -151,6 +151,14 @@ jobs:
           for f in inter-400 inter-500 inter-600 inter-700 jetbrains-mono-400 jetbrains-mono-600; do
             unzip -l "$APK" | grep -q "assets/fonts/$f.woff2" \
               || { echo "the APK is missing assets/fonts/$f.woff2"; exit 1; }
+          done
+
+          # AND THE ENGINE THE WATCH SCREEN PLAYS WITH. A missing one is not a
+          # build failure — the page loads, and Watch says Stockfish could not
+          # start — so it has to be checked for rather than noticed.
+          for f in stockfish.js stockfish.wasm; do
+            unzip -l "$APK" | grep -q "assets/$f" \
+              || { echo "the APK is missing assets/$f — Watch cannot play Stockfish"; exit 1; }
           done
 
           # And it must be signed, or a phone will not install it at all.

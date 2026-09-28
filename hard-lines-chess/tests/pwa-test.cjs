@@ -50,6 +50,16 @@ const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
     await page2.click('#practiceSuggest');
     await page2.waitForFunction(() => document.querySelectorAll('#practiceLines .line-row').length > 0, null, { timeout: 20000 });
     say('offline: engine runs', (await page2.locator('#practiceLines .line-row').first().innerText()).replace(/\s+/g, ' '));
+    // Stockfish too. Its two files come out of the worker's cache, and the
+    // .wasm has to come back as application/wasm or it will not compile — a
+    // cache that kept the body and lost the type would pass every check above.
+    await page2.evaluate(() => { show('watch'); startWatchStockfish('stockfish'); });
+    const sf = await page2.evaluate(async () => {
+      for (let i = 0; i < 2; i++) await stepWatchStockfish();
+      return { ply: Watch.ply, error: Watch.sf.error };
+    });
+    say('offline: Stockfish plays', sf.error ?? `${sf.ply} moves`);
+    if (sf.error || sf.ply !== 2) console.log('FAILED  Stockfish did not play offline');
   }
   await ctx.setOffline(false);
 

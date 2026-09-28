@@ -32,19 +32,27 @@ def appVersionCode = (System.getenv('ANDROID_VERSION_CODE') ?: '1') as Integer
 // put a link to a missing file in the head of every copy of the app — a 404 on
 // every launch, for a feature the wrapper turns off anyway.
 def webApp = rootProject.file('../dist/hard-lines-chess-app.html')
+// STOCKFISH TRAVELS WITH THE PAGE. The Watch screen runs it in a worker, and
+// the loader finds its .wasm by swapping its own extension, so the two files
+// sit beside index.html under the names build.py gave them.
+def stockfishFiles = ['stockfish.js', 'stockfish.wasm'].collect { rootProject.file("../dist/${it}") }
 def webAppDir = layout.buildDirectory.dir('generated/webAppAssets')
 
 def syncWebApp = tasks.register('syncWebApp', Copy) {
-    description = 'Copies the built single-file app into the APK assets.'
+    description = 'Copies the built single-file app, and the engine it plays with, into the APK assets.'
     doFirst {
-        if (!webApp.exists()) {
-            throw new GradleException(
-                "${webApp} is missing. Build the app first:\n" +
-                "    cd ${rootProject.file('..')} && python3 build.py")
+        (stockfishFiles + [webApp]).each { f ->
+            if (!f.exists()) {
+                throw new GradleException(
+                    "${f} is missing. Build the app first:\n" +
+                    "    cd ${rootProject.file('..')} && python3 build.py")
+            }
         }
     }
-    from(webApp)
-    rename { 'index.html' }
+    from(webApp) {
+        rename { 'index.html' }
+    }
+    from(stockfishFiles)
     into(webAppDir)
 }
 

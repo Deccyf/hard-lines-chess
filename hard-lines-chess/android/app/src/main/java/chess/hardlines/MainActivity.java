@@ -28,6 +28,7 @@ import androidx.webkit.WebViewAssetLoader;
 import androidx.webkit.WebViewFeature;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -126,6 +127,18 @@ public class MainActivity extends ComponentActivity {
                     return fontStylesheet();
                 }
 
+                // THE ENGINE HAS TO BE LABELLED AS WHAT IT IS. Stockfish's
+                // loader compiles its .wasm with instantiateStreaming, which
+                // refuses anything not sent as application/wasm — and the
+                // asset loader's guess at a type is a guess, varying by
+                // library version. Answered here so it is never left to one.
+                String path = url.getPath();
+                if (DOMAIN.equalsIgnoreCase(url.getHost()) && path != null
+                        && path.startsWith("/assets/") && path.endsWith(".wasm")) {
+                    WebResourceResponse wasm = asset(path.substring("/assets/".length()), "application/wasm");
+                    if (wasm != null) return wasm;
+                }
+
                 WebResourceResponse local = loader.shouldInterceptRequest(url);
                 if (local != null) return local;
 
@@ -222,6 +235,24 @@ public class MainActivity extends ComponentActivity {
         Map<String, String> headers = new HashMap<>();
         headers.put("Cache-Control", "no-store");
         return new WebResourceResponse("text/css", "utf-8", 200, "OK", headers, body);
+    }
+
+    /**
+     * One file from the APK's assets, served as the given type — or null when
+     * there is no such file, so the caller falls through to the loader and its
+     * ordinary 404 rather than answering with an empty body that looks like a
+     * file.
+     */
+    @Nullable
+    private WebResourceResponse asset(String name, String mimeType) {
+        try {
+            InputStream body = getAssets().open(name);
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Cache-Control", "no-store");
+            return new WebResourceResponse(mimeType, null, 200, "OK", headers, body);
+        } catch (IOException missing) {
+            return null;
+        }
     }
 
     /**

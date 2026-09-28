@@ -555,18 +555,21 @@
     <p class="lede">A game a move at a time, with the engine's view of each.</p>
 
     <div class="panel">
-      <button class="btn primary" id="watchBots" type="button">Watch two bots play</button>
-      <!-- A segmented control rather than a drop-down beside the button: a
-           label floating over a small select next to a wide button, with dead
-           space after it, read as a layout that had not been finished. -->
-      <div class="seg-row">
-        <span class="seg-label">Speed</span>
-        <div class="segmented" id="watchSpeed" role="group" aria-label="Playback speed">
-          <button class="seg" type="button" data-speed="2600">Slow</button>
-          <button class="seg on" type="button" data-speed="1600">Normal</button>
-          <button class="seg" type="button" data-speed="700">Fast</button>
-        </div>
+      <h3>Stockfish, explained</h3>
+      <p class="note">The strongest engine there is, against one of this app's levels or against itself. Every move is
+        explained: what it does, what it threatens, the line Stockfish expects to follow, and why it was chosen over the
+        next best.</p>
+      <div class="fields">
+        <label class="field"><span>Opponent</span>
+          <select id="watchSfOpponent"></select>
+        </label>
       </div>
+      <button class="btn primary" id="watchStockfish" type="button">Watch Stockfish play</button>
+      <p class="note" id="watchSfNote" hidden></p>
+    </div>
+
+    <div class="panel">
+      <button class="btn" id="watchBots" type="button">Watch two bots play</button>
       <p class="note" style="margin:10px 0 0" id="watchBlurb">Two opponents drawn at random, with an opening neither of them chose. Every game is different.</p>
     </div>
 
@@ -585,6 +588,19 @@
             <button class="btn danger" id="watchPause" type="button" hidden>Pause</button>
             <button class="btn" id="watchNext" type="button">Next</button>
           </div>
+          <!-- A segmented control rather than a drop-down beside the buttons: a
+               label floating over a small select next to a wide button, with
+               dead space after it, read as a layout that had not been finished.
+               It sits with Play because it is how fast Play goes, whichever
+               game is on the board. -->
+          <div class="seg-row">
+            <span class="seg-label">Speed</span>
+            <div class="segmented" id="watchSpeed" role="group" aria-label="Playback speed">
+              <button class="seg" type="button" data-speed="2600">Slow</button>
+              <button class="seg on" type="button" data-speed="1600">Normal</button>
+              <button class="seg" type="button" data-speed="700">Fast</button>
+            </div>
+          </div>
           <p class="note" id="watchProgress"></p>
         </div>
         <div>
@@ -593,7 +609,7 @@
             <p class="note" id="watchSubtitle"></p>
           </div>
           <div class="panel">
-            <h3>Why this game</h3>
+            <h3 id="watchMovesHead">Moves</h3>
             <p class="note" id="watchWhyItMatters" hidden></p>
             <div class="movelist" id="watchMoves"></div>
           </div>
@@ -606,7 +622,14 @@
     <div class="panel">
       <details class="more" style="margin-top:0">
         <summary>About the commentary</summary>
-        <p class="note">Three sources. While the game is still in one of the app's openings, that opening's own note for
+        <p class="note">With Stockfish playing, every move is explained from two things that were measured: Stockfish's
+          own analysis either side of the move — its best move, the line it expects, and its next two choices — and the
+          board itself: what the move takes, attacks and threatens, and any fork, pin or skewer that replaying the line
+          proves. The line is Stockfish's real reason for a move. Where a strong move's point lies deeper than anything
+          the line shows, you are given the line and the number rather than a story nothing computed. Stockfish looks at
+          a quarter of a million positions a move, a fixed amount of work, so a position gets the same explanation on any
+          device.</p>
+        <p class="note">For the other games there are three sources. While the game is still in one of the app's openings, that opening's own note for
           the move just played. On a famous game, at the moves that have one, a sentence written about that exact move.
           And after every move, a search deeper than the one that played it — if it preferred something else, the gap
           is given in points. What you will not get is what the player was thinking; nothing here can know that.</p>

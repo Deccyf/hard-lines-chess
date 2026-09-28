@@ -116,6 +116,7 @@ async function boot() {
   Endgames.view = makeBoardView($('endgameBoard'), { onMove: onEndgameMove });
   Storm.view = makeBoardView($('stormBoard'), { onMove: onStormMove });
   Watch.view = makeBoardView($('watchBoard'), { interactive: false });
+  renderWatchOpponents();
   Notation.view = makeBoardView($('notationBoard'), { onMove: onNotationMove });
   Practice.view = makeBoardView($('practiceBoard'), { onMove: onPracticeMove });
   Practice.bar = makeEvalBar($('practiceEval'));
@@ -256,6 +257,7 @@ async function boot() {
 
   // Watch
   $('watchBots').addEventListener('click', () => { startWatchBots(); playWatch(); });
+  $('watchStockfish').addEventListener('click', () => { startWatchStockfish($('watchSfOpponent').value); playWatch(); });
   for (const seg of document.querySelectorAll('#watchSpeed .seg')) {
     seg.addEventListener('click', () => {
       Watch.speed = Number(seg.dataset.speed);

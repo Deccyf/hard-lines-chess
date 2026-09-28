@@ -511,7 +511,7 @@ const MOTIFS = (function () {
   // ── the classifier ───────────────────────────────────────────────────────
 
   function classify(input) {
-    const nothing = { themes: [], reason: '' };
+    const nothing = { themes: [], reason: '', details: {} };
     const found = {};       // theme -> the evidence that fired it
 
     if (!input || typeof input.fenBefore !== 'string') return nothing;
@@ -535,6 +535,7 @@ const MOTIFS = (function () {
         return {
           themes: ['missedMate'],
           reason: 'You had a forced mate here and played something else.',
+          details: { missedMate: true },
         };
       }
       return nothing;
@@ -667,7 +668,14 @@ const MOTIFS = (function () {
     const themes = PRIORITY.filter((name) => found[name] !== undefined && VOCABULARY.includes(name))
       .slice(0, MAX_THEMES);
 
-    return { themes, reason: themes.length ? reasonFor(themes, found, { me, playedSan }) : '' };
+    // THE EVIDENCE GOES OUT WITH THE NAMES. `reason` is written for the player
+    // whose game it is, in the second person; a screen describing somebody
+    // else's game — Watch, where it is Stockfish against a level — needs the
+    // same counted facts said in the third person, and rebuilding them from a
+    // sentence would be parsing prose that was built from data a line earlier.
+    const details = {};
+    for (const name of themes) details[name] = found[name];
+    return { themes, reason: themes.length ? reasonFor(themes, found, { me, playedSan }) : '', details };
   }
 
   // ── one sentence, naming only what was counted ──────────────────────────

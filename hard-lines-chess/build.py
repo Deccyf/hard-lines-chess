@@ -76,7 +76,7 @@ if not os.path.exists('src/puzzle-bank.js'):
 
 parts = [re.sub(r'^export ', '', open(f).read(), flags=re.M) for f in [
     'src/engine/bundle.js', 'src/engine/bands.js', 'src/openings.js', 'src/notation.js',
-    'src/store.js', 'src/pgn.js', 'src/motifs.js', 'src/rating-fit.js', 'src/review.js', 'src/deviation.js', 'src/import.js', 'src/board-view.js',
+    'src/store.js', 'src/pgn.js', 'src/motifs.js', 'src/rating-fit.js', 'src/review.js', 'src/explain.js', 'src/stockfish-driver.js', 'src/deviation.js', 'src/import.js', 'src/board-view.js',
     'src/pawn-tb.js', 'src/endgames.js', 'src/famous.js', 'src/notation-lessons.js', 'src/puzzle-bank.js',
     'src/icons.js', 'src/traps.js', 'src/app-h.js', 'src/app-g.js', 'src/app-a.js', 'src/app-b.js', 'src/app-d.js', 'src/app-e.js', 'src/app-f.js', 'src/app-k.js', 'src/app-i.js', 'src/app-j.js', 'src/app-l.js', 'src/app-m.js', 'src/app-n.js', 'src/app-o.js', 'src/app-p.js', 'src/app-c.js',
 ]]
@@ -130,7 +130,26 @@ if not os.path.exists('pwa/sw.template.js'):
 sw_template = open('pwa/sw.template.js').read()
 if '__VERSION__' not in sw_template:
     sys.exit('build.py: pwa/sw.template.js has no __VERSION__ placeholder to stamp')
-sw_version = 'hard-lines-' + hashlib.sha256(pwa_index.encode('utf-8')).hexdigest()[:12]
+# ── Stockfish, next to every build of the page ──────────────────────────────
+#
+# Two files that must travel together: the loader finds its .wasm by swapping
+# its own extension. They go beside the standalone page (which is what the
+# test server and the Android build read) and beside the installable one.
+STOCKFISH = ['stockfish.js', 'stockfish.wasm']
+for _f in STOCKFISH:
+    if not os.path.exists('vendor/stockfish/' + _f):
+        sys.exit(f'build.py: vendor/stockfish/{_f} is missing, and the Watch screen plays with it')
+    shutil.copy('vendor/stockfish/' + _f, 'dist/' + _f)
+    shutil.copy('vendor/stockfish/' + _f, 'dist/pwa/' + _f)
+
+# THE WORKER'S VERSION COVERS THE ENGINE TOO. It was a hash of index.html
+# alone, and the worker answers everything but a navigation from its cache —
+# so a new engine shipped beside an unchanged page would have been served the
+# old engine for ever, from a cache nothing had any reason to replace.
+_version_input = pwa_index.encode('utf-8')
+for _f in STOCKFISH:
+    _version_input += open('vendor/stockfish/' + _f, 'rb').read()
+sw_version = 'hard-lines-' + hashlib.sha256(_version_input).hexdigest()[:12]
 open('dist/pwa/sw.js', 'w').write(sw_template.replace('__VERSION__', sw_version))
 shutil.copy('pwa/manifest.webmanifest', 'dist/pwa/manifest.webmanifest')
 for _f in os.listdir('pwa'):

@@ -7,10 +7,13 @@
 // assets/fonts/, and EVERYTHING ELSE IS REFUSED — which is what the wrapper
 // does, and what makes "it needs no connection" a fact rather than a hope.
 //
-// It catches the two failures that are invisible until you are holding a
-// phone: a woff2 that does not decode or is named for a family the stylesheet
-// never asks for (the app opens in fallback type and nothing says why), and a
-// request the page makes that nobody noticed (in the app it simply fails).
+// It catches the failures that are invisible until you are holding a phone: a
+// woff2 that does not decode or is named for a family the stylesheet never
+// asks for (the app opens in fallback type and nothing says why), a request
+// the page makes that nobody noticed (in the app it simply fails), and
+// Stockfish not starting — its worker script and its .wasm are the two files
+// the build copies in beside the page, and the .wasm needs the MIME type
+// MainActivity gives it or the engine will not compile.
 const { launch } = require('./browser.cjs');
 const fs = require('fs');
 const path = require('path');
@@ -37,6 +40,9 @@ const FACES = [
 const FONT_CSS = FACES.map(({ file, family, weight }) =>
   `@font-face{font-family:'${family}';font-style:normal;font-weight:${weight};font-display:swap;`
   + `src:url(https://${DOMAIN}/assets/fonts/${file}.woff2) format('woff2')}`).join('\n');
+
+// See android/app/build.gradle (stockfishFiles) and MainActivity.asset().
+const STOCKFISH = { 'stockfish.js': 'application/javascript', 'stockfish.wasm': 'application/wasm' };
 
 const failures = [];
 const say = (k, v) => console.log(String(k).padEnd(26), v);
@@ -78,6 +84,12 @@ function check(what, got, want) {
     if (rel === 'index.html') {
       return route.fulfill({ status: 200, contentType: 'text/html', body: fs.readFileSync(document, 'utf8') });
     }
+    // The two files syncWebApp copies from dist/ into the APK's assets, with
+    // the types the WebView gives them: the asset loader's guess for the
+    // script, and MainActivity's explicit application/wasm for the engine.
+    if (STOCKFISH[rel]) {
+      return route.fulfill({ status: 200, contentType: STOCKFISH[rel], body: fs.readFileSync(path.join(ROOT, 'dist', rel)) });
+    }
     const file = path.join(ASSETS, rel);
     if (!file.startsWith(ASSETS) || !fs.existsSync(file)) {
       refused.push(route.request().url());
@@ -108,6 +120,17 @@ function check(what, got, want) {
   // Not just loaded — actually the face the interface resolves to.
   check('h1 is set in', await page.evaluate(() =>
     getComputedStyle(document.querySelector('h1')).fontFamily.split(',')[0].replace(/"/g, '')), 'Inter');
+
+  // Stockfish, started the way the Watch screen starts it, and asked for two
+  // moves: proof the worker ran, the .wasm compiled and the engine answered.
+  await page.evaluate(() => { show('watch'); startWatchStockfish('stockfish'); });
+  const played = await page.evaluate(async () => {
+    for (let i = 0; i < 2; i++) await stepWatchStockfish();
+    return { ply: Watch.ply, error: Watch.sf.error, name: Stockfish.name };
+  });
+  say('Stockfish in the app', played.error ?? `${played.name}, ${played.ply} moves`);
+  check('Stockfish starts', played.error, null);
+  check('and plays', played.ply, 2);
 
   // THE POINT OF THE WHOLE THING. Anything here is a request the app cannot
   // make, so it would fail silently on a phone.

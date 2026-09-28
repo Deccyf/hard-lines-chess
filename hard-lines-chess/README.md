@@ -7,14 +7,18 @@ win-chance curve and motif classification, tactics puzzles mined from your own
 games, spaced-repetition drills, a teaching opponent that sets traps, an endgame
 trainer refereed by a solved table, a three-minute timed mode, a board-vision
 drill, a screen that explains chess notation by taking your own moves apart, a
-watch mode that plays two levels against each other and replays seven famous
-games move by move, a report that checks your own games against your repertoire
+watch mode that puts Stockfish on the board — against any level or against
+itself — and explains every move it and its opponent make, plays two levels
+against each other and replays seven famous games move by move, a report that
+checks your own games against your repertoire
 and names the move you keep leaving it on, an importer that fetches your public
 Chess.com games — with their ratings and clocks — and a coach that explains
 positions from engine output, with or without a model to write the sentences.
 
-Everything is one HTML file. It works offline once loaded and can be installed
-as an app from any web address.
+Everything is one HTML file, except Stockfish: the engine the Watch screen
+puts on the board is two more files beside it, and the one part of the app that
+needs a real web address rather than a file opened from disk. It all works
+offline once loaded and can be installed as an app from any web address.
 
 ## Two rules
 
@@ -167,6 +171,7 @@ Produces three things in `dist/`:
 | `hard-lines-chess-app.html` | the standalone app — one file, open anywhere |
 | `hard-lines-chess.html` | the same as a body fragment, for hosts that wrap it |
 | `pwa/` | the installable kit: index.html + manifest + service worker + icons |
+| `stockfish.js`, `stockfish.wasm` | Stockfish, beside the app and in `pwa/` — see below |
 
 The rating estimate's fit is read from `tools/rating-calibration.json` at build
 time. Without it, no estimate is shown anywhere.
@@ -175,6 +180,35 @@ The two fonts are the only thing the page fetches from elsewhere, and it works
 without them. The APK, which has no network at all, bundles them in
 `android/app/src/main/assets/fonts/` and answers the page's own request for the
 stylesheet from inside itself.
+
+## Stockfish
+
+The Watch screen's strong side is Stockfish 19 — the Lite, single-threaded
+WebAssembly build, 1.8 MB, run in a Web Worker so the page never waits on it.
+The files are vendored in `vendor/stockfish/` with their provenance, checksums
+and licence; `build.py` copies them beside the app, the service worker caches
+them, and the Android build packs them into the APK, where `MainActivity`
+serves the `.wasm` with the type WebAssembly insists on.
+
+It plays by the same rule as everything else here: **positions, not seconds.**
+Every search is 250,000 positions from a cleared table, so a game explained on a
+phone is explained in the same words on a laptop. It is told the whole game,
+not just the position, so it can see a repetition coming. Each position is
+searched once, with its three best lines, and that one analysis is both where
+Stockfish's move comes from and half of the explanation of the move that led
+there.
+
+**Every move is explained from things that were measured.** Stockfish's own
+analysis either side of the move — its choice, the line it expects, how it
+scores the position and its next two candidates — and the board: what the move
+takes, attacks and threatens, counted with the move generator, and any fork,
+pin, skewer or mate that the motif classifier proves by replaying the line. A
+motif that is true but beside the point (a pawn pinned to a knight, a knight
+"skewered" with a pawn behind it) is not said. What the screen will not do is
+give a strong move a plan the line does not show; its honest explanation is
+the line and the number. `tests/explain.test.mjs` pins the wording from canned
+analysis, and `tests/stockfish-watch.cjs` plays real games with the real engine
+and reads every explanation back off the screen.
 
 ## Speed
 
@@ -217,12 +251,12 @@ over every one- and two-piece ending.
 
 ```
 npm install            # playwright, for the browser drivers
-npm test               # 18 node suites: perft, motifs, traps, mate cap, multi-line
-                       # search, the solved table, endgame and opening prose,
-                       # notation, clocks, evaluation symmetry, the fast paths
-                       # against the long way round, repeatability, interface
-                       # vocabulary
-npm run test:browser   # 44 Playwright drivers against dist/
+npm test               # 19 node suites: perft, motifs, the move explainer, traps,
+                       # mate cap, multi-line search, the solved table, endgame
+                       # and opening prose, notation, clocks, evaluation
+                       # symmetry, the fast paths against the long way round,
+                       # repeatability, interface vocabulary
+npm run test:browser   # 46 Playwright drivers against dist/
 npm run verify:openings
 ```
 

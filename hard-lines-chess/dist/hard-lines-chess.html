@@ -1257,18 +1257,21 @@
     <p class="lede">A game a move at a time, with the engine's view of each.</p>
 
     <div class="panel">
-      <button class="btn primary" id="watchBots" type="button">Watch two bots play</button>
-      <!-- A segmented control rather than a drop-down beside the button: a
-           label floating over a small select next to a wide button, with dead
-           space after it, read as a layout that had not been finished. -->
-      <div class="seg-row">
-        <span class="seg-label">Speed</span>
-        <div class="segmented" id="watchSpeed" role="group" aria-label="Playback speed">
-          <button class="seg" type="button" data-speed="2600">Slow</button>
-          <button class="seg on" type="button" data-speed="1600">Normal</button>
-          <button class="seg" type="button" data-speed="700">Fast</button>
-        </div>
+      <h3>Stockfish, explained</h3>
+      <p class="note">The strongest engine there is, against one of this app's levels or against itself. Every move is
+        explained: what it does, what it threatens, the line Stockfish expects to follow, and why it was chosen over the
+        next best.</p>
+      <div class="fields">
+        <label class="field"><span>Opponent</span>
+          <select id="watchSfOpponent"></select>
+        </label>
       </div>
+      <button class="btn primary" id="watchStockfish" type="button">Watch Stockfish play</button>
+      <p class="note" id="watchSfNote" hidden></p>
+    </div>
+
+    <div class="panel">
+      <button class="btn" id="watchBots" type="button">Watch two bots play</button>
       <p class="note" style="margin:10px 0 0" id="watchBlurb">Two opponents drawn at random, with an opening neither of them chose. Every game is different.</p>
     </div>
 
@@ -1287,6 +1290,19 @@
             <button class="btn danger" id="watchPause" type="button" hidden>Pause</button>
             <button class="btn" id="watchNext" type="button">Next</button>
           </div>
+          <!-- A segmented control rather than a drop-down beside the buttons: a
+               label floating over a small select next to a wide button, with
+               dead space after it, read as a layout that had not been finished.
+               It sits with Play because it is how fast Play goes, whichever
+               game is on the board. -->
+          <div class="seg-row">
+            <span class="seg-label">Speed</span>
+            <div class="segmented" id="watchSpeed" role="group" aria-label="Playback speed">
+              <button class="seg" type="button" data-speed="2600">Slow</button>
+              <button class="seg on" type="button" data-speed="1600">Normal</button>
+              <button class="seg" type="button" data-speed="700">Fast</button>
+            </div>
+          </div>
           <p class="note" id="watchProgress"></p>
         </div>
         <div>
@@ -1295,7 +1311,7 @@
             <p class="note" id="watchSubtitle"></p>
           </div>
           <div class="panel">
-            <h3>Why this game</h3>
+            <h3 id="watchMovesHead">Moves</h3>
             <p class="note" id="watchWhyItMatters" hidden></p>
             <div class="movelist" id="watchMoves"></div>
           </div>
@@ -1308,7 +1324,14 @@
     <div class="panel">
       <details class="more" style="margin-top:0">
         <summary>About the commentary</summary>
-        <p class="note">Three sources. While the game is still in one of the app's openings, that opening's own note for
+        <p class="note">With Stockfish playing, every move is explained from two things that were measured: Stockfish's
+          own analysis either side of the move — its best move, the line it expects, and its next two choices — and the
+          board itself: what the move takes, attacks and threatens, and any fork, pin or skewer that replaying the line
+          proves. The line is Stockfish's real reason for a move. Where a strong move's point lies deeper than anything
+          the line shows, you are given the line and the number rather than a story nothing computed. Stockfish looks at
+          a quarter of a million positions a move, a fixed amount of work, so a position gets the same explanation on any
+          device.</p>
+        <p class="note">For the other games there are three sources. While the game is still in one of the app's openings, that opening's own note for
           the move just played. On a famous game, at the moves that have one, a sentence written about that exact move.
           And after every move, a search deeper than the one that played it — if it preferred something else, the gap
           is given in points. What you will not get is what the player was thinking; nothing here can know that.</p>
@@ -6495,7 +6518,7 @@ const MOTIFS = (function () {
   // ── the classifier ───────────────────────────────────────────────────────
 
   function classify(input) {
-    const nothing = { themes: [], reason: '' };
+    const nothing = { themes: [], reason: '', details: {} };
     const found = {};       // theme -> the evidence that fired it
 
     if (!input || typeof input.fenBefore !== 'string') return nothing;
@@ -6519,6 +6542,7 @@ const MOTIFS = (function () {
         return {
           themes: ['missedMate'],
           reason: 'You had a forced mate here and played something else.',
+          details: { missedMate: true },
         };
       }
       return nothing;
@@ -6651,7 +6675,14 @@ const MOTIFS = (function () {
     const themes = PRIORITY.filter((name) => found[name] !== undefined && VOCABULARY.includes(name))
       .slice(0, MAX_THEMES);
 
-    return { themes, reason: themes.length ? reasonFor(themes, found, { me, playedSan }) : '' };
+    // THE EVIDENCE GOES OUT WITH THE NAMES. `reason` is written for the player
+    // whose game it is, in the second person; a screen describing somebody
+    // else's game — Watch, where it is Stockfish against a level — needs the
+    // same counted facts said in the third person, and rebuilding them from a
+    // sentence would be parsing prose that was built from data a line earlier.
+    const details = {};
+    for (const name of themes) details[name] = found[name];
+    return { themes, reason: themes.length ? reasonFor(themes, found, { me, playedSan }) : '', details };
   }
 
   // ── one sentence, naming only what was counted ──────────────────────────
@@ -7672,6 +7703,840 @@ function timeTrouble(games) {
     blunderRate: r.n ? r.blunders / r.n : null,
   }));
   return { spent: finish(spentRows), left: finish(leftRows), used, skipped, moves };
+}
+
+
+// ── why a move was played, and what it does ────────────────────────────────
+//
+// The Watch screen's commentary when Stockfish is one of the players. It used
+// to say one thing about a move: whether a deeper search agreed with it, and if
+// not, what it cost. That is a verdict, not an explanation, and against a
+// strong player it says almost nothing at all — every move IS the best move,
+// so every note read "the engine agrees".
+//
+// This says why. But only from things that were measured:
+//
+//   STOCKFISH'S OWN ANALYSIS, before and after the move: its best move, the
+//   line it expects to follow, how it scores the position, and its next two
+//   choices. The line is the engine's actual reason — it plays a move because
+//   it expects that sequence, and prefers it to the runner-up by that much.
+//
+//   THE BOARD: what the move captured, whether it checks, castles, develops or
+//   promotes; which of the other side's pieces it newly attacks, counted with
+//   the move generator; whether it threatens mate if it were allowed another
+//   move straight away.
+//
+//   THE MOTIF CLASSIFIER from motifs.js, which names a fork or a pin only when
+//   replaying the line and counting on the board proves one. Every move is a
+//   reply to the move before it, so running the classifier with the previous
+//   move as "the mistake" and this move as "the punishment" says what this
+//   move does to the other side; running it with this move as the mistake and
+//   the best reply as the punishment says what a weaker move allows.
+//
+// WHAT IT WILL NOT SAY. A plan the line does not show. A strong move made for
+// reasons twenty moves deep has, as its honest explanation, the line and the
+// number — and that is what it gets, rather than a human-sounding story that
+// was never computed.
+//
+// No state and no search except one small one for a mate threat, so every
+// function here can be tested from canned analysis in node.
+
+const EXPLAIN_VALUE = { [PAWN]: 1, [KNIGHT]: 3, [BISHOP]: 3, [ROOK]: 5, [QUEEN]: 9, [KING]: 100 };
+const EXPLAIN_NAME = { [PAWN]: 'pawn', [KNIGHT]: 'knight', [BISHOP]: 'bishop', [ROOK]: 'rook', [QUEEN]: 'queen', [KING]: 'king' };
+const EXPLAIN_HOME = {
+  [WHITE]: { [KNIGHT]: ['b1', 'g1'], [BISHOP]: ['c1', 'f1'] },
+  [BLACK]: { [KNIGHT]: ['b8', 'g8'], [BISHOP]: ['c8', 'f8'] },
+};
+
+/**
+ * How many moves of Stockfish's line are printed — and, the same number, how
+ * far its highlights are read. They were different once: the highlights
+ * looked ten moves deep and the text printed six, so a note would say "White
+ * castles" beside a line in which nobody did. What is pointed out has to be
+ * in what is shown.
+ */
+const EXPLAIN_LINE_PLIES = 8;
+
+const colourWord = (c) => (c === WHITE ? 'White' : 'Black');
+const pieceWord = (piece) => EXPLAIN_NAME[typeOf(piece)];
+
+/** A UCI string back to this board's move, or null if it is not legal here. */
+function moveFromUci(board, uci) {
+  if (!uci) return null;
+  return board.legalMoves().find((m) => moveToUci(m) === uci) ?? null;
+}
+
+/**
+ * A Stockfish score (from the side to move) as the app's own engine would
+ * write it, so plainEval() can put it into words. A mate in N moves becomes a
+ * score N moves inside the mate edge, which is how plainEval counts back to N.
+ */
+function scoreToApp(score) {
+  if (!score) return 0;
+  if (score.mate !== undefined) {
+    if (score.mate === 0) return -CHECKMATE_SCORE;
+    return score.mate > 0 ? CHECKMATE_SCORE - (2 * score.mate - 1) : -(CHECKMATE_SCORE - 2 * -score.mate);
+  }
+  return score.cp;
+}
+
+/**
+ * The value of a move to the side that played it, from the two analyses
+ * either side of it: the candidate's own score if Stockfish listed it among
+ * its choices, otherwise the negation of the reply's best. A game that the
+ * move finishes is worth what the finish is worth.
+ */
+function playedValue(uci, a0, a1, outcome) {
+  if (outcome === 'checkmate') return 100000;
+  if (outcome) return 0;
+  const listed = a0?.lines?.find((l) => l.move === uci);
+  if (listed) return stockfishValue(listed.score);
+  if (a1?.lines?.length) return -stockfishValue(a1.lines[0].score);
+  return null;
+}
+
+/** Stockfish's line as numbered moves, starting from `board`. */
+function lineAsSan(board, ucis, limit = EXPLAIN_LINE_PLIES) {
+  const copy = new Board(board.fen());
+  const out = [];
+  for (const uci of ucis.slice(0, limit)) {
+    const move = moveFromUci(copy, uci);
+    if (!move) break;
+    const number = copy.turn === WHITE ? `${copy.fullmove}.` : (out.length === 0 ? `${copy.fullmove}…` : '');
+    out.push(number + toSan(copy, move));
+    copy.make(move);
+  }
+  return out.join(' ');
+}
+
+/**
+ * What stands out in a line, counted by replaying it.
+ *
+ * Three things only, because they are the three a person reading a line of
+ * moves most often misses: who castles, where the pieces are traded, and a
+ * piece that moves more than once — the engine re-routing something, which is
+ * a plan in the most literal sense. Anything else in the line is just moves.
+ */
+function lineHighlights(board, ucis, limit = EXPLAIN_LINE_PLIES) {
+  const copy = new Board(board.fen());
+  const castles = [];
+  const trades = [];
+  const journeys = new Map();     // square the piece stands on now -> { piece, path }
+  let lastCaptureSq = null;
+  for (const uci of ucis.slice(0, limit)) {
+    const move = moveFromUci(copy, uci);
+    if (!move) break;
+    const from = moveFrom(move), to = moveTo(move);
+    const piece = copy.squares[from];
+    const flags = moveFlags(move);
+    if (flags & FLAG_CASTLE) castles.push({ colour: colourOf(piece), side: to > from ? 'kingside' : 'queenside' });
+    if (flags & FLAG_CAPTURE) {
+      // A capture on the square the last capture happened on is the other half
+      // of a trade.
+      if (lastCaptureSq === to && !trades.includes(to)) trades.push(to);
+      lastCaptureSq = to;
+    } else {
+      lastCaptureSq = null;
+    }
+    if (typeOf(piece) !== PAWN && typeOf(piece) !== KING && !(flags & FLAG_CASTLE)) {
+      const trail = journeys.get(from) ?? { piece, path: [from] };
+      journeys.delete(from);
+      trail.path.push(to);
+      journeys.set(to, trail);
+    }
+    // A piece captured mid-journey is gone, and so is its trail.
+    if (flags & FLAG_CAPTURE) {
+      for (const [sq, trail] of journeys) if (sq === to && trail.piece !== piece) journeys.delete(sq);
+    }
+    copy.make(move);
+  }
+  const travellers = [...journeys.values()].filter((t) => t.path.length >= 3);
+  return { castles, trades, travellers };
+}
+
+/** A list as a person writes one: "a", "a and b", "a, b and c". */
+function listWords(xs) {
+  if (xs.length < 2) return xs.join('');
+  return `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
+}
+
+/** The highlights in words, or ''. At most two, so the line is still the point. */
+function highlightWords(h) {
+  const parts = [];
+  if (h.castles.length === 2 && h.castles[0].colour !== h.castles[1].colour) parts.push('both sides castle');
+  else if (h.castles.length) parts.push(`${colourWord(h.castles[0].colour)} castles ${h.castles[0].side}`);
+  if (h.trades.length) parts.push(`pieces are exchanged on ${listWords(h.trades.slice(0, 2).map(squareName))}`);
+  const t = h.travellers[0];
+  if (t) {
+    const [start, ...rest] = t.path.map(squareName);
+    const route = rest.length === 1 ? rest[0] : `${rest.slice(0, -1).join(', ')} and then ${rest[rest.length - 1]}`;
+    parts.push(`the ${pieceWord(t.piece)} on ${start} goes on to ${route}`);
+  }
+  return parts.slice(0, 2).join(', and ');
+}
+
+/** What the move itself is, on the board — the facts a person sees first. */
+function moveFacts(before, move, prev) {
+  const from = moveFrom(move), to = moveTo(move), flags = moveFlags(move);
+  const piece = before.squares[from];
+  const after = new Board(before.fen());
+  after.make(move);
+  const facts = { piece, from, to, colour: colourOf(piece) };
+  if (flags & FLAG_CASTLE) facts.castle = to > from ? 'kingside' : 'queenside';
+  if (flags & FLAG_CAPTURE) {
+    const victim = flags & FLAG_EP ? (PAWN | (facts.colour === WHITE ? BLACK : WHITE)) : before.squares[to];
+    facts.capture = { piece: victim, sq: to };
+    if (prev && (moveFlags(prev) & FLAG_CAPTURE) && moveTo(prev) === to) facts.recapture = true;
+  }
+  if (movePromo(move)) facts.promote = EXPLAIN_NAME[movePromo(move)];
+  const home = EXPLAIN_HOME[facts.colour]?.[typeOf(piece)];
+  if (home?.includes(squareName(from)) && before.fullmove <= 15) facts.develops = true;
+  facts.check = after.inCheck();
+  facts.outcome = after.outcome();
+  return { facts, after };
+}
+
+/** The move's facts as one short sentence, or ''. */
+function factsSentence(f) {
+  if (f.outcome === 'checkmate') return 'Checkmate.';
+  const bits = [];
+  if (f.castle) bits.push(`castles ${f.castle}`);
+  else if (f.recapture) bits.push(`recaptures on ${squareName(f.to)}`);
+  else if (f.capture) bits.push(`takes the ${pieceWord(f.capture.piece)} on ${squareName(f.capture.sq)}`);
+  else if (f.develops) bits.push(`develops the ${pieceWord(f.piece)} to ${squareName(f.to)}`);
+  if (f.promote) bits.push(`promotes to a ${f.promote}`);
+  if (f.check) bits.push('with check');
+  if (!bits.length) return '';
+  const text = bits.join(' ').replace(' with check', ', with check');
+  return text[0].toUpperCase() + text.slice(1) + '.';
+}
+
+/** The same position with the other side to move — a pass — or null if that is not a position. */
+function passedBoard(board) {
+  if (board.inCheck() || board.outcome()) return null;
+  const parts = board.fen().split(' ');
+  parts[1] = parts[1] === 'w' ? 'b' : 'w';
+  parts[3] = '-';
+  let passed;
+  try { passed = new Board(parts.join(' ')); } catch { return null; }
+  // The side that just moved cannot be left in check by the pass.
+  if (passed.inCheck(passed.turn === WHITE ? BLACK : WHITE)) return null;
+  return passed;
+}
+
+/**
+ * What a side can take, and is glad to: every legal capture of a piece that
+ * is either undefended or worth more than the piece taking it. Counted with
+ * the move generator on the board as given, with `board.turn` as the taker.
+ */
+function captureTargets(board) {
+  const taker = board.turn;
+  const owner = taker === WHITE ? BLACK : WHITE;
+  const out = new Map();     // victim square -> { victim, attacker }
+  for (const m of board.legalMoves()) {
+    if (!(moveFlags(m) & FLAG_CAPTURE) || (moveFlags(m) & FLAG_EP)) continue;
+    const victim = board.squares[moveTo(m)];
+    if (!victim || typeOf(victim) === KING) continue;
+    const attacker = board.squares[moveFrom(m)];
+    const loose = !board.attacked(moveTo(m), owner);
+    const cheaper = EXPLAIN_VALUE[typeOf(attacker)] < EXPLAIN_VALUE[typeOf(victim)];
+    if (!loose && !cheaper) continue;
+    const had = out.get(moveTo(m));
+    if (!had || EXPLAIN_VALUE[typeOf(attacker)] < EXPLAIN_VALUE[typeOf(had.attacker)]) {
+      out.set(moveTo(m), { victim, attacker, loose, sq: moveTo(m) });
+    }
+  }
+  return out;
+}
+
+/**
+ * What the move threatens: a piece of the other side's it newly attacks for
+ * profit, or mate if it were allowed to move again. Null when it threatens
+ * nothing that can be counted.
+ *
+ * NEWLY, because a piece that was already hanging before the move was not put
+ * there by it. The mate threat is the one search in this file, and a small
+ * one: the app's own engine, which is sharp over two or three moves and is
+ * only asked whether a mate exists.
+ */
+function moveThreat(before, after, search) {
+  const passed = passedBoard(after);
+  if (!passed) return null;
+
+  if (search) {
+    const r = search(passed);
+    if (r && r.move && r.score > MATE_EDGE) {
+      const moves = Math.max(1, Math.ceil((CHECKMATE_SCORE - r.score) / 2));
+      return { kind: 'mate', moves, san: toSan(passed, r.move) };
+    }
+  }
+
+  const now = captureTargets(passed);
+  const was = captureTargets(before);
+  let best = null;
+  for (const [sq, t] of now) {
+    if (was.has(sq)) continue;
+    if (!best || EXPLAIN_VALUE[typeOf(t.victim)] > EXPLAIN_VALUE[typeOf(best.victim)]) best = t;
+  }
+  return best ? { kind: 'piece', ...best } : null;
+}
+
+function threatSentence(t, mover) {
+  if (!t) return '';
+  const other = mover === 'White' ? 'Black' : 'White';
+  if (t.kind === 'mate') {
+    return t.moves === 1
+      ? `It threatens mate with ${t.san}, so ${other} has to deal with that first.`
+      : `It threatens a forced mate starting with ${t.san}.`;
+  }
+  const what = `${other}'s ${pieceWord(t.victim)} on ${squareName(t.sq)}`;
+  return t.loose
+    ? `It attacks ${what}, which nothing defends.`
+    : `It attacks ${what} with a ${pieceWord(t.attacker)}.`;
+}
+
+/**
+ * A motif from motifs.js, said in the third person about named sides.
+ * `attacker` is the side doing it, `victim` the side it is done to.
+ */
+function tacticSentence(motif, attacker, victim) {
+  if (!motif?.themes?.length) return '';
+  const d = motif.details ?? {};
+  const theirs = (piece, sq) => `${victim}'s ${pieceWord(piece)} on ${squareName(sq)}`;
+  const own = (piece, sq) => `${attacker}'s ${pieceWord(piece)} on ${squareName(sq)}`;
+  for (const theme of motif.themes) {
+    const e = d[theme];
+    if (theme === 'fork' && e) {
+      const targets = e.targets.map((t) => `${pieceWord(t.piece)} on ${squareName(t.sq)}`);
+      if (e.check) targets.unshift('king');
+      return `${own(e.mover, e.moverSq)} forks ${victim}'s ${listWords(targets)}.`;
+    }
+    if (theme === 'pin' && e) {
+      return `${own(e.slider, e.sliderSq)} pins ${theirs(e.front, e.frontSq)} to ${typeOf(e.back) === KING ? 'the king' : `the ${pieceWord(e.back)} on ${squareName(e.backSq)}`}.`;
+    }
+    if (theme === 'skewer' && e) {
+      return `${own(e.slider, e.sliderSq)} skewers ${theirs(e.front, e.frontSq)}, with the ${pieceWord(e.back)} on ${squareName(e.backSq)} behind it.`;
+    }
+    if (theme === 'discoveredAttack' && e) {
+      return `Moving off ${squareName(e.vacated)} uncovers ${own(e.slider, e.sliderSq)} onto ${typeOf(e.target) === KING ? `${victim}'s king` : theirs(e.target, e.targetSq)}.`;
+    }
+    if (theme === 'hangingPiece' && e) {
+      return e.defended
+        ? `${victim}'s ${pieceWord(e.piece)} on ${squareName(e.sq)} was defended too lightly, and the exchange there wins about ${Math.round(e.net / 100)} ${Math.round(e.net / 100) === 1 ? 'point' : 'points'}.`
+        : `${victim} left the ${pieceWord(e.piece)} on ${squareName(e.sq)} undefended, and it falls.`;
+    }
+    if (theme === 'backRankMate' && e) {
+      return `Mate on the back rank: ${victim}'s king is shut in by its own pieces.`;
+    }
+    if (theme === 'trappedPiece' && e) {
+      return `${victim}'s ${pieceWord(e.piece)} on ${squareName(e.sq)} is attacked and has nowhere to go.`;
+    }
+    if (theme.startsWith('mateIn') && typeof e === 'number') {
+      return `It forces mate in ${e === 1 ? 'one' : e === 2 ? 'two' : 'three'}.`;
+    }
+    if (theme === 'exposedKing' && e) {
+      return `${victim}'s king is left with ${e.after === 0 ? 'no square' : 'one square'} to go to, and checks follow.`;
+    }
+    // lostMaterial is never said here. It is the classifier's last resort —
+    // material counted at the far end of a line — and a line that the node
+    // budget cut off mid-exchange counts a piece as lost that is about to be
+    // taken back. The verdict already gives the cost, from the engine's score.
+  }
+  return '';
+}
+
+/**
+ * Whether a motif is worth saying about THIS move, rather than merely true.
+ *
+ * THE CLASSIFIER WAS BUILT FOR MISTAKES, and on a mistake everything it finds
+ * matters. Asked about every move of a game it finds things that are true and
+ * irrelevant: a bishop on c4 "pinning" the f7 pawn to the knight behind it,
+ * or a recapture in an exchange that one side started on purpose, written up
+ * as the other side leaving a piece loose. So:
+ *
+ *   A MOVE ONLY PUNISHES SOMETHING THAT WAS GIVEN AWAY. "Black left the knight
+ *   undefended" is said only when Stockfish scores the previous move as having
+ *   cost at least half a point, and never of a recapture — a trade is a trade.
+ *   The same goes for a piece being trapped or a king left bare.
+ *
+ *   A PIN HAS TO PIN SOMETHING. To the king or the queen, or a piece to one
+ *   worth more — not a pawn to a knight.
+ *
+ *   A SKEWER HAS TO WIN SOMETHING. The classifier's skewer is any line with
+ *   the dearer piece in front, which includes a bishop "skewering" a defended
+ *   knight with a pawn behind it — true to the definition and nothing a
+ *   player would call a skewer. So: something behind worth more than a pawn,
+ *   and in front the king, or a piece worth more than the one doing it.
+ *
+ * Forks, skewers, discovered attacks and mates are facts about the move
+ * itself, verified by the classifier, and are said whenever they happen.
+ */
+function significantMotif(motif, { prevLoss = null, recapture = false } = {}) {
+  if (!motif?.themes?.length) return null;
+  const gaveSomething = prevLoss !== null && prevLoss >= 50;
+  const d = motif.details ?? {};
+  const kept = motif.themes.filter((theme) => {
+    const e = d[theme];
+    if (theme === 'lostMaterial') return false;
+    if (theme === 'hangingPiece') return gaveSomething && !recapture;
+    if (theme === 'trappedPiece' || theme === 'exposedKing') return gaveSomething;
+    if (theme === 'pin' && e) {
+      const back = typeOf(e.back), front = typeOf(e.front);
+      return back === KING || back === QUEEN || (front !== PAWN && EXPLAIN_VALUE[back] > EXPLAIN_VALUE[front]);
+    }
+    if (theme === 'skewer' && e) {
+      const back = typeOf(e.back), front = typeOf(e.front);
+      return back !== PAWN && (front === KING || EXPLAIN_VALUE[front] > EXPLAIN_VALUE[typeOf(e.slider)]);
+    }
+    return true;
+  });
+  return kept.length ? { ...motif, themes: kept } : null;
+}
+
+/**
+ * Everything worth saying about one move.
+ *
+ * @param {object} p
+ * @param {string}  p.fenBefore  the position the move was played in
+ * @param {string}  p.uci        the move
+ * @param {?string} p.prevFen    the position before the previous move, for "what this punishes"
+ * @param {?string} p.prevUci    the previous move
+ * @param {?object} p.aPrev      Stockfish on prevFen — what says whether the previous move gave anything away
+ * @param {object}  p.a0         Stockfish on fenBefore (the mover to move)
+ * @param {?object} p.a1         Stockfish after the move (the other side to move); null if the game ended
+ * @param {?string} p.outcome    how the game stands after the move, from a board that knows the game's
+ *                               history — a repetition, which a board made from the FEN alone cannot see
+ * @param {boolean} p.isEngine   true when the mover IS Stockfish — its move is its choice by definition
+ * @param {?Function} p.search   (board) -> {move, score}: a small search for a mate threat, or null to skip
+ * @returns {{verdict: string, tone: string, sentences: string[], facts: object}}
+ */
+function explainMove(p) {
+  const before = new Board(p.fenBefore);
+  const move = moveFromUci(before, p.uci);
+  if (!move) return { verdict: '', tone: 'note', sentences: [], facts: {} };
+  const mover = colourWord(before.turn);
+  const other = mover === 'White' ? 'Black' : 'White';
+  const san = toSan(new Board(p.fenBefore), move);
+
+  let prevMove = null;
+  if (p.prevFen && p.prevUci) prevMove = moveFromUci(new Board(p.prevFen), p.prevUci);
+  const { facts, after } = moveFacts(before, move, prevMove);
+  if (p.outcome) facts.outcome = p.outcome;
+
+  const a0 = p.a0, a1 = p.a1;
+  const bestUci = a0?.best ?? null;
+  const bestMove = moveFromUci(before, bestUci);
+  const bestSan = bestMove ? toSan(new Board(p.fenBefore), bestMove) : null;
+  const bestValue = a0?.lines?.length ? stockfishValue(a0.lines[0].score) : null;
+  const value = playedValue(p.uci, a0, a1, facts.outcome);
+  const loss = bestValue !== null && value !== null ? Math.max(0, bestValue - value) : 0;
+  const isBest = p.isEngine || p.uci === bestUci || loss < 20;
+
+  // THE SCORE ON THE BOARD NOW, from White's side, in words.
+  let whiteNow = null;
+  if (facts.outcome === 'checkmate') whiteNow = mover === 'White' ? CHECKMATE_SCORE : -CHECKMATE_SCORE;
+  else if (facts.outcome) whiteNow = 0;
+  else if (a1?.lines?.length) {
+    const s = scoreToApp(a1.lines[0].score);           // from the side now to move
+    whiteNow = after.turn === WHITE ? s : -s;
+  }
+  const evalWords = facts.outcome && facts.outcome !== 'checkmate'
+    ? 'The game is drawn'
+    : whiteNow === null ? '' : plainEval(whiteNow, 'White').replace(/^./, (c) => c.toUpperCase());
+  // A verdict, and then where the game stands — when that is known.
+  const withEval = (text) => (evalWords ? `${text}. ${evalWords}.` : `${text}.`);
+
+  const depth = a0?.depth ?? 0;
+  const ahead = depth ? `looking about ${Math.max(1, Math.round(depth / 2))} moves ahead` : '';
+
+  const sentences = [];
+  const out = { facts: { san, mover, loss, isBest, bestSan, depth, whiteNow, ...facts }, sentences };
+
+  if (facts.outcome === 'checkmate') {
+    out.verdict = `Checkmate. ${mover} wins.`;
+    out.tone = 'good-note';
+    const tactic = p.prevFen ? tacticSentence(classifyMistake({
+      fenBefore: p.prevFen, playedUci: p.prevUci, replyUci: p.uci, replyLine: [p.uci],
+    }), mover, other) : '';
+    if (tactic && /back rank/.test(tactic)) sentences.push(tactic);
+    return out;
+  }
+
+  // ── a move Stockfish would play, or did ──────────────────────────────────
+  if (isBest) {
+    out.tone = 'good-note';
+    out.verdict = p.isEngine
+      ? withEval(`Stockfish's choice${ahead ? `, ${ahead}` : ''}`)
+      : withEval(`Stockfish agrees${ahead ? `, ${ahead}` : ''}`);
+
+    // 1. WHAT IT DOES TO THE OTHER SIDE, when the board proves a motif — the
+    //    previous move as the mistake, this one as the punishment.
+    const line = (a0?.lines?.find((l) => l.move === p.uci)?.pv) ?? [p.uci, ...(a1?.lines?.[0]?.pv ?? [])];
+    let tactic = '';
+    if (p.prevFen && p.prevUci) {
+      // What the previous move cost its player, from Stockfish either side of
+      // it: its best before, against the reply's best after (negated, as the
+      // reply's score is from the other side).
+      const prevLoss = p.aPrev?.lines?.length && a0?.lines?.length
+        ? stockfishValue(p.aPrev.lines[0].score) + stockfishValue(a0.lines[0].score)
+        : null;
+      const motif = significantMotif(
+        classifyMistake({ fenBefore: p.prevFen, playedUci: p.prevUci, replyUci: p.uci, replyLine: line }),
+        { prevLoss, recapture: facts.recapture },
+      );
+      if (motif) tactic = tacticSentence(motif, mover, other);
+    }
+    if (tactic) sentences.push(tactic);
+
+    // 2. WHAT IT IS, on the board.
+    const plain = factsSentence(facts);
+    if (plain && !(tactic && facts.capture && !facts.recapture)) sentences.push(plain);
+
+    // 3. WHAT IT THREATENS, if anything that can be counted.
+    const threat = moveThreat(before, after, p.search);
+    const threatText = threatSentence(threat, mover);
+    if (threatText && !tactic) sentences.push(threatText);
+
+    // 4. THE LINE IT EXPECTS, which is its reason in its own terms.
+    const expected = line.slice(1);
+    if (expected.length >= 2) {
+      const moves = lineAsSan(after, expected);
+      // Read from the position AFTER the move, so a piece's journey starts on
+      // the square it stands on now — "the knight on c3 goes on to e2", not
+      // "the knight on b1", which is where it no longer is.
+      const words = highlightWords(lineHighlights(after, expected));
+      sentences.push(`The line Stockfish expects: ${moves}${words ? ` — ${words}` : ''}.`);
+    }
+
+    // 5. WHY THIS AND NOT THE NEXT ONE.
+    const rest = (a0?.lines ?? []).filter((l) => l.move !== p.uci);
+    if (rest.length && bestValue !== null) {
+      const second = rest[0];
+      const secondMove = moveFromUci(before, second.move);
+      const secondSan = secondMove ? toSan(new Board(p.fenBefore), secondMove) : second.move;
+      const gap = (p.uci === bestUci ? bestValue : value ?? bestValue) - stockfishValue(second.score);
+      if (gap >= 150) {
+        sentences.push(`It is the only good move here: the next best, ${secondSan}, is ${(gap / 100).toFixed(1)} points worse.`);
+      } else if (gap <= 20) {
+        sentences.push(`${secondSan} was just as good.`);
+      } else {
+        sentences.push(`The next best was ${secondSan}, ${(gap / 100).toFixed(1)} of a point behind.`);
+      }
+    }
+    return out;
+  }
+
+  // ── a move Stockfish would not have played ───────────────────────────────
+  //
+  // A MATE IS NOT A NUMBER OF POINTS. Scores carry mates as values pushed past
+  // anything a position can be worth, so the difference between a mate and a
+  // pawn up is a meaningless 990-odd "points". Where a mate is involved the
+  // verdict says what happened to it instead.
+  const MATE_VALUE = 90000;
+  const allowsMate = value !== null && value <= -MATE_VALUE && (bestValue === null || bestValue > -MATE_VALUE);
+  const missesMate = bestValue !== null && bestValue >= MATE_VALUE && (value === null || value < MATE_VALUE);
+  const bestMate = a0?.lines?.[0]?.score?.mate;
+  const slowerWin = missesMate && value !== null && value >= 300;
+  let severity = severityFor(loss);
+  if (slowerWin) {
+    // Still winning, just not by force: a slower win, not a lost game.
+    severity = 'inaccuracy';
+    out.verdict = withEval(`Not the quickest: Stockfish's ${bestSan} forces mate in ${bestMate}, and this lets that go`);
+  } else if (missesMate) {
+    severity = 'blunder';
+    out.verdict = withEval(`Blunder: it misses a forced mate — Stockfish's ${bestSan} mates in ${bestMate}`);
+  } else if (allowsMate) {
+    severity = 'blunder';
+    out.verdict = withEval(`Blunder: this lets ${other} force mate, which Stockfish's ${bestSan} did not`);
+  } else {
+    const cost = `${(loss / 100).toFixed(1)} points`;
+    out.verdict = severity
+      ? withEval(`${severity[0].toUpperCase()}${severity.slice(1)}: about ${cost} worse than Stockfish's ${bestSan}`)
+      : withEval(`Slightly worse than Stockfish's ${bestSan}`);
+  }
+  out.tone = severity === 'blunder' || severity === 'mistake' ? 'bad-note' : 'note';
+
+  const plain = factsSentence(facts);
+  if (plain) sentences.push(plain);
+
+  // WHAT IT ALLOWS: the other side's best reply, and what the board says that
+  // reply does — this move as the mistake, the reply as the punishment.
+  //
+  // Not said of a missed mate: there the story is the mate, and the other
+  // side's best reply to a quiet move is beside the point.
+  const reply = a1?.lines?.[0];
+  if (reply?.move && severity && reply.score?.mate > 0) {
+    // A mate is its own explanation: the whole of it, as far as the line goes.
+    const moves = lineAsSan(after, reply.pv, Math.min(2 * reply.score.mate - 1, 9));
+    sentences.push(`It allows mate in ${reply.score.mate}: ${moves}.`);
+  } else if (reply?.move && severity && !missesMate) {
+    const replyMove = moveFromUci(after, reply.move);
+    const replySan = replyMove ? toSan(new Board(after.fen()), replyMove) : reply.move;
+    // A mistake did give something away, by definition, so the significance
+    // rule is asked with the cost already known.
+    const motif = significantMotif(
+      classifyMistake({ fenBefore: p.fenBefore, playedUci: p.uci, replyUci: reply.move, replyLine: reply.pv }),
+      { prevLoss: loss },
+    );
+    const tactic = motif ? tacticSentence(motif, other, mover) : '';
+    // Without a named motif the refutation is shown rather than described: the
+    // moves are the explanation, and they are Stockfish's.
+    const line = reply.pv.length >= 2 ? lineAsSan(after, reply.pv, 4) : '';
+    sentences.push(tactic
+      ? `It allows ${replySan}. ${tactic}`
+      : `It allows ${replySan}${line ? ` — ${line}` : ''}.`);
+  }
+
+  // WHAT STOCKFISH WANTED, and the line that went with it.
+  const wanted = a0?.lines?.[0];
+  if (missesMate && wanted?.pv?.length && bestMate > 0) {
+    const moves = lineAsSan(before, wanted.pv, Math.min(2 * bestMate - 1, 9));
+    sentences.push(`The mate Stockfish saw: ${moves}.`);
+  } else if (wanted?.pv?.length >= 2 && bestSan) {
+    const afterBest = new Board(p.fenBefore);
+    afterBest.make(bestMove);
+    const moves = lineAsSan(afterBest, wanted.pv.slice(1), 4);
+    sentences.push(`Stockfish wanted ${bestSan}${moves ? `, expecting ${moves}` : ''}.`);
+  }
+  return out;
+}
+
+
+// ── Stockfish, spoken to in UCI ────────────────────────────────────────────
+//
+// The Watch screen's strong side, and the reference that explains every move
+// played in front of it. It is Stockfish 19 Lite, single-threaded, compiled to
+// WebAssembly and run in a Web Worker — see vendor/stockfish/README.md for why
+// that build — and this is the whole of the conversation with it.
+//
+// SAME QUESTION, SAME ANSWER, the rule the rest of the app lives by. Every
+// search here is given a number of POSITIONS, never a number of seconds, and
+// starts from a cleared table (`ucinewgame`), so a position analysed twice
+// comes back with the same move, the same score and the same line — on a phone
+// or a laptop, today or next month. A time limit would make the explanation of
+// a move depend on how busy the device was when it was written.
+//
+// ONE SEARCH AT A TIME. The worker is one engine with one board; two searches
+// sent together would interleave their output. Requests queue, and a failure
+// in one does not wedge the ones behind it.
+//
+// AND IT CAN BE MISSING. A copy of the page opened straight from a file cannot
+// start a worker, and a build that lost the .wasm cannot compile one. Neither
+// is an error to hide: loadStockfish() rejects with a sentence the Watch
+// screen can put in front of the person.
+
+const Stockfish = {
+  worker: null,
+  loading: null,      // the promise every caller shares while it starts
+  failed: null,       // why it could not start, once it has not
+  queue: Promise.resolve(),
+  name: null,         // what it calls itself, from `id name`
+};
+
+/**
+ * How hard Stockfish looks at every position on the Watch screen.
+ *
+ * Measured in this repository's browser on 2026-09-28: a quarter of a million
+ * positions takes about 0.6 s on a laptop, a few seconds on a phone, and puts
+ * the engine at depth 13–15 — far beyond any person, and still quick enough
+ * that a game can be watched rather than waited for. Positions rather than
+ * seconds, so the game played and its explanations are the same on every
+ * device.
+ */
+const STOCKFISH_NODES = 250000;
+
+/** How long a start-up may take before it counts as not starting. */
+const STOCKFISH_START_MS = 30000;
+
+/**
+ * The backstop on one search, which is not its budget — see Engine.search for
+ * the same distinction. A search is ended by its node count; this only frees
+ * the queue if a worker ever stops answering altogether.
+ */
+const STOCKFISH_SEARCH_MS = 120000;
+
+/** Start the engine once. Every later call gets the same promise. */
+function loadStockfish() {
+  if (Stockfish.loading) return Stockfish.loading;
+  Stockfish.loading = new Promise((resolve, reject) => {
+    let worker;
+    let settled = false;
+    const fail = (why) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { worker?.terminate(); } catch { /* already gone */ }
+      Stockfish.worker = null;
+      Stockfish.failed = why;
+      reject(new Error(why));
+    };
+    const timer = setTimeout(() => fail('Stockfish did not answer within 30 seconds of starting.'), STOCKFISH_START_MS);
+
+    // A page opened from a file has no origin to start a worker from, and says
+    // so by throwing here or by failing to fetch the script; both are caught.
+    if (location.protocol === 'file:') {
+      fail('Stockfish runs in a background worker, and a copy of the page opened straight from a file cannot start one. It works in the installed app and on the website.');
+      return;
+    }
+    try {
+      worker = new Worker('stockfish.js');
+    } catch (e) {
+      fail(`Stockfish could not be started here (${e?.message ?? e}).`);
+      return;
+    }
+    worker.onerror = (e) => {
+      fail(`Stockfish could not be loaded${e?.message ? ` (${e.message})` : ''}. The engine files may be missing from this copy of the app.`);
+    };
+    worker.onmessage = (e) => {
+      const line = String(e.data);
+      if (line.startsWith('id name ')) Stockfish.name = line.slice(8).trim();
+      if (line === 'uciok') worker.postMessage('isready');
+      else if (line === 'readyok' && !settled) {
+        settled = true;
+        clearTimeout(timer);
+        worker.onmessage = null;
+        worker.onerror = null;
+        Stockfish.worker = worker;
+        resolve(worker);
+      }
+    };
+    worker.postMessage('uci');
+  });
+  return Stockfish.loading;
+}
+
+/**
+ * One line of `info` output, or null for the lines that carry no line.
+ *
+ * `score cp 13` is centipawns and `score mate 3` is mate in three, both from
+ * the side to move. A score marked `lowerbound` or `upperbound` is the engine
+ * saying the true value lies beyond that number — a search that the node
+ * budget stopped halfway through an iteration — and it is kept, but flagged,
+ * so the summary can prefer a finished one.
+ */
+function parseStockfishInfo(line) {
+  if (!line.startsWith('info ') || line.indexOf(' pv ') === -1) return null;
+  const words = line.split(/\s+/);
+  const out = { depth: 0, multipv: 1, score: null, bound: false, nodes: 0, pv: [] };
+  for (let i = 1; i < words.length; i++) {
+    const w = words[i];
+    if (w === 'depth') out.depth = Number(words[++i]);
+    else if (w === 'multipv') out.multipv = Number(words[++i]);
+    else if (w === 'nodes') out.nodes = Number(words[++i]);
+    else if (w === 'score') {
+      const kind = words[++i];
+      const value = Number(words[++i]);
+      out.score = kind === 'mate' ? { mate: value } : { cp: value };
+    } else if (w === 'lowerbound' || w === 'upperbound') out.bound = true;
+    else if (w === 'pv') { out.pv = words.slice(i + 1).filter(Boolean); break; }
+  }
+  return out.score && out.pv.length ? out : null;
+}
+
+/**
+ * A score as one number to compare, from the side to move: centipawns, or a
+ * mate pushed beyond any centipawn figure, sooner mates further out.
+ */
+function stockfishValue(score) {
+  if (!score) return 0;
+  if (score.mate !== undefined) {
+    if (score.mate === 0) return -100000;              // mated on the board already
+    return score.mate > 0 ? 100000 - score.mate : -100000 - score.mate;
+  }
+  return score.cp;
+}
+
+/**
+ * What the search found, one entry per candidate move.
+ *
+ * THE LAST FINISHED LINE WINS, where there is one. The node budget stops a
+ * search wherever it happens to be, which is usually partway through an
+ * iteration: the move reported there is sound — Stockfish only ever reports
+ * a move it has proved at least as good as the last — but its score is a
+ * bound and its line is often cut to a move or two. For each candidate the
+ * deepest line that was not cut short is used, provided it starts with the
+ * same move; otherwise the cut one stands, flagged.
+ */
+function summariseStockfish(best, infos) {
+  const byRank = new Map();
+  for (const info of infos) {
+    const list = byRank.get(info.multipv) ?? [];
+    list.push(info);
+    byRank.set(info.multipv, list);
+  }
+  const lines = [];
+  for (const rank of [...byRank.keys()].sort((a, b) => a - b)) {
+    const list = byRank.get(rank);
+    const last = list[list.length - 1];
+    const whole = [...list].reverse().find((l) => !l.bound && l.pv[0] === last.pv[0]);
+    const pick = whole ?? last;
+    lines.push({ rank, move: pick.pv[0], pv: pick.pv, score: pick.score, depth: pick.depth, bound: pick.bound });
+  }
+  // THE BEST LINE IS THE BEST MOVE. If an unfinished iteration moved the best
+  // move to a new one, the first entry is rebuilt from whatever line that move
+  // was last seen at the head of, so the list never leads with a move the
+  // engine did not choose.
+  if (best && lines.length && lines[0].move !== best) {
+    const seen = [...infos].reverse().find((l) => l.pv[0] === best);
+    if (seen) {
+      const others = lines.filter((l) => l.move !== best);
+      lines.length = 0;
+      lines.push({ rank: 1, move: best, pv: seen.pv, score: seen.score, depth: seen.depth, bound: seen.bound }, ...others);
+    }
+  }
+  const nodes = infos.reduce((n, l) => Math.max(n, l.nodes), 0);
+  return { best, lines, nodes, depth: lines[0]?.depth ?? 0 };
+}
+
+/**
+ * Search one position.
+ *
+ * GIVE IT THE GAME, NOT JUST THE POSITION, where there is a game: `moves` are
+ * the moves played from `fen` to reach the position to search, and with them
+ * Stockfish knows which positions have been on the board before. From a bare
+ * FEN it cannot see a repetition coming, and will walk a won game into a draw
+ * it did not know was there.
+ *
+ * @param {string} fen  the position searched — or, with `moves`, the one the game started from
+ * @param {{nodes?: number, multipv?: number, moves?: string[]}} opts  `moves` in UCI
+ * @returns {Promise<{best: string, lines: Array<{move, pv, score, depth, bound}>, nodes: number, depth: number}>}
+ *   Moves are UCI strings. Scores are from the side to move.
+ */
+function stockfishAnalyse(fen, { nodes = STOCKFISH_NODES, multipv = 3, moves = [] } = {}) {
+  const position = moves.length ? `position fen ${fen} moves ${moves.join(' ')}` : `position fen ${fen}`;
+  const job = Stockfish.queue.then(() => runStockfishSearch(position, nodes, multipv));
+  Stockfish.queue = job.catch(() => {});
+  return job;
+}
+
+async function runStockfishSearch(position, nodes, multipv) {
+  const worker = await loadStockfish();
+  return new Promise((resolve, reject) => {
+    const infos = [];
+    const timer = setTimeout(() => {
+      worker.onmessage = null;
+      reject(new Error('Stockfish stopped answering in the middle of a search.'));
+    }, STOCKFISH_SEARCH_MS);
+    worker.onmessage = (e) => {
+      const line = String(e.data);
+      if (line.startsWith('info ')) {
+        const info = parseStockfishInfo(line);
+        if (info) infos.push(info);
+      } else if (line.startsWith('bestmove')) {
+        clearTimeout(timer);
+        worker.onmessage = null;
+        const best = line.split(/\s+/)[1];
+        // "(none)" is the engine's word for a position with no legal move.
+        resolve(summariseStockfish(best && best !== '(none)' ? best : null, infos));
+      }
+    };
+    // A cleared table first, every time: the same position must not be judged
+    // differently for having been reached after a different search.
+    worker.postMessage('ucinewgame');
+    worker.postMessage(`setoption name MultiPV value ${multipv}`);
+    worker.postMessage(position);
+    worker.postMessage(`go nodes ${nodes}`);
+  });
 }
 
 
@@ -16202,18 +17067,20 @@ function renderStorm() {
 // considers equal. Four dice, and the same two bands do not repeat a game.
 
 const Watch = {
-  source: 'bots',        // 'bots' | 'famous'
+  source: 'bots',        // 'bots' | 'famous' | 'stockfish'
   title: '',
   whiteName: '',
   blackName: '',
   bands: null,           // { white, black } while a bot game is running
   famous: null,          // the entry from FAMOUS_GAMES
+  sf: null,              // a Stockfish game's state — see startWatchStockfish
   book: [],              // the drawn opening's first plies, for a bot game
   bookName: null,
   sans: [],              // the moves so far, or the whole game for a replay
   ply: 0,                // how many of them are on the board
   board: null,
   playing: false,
+  run: 0,                // which run of Play the timer belongs to; Pause starts a new one
   timer: null,
   speed: 1600,
   view: null,
@@ -16242,7 +17109,9 @@ function startWatchBots() {
   Watch.generation++;
   Watch.source = 'bots';
   Watch.famous = null;
+  Watch.sf = null;
   Watch.finished = null;
+  sfNote('');
 
   // Four dice. A pairing, a side, an opening and, inside the search, a window.
   const pick = (list) => list[Math.floor(Math.random() * list.length)];
@@ -16273,6 +17142,8 @@ function startWatchFamous(game) {
   Watch.source = 'famous';
   Watch.famous = game;
   Watch.bands = null;
+  Watch.sf = null;
+  sfNote('');
   Watch.book = [];
   Watch.bookName = null;
   Watch.finished = null;
@@ -16375,6 +17246,7 @@ function goToWatchPly(ply) {
 
 function stepWatch(forward = true) {
   if (Watch.busy) return;
+  if (forward && Watch.source === 'stockfish') { stepWatchStockfish(); return; }
   if (forward) {
     if (!ensureWatchMove(Watch.ply + 1)) { stopWatch(); renderWatch(); return; }
     const move = sanToMove(Watch.board, Watch.sans[Watch.ply]);
@@ -16395,22 +17267,28 @@ function stepWatch(forward = true) {
 
 function playWatch() {
   if (Watch.playing) return;
-  if (!Watch.sans.length && Watch.source !== 'bots') return;
+  if (!Watch.sans.length && Watch.source === 'famous') return;
   Watch.playing = true;
   $('watchPlay').hidden = true;
   $('watchPause').hidden = false;
-  const mine = Watch.generation;
-  const tick = () => {
-    if (!Watch.playing || mine !== Watch.generation) return;
-    stepWatch(true);
-    if (!Watch.playing) return;
-    Watch.timer = setTimeout(tick, Watch.speed);
+  // ONE RUN AT A TIME. A Stockfish step is a wait, and Pause then Play during
+  // one would otherwise leave the old run's tick to wake up beside the new
+  // one's, and the game would play at double speed from then on.
+  const run = ++Watch.run;
+  const tick = async () => {
+    if (run !== Watch.run) return;
+    if (Watch.source === 'stockfish') await stepWatchStockfish();
+    else stepWatch(true);
+    if (run !== Watch.run || !Watch.playing) return;
+    // Twice the pace for Stockfish: there is a paragraph to read, not a line.
+    Watch.timer = setTimeout(tick, Watch.source === 'stockfish' ? Watch.speed * 2 : Watch.speed);
   };
   Watch.timer = setTimeout(tick, 200);
 }
 
 function stopWatch() {
   Watch.playing = false;
+  Watch.run++;
   clearTimeout(Watch.timer);
   Watch.timer = null;
   const play = $('watchPlay'), pause = $('watchPause');
@@ -16442,15 +17320,21 @@ function watchOpening(sans) {
  */
 function explainWatchPly(ply) {
   if (ply < 1) {
-    $('watchMove').textContent = Watch.sans.length || Watch.source === 'bots' ? 'The starting position' : '';
+    $('watchMove').textContent = Watch.sans.length || Watch.source !== 'famous' ? 'The starting position' : '';
     $('watchWhy').innerHTML = '';
-    $('watchNote').textContent = Watch.source === 'bots' && Watch.bookName
-      ? `They will follow the ${Watch.bookName} for the first ${WATCH_BOOK_PLIES / 2} moves, then they are on their own.`
+    $('watchNote').textContent = Watch.source !== 'famous' && Watch.bookName
+      ? `They will follow the ${Watch.bookName} for the first ${Math.ceil(Watch.book.length / 2)} moves, then they are on their own.`
       : 'Press play.';
     $('watchNote').className = 'note';
     return;
   }
-  if (Watch.notes[ply]) { paintWatchNote(Watch.notes[ply]); return; }
+  if (Watch.notes[ply]) {
+    const kept = Watch.notes[ply];
+    // A Stockfish note is kept before its analysis arrives, and filled in here.
+    if (Watch.source === 'stockfish' && !kept.explained) explainWatchPlyStockfish(ply, kept);
+    paintWatchNote(kept);
+    return;
+  }
 
   const before = new Board();
   for (let i = 0; i < ply - 1; i++) {
@@ -16472,13 +17356,21 @@ function explainWatchPly(ply) {
     note.opening = `${inBook.opening.name} (${inBook.opening.eco})`;
     note.lines.push(idea ? `Still in the ${inBook.opening.name}. ${idea}` : `Still in the ${inBook.opening.name}.`);
     if (ply === 1 && inBook.opening.plan) note.lines.push(inBook.opening.plan);
-  } else if (Watch.source === 'bots' && ply === Watch.book.length + 1) {
+  } else if (Watch.source !== 'famous' && ply === Watch.book.length + 1) {
     note.lines.push('The book has run out. From here both sides are choosing for themselves.');
   }
 
   // 2. A curated note, where a person wrote one about this exact move.
   const moment = Watch.famous?.moments?.find((m) => m.ply === ply);
   if (moment) note.moment = moment.note;
+
+  // 3, for a Stockfish game: its own analysis either side of the move, which
+  // is already made, rather than a search of this app's.
+  if (Watch.source === 'stockfish') {
+    explainWatchPlyStockfish(ply, note);
+    paintWatchNote(note);
+    return;
+  }
 
   paintWatchNote(note);
 
@@ -16526,6 +17418,7 @@ function explainWatchPly(ply) {
 }
 
 function paintWatchNote(note) {
+  if (Watch.source === 'stockfish') { paintWatchNoteStockfish(note); return; }
   const number = Math.ceil(note.ply / 2);
   $('watchMove').textContent = `${number}${note.ply % 2 ? '.' : '…'} ${note.played} — ${note.moverName}`;
 
@@ -16566,14 +17459,14 @@ function renderWatch() {
         : 'the loser resigned, which is a fact about the room rather than the position'}`
     : Watch.bands
       ? `A drawn pairing, a drawn opening and a window of equally good moves — so this is not a game either of them has played before.${Watch.bookName ? ` Opening: the ${Watch.bookName}.` : ''}`
-      : '';
+      : Watch.source === 'stockfish' && Watch.sf
+        ? `Stockfish looks at ${STOCKFISH_NODES.toLocaleString('en-GB')} positions before every move, and every move is explained from what it saw.${Watch.sf.level ? ' The level plays exactly as it does on Play.' : ''}${Watch.bookName ? ` Opening: the ${Watch.bookName}.` : ''}`
+        : '';
 
-  const total = Watch.source === 'famous' ? Watch.sans.length : null;
-  $('watchProgress').textContent = total
-    ? `Move ${Math.max(1, Math.ceil(Watch.ply / 2))} of ${Math.ceil(total / 2)}`
-    : Watch.ply ? `Move ${Math.ceil(Watch.ply / 2)}` : '';
+  renderWatchProgress();
 
-  const atEnd = Watch.ply >= Watch.sans.length && (Watch.source === 'famous' || Watch.finished !== null);
+  const atEnd = Watch.ply >= Watch.sans.length
+    && (Watch.source === 'famous' || Watch.finished !== null || Boolean(Watch.sf?.error));
   $('watchBack').disabled = Watch.ply === 0;
   $('watchNext').disabled = atEnd;
   $('watchPlay').disabled = atEnd;
@@ -16597,8 +17490,24 @@ function renderWatch() {
 
   $('watchWhyItMatters').textContent = Watch.source === 'famous' && Watch.famous ? Watch.famous.why : '';
   $('watchWhyItMatters').hidden = Watch.source !== 'famous';
+  // "Why this game" is a famous game's question. A game played here and now
+  // has no reason to be watched beyond itself, and the panel is its moves.
+  $('watchMovesHead').textContent = Watch.source === 'famous' ? 'Why this game' : 'Moves';
 
   renderWatchMoves();
+}
+
+/** The line under the controls: how far into the game, and whether Stockfish is busy. */
+function renderWatchProgress() {
+  const total = Watch.source === 'famous' ? Watch.sans.length : null;
+  let text = total
+    ? `Move ${Math.max(1, Math.ceil(Watch.ply / 2))} of ${Math.ceil(total / 2)}`
+    : Watch.ply ? `Move ${Math.ceil(Watch.ply / 2)}` : '';
+  if (Watch.source === 'stockfish' && Watch.sf?.thinking) {
+    const doing = Stockfish.worker ? 'Stockfish is thinking…' : 'Starting Stockfish…';
+    text = text ? `${text} · ${doing}` : doing;
+  }
+  $('watchProgress').textContent = text;
 }
 
 function renderWatchMoves() {
@@ -16643,6 +17552,323 @@ function renderWatchList() {
     row.appendChild(watch);
     panel.appendChild(row);
   }
+}
+
+// ── Stockfish, against a level or against itself ───────────────────────────
+//
+// The same stage and the same controls as the bot games, with two differences
+// that change how it has to be driven.
+//
+// STOCKFISH IS ASYNCHRONOUS. It runs in a worker (src/stockfish-driver.js), so
+// a move from it is a promise rather than a return value, and the stepping
+// below waits for one instead of computing it in place. The board is never
+// locked for it: the page stays responsive while it thinks, and says so under
+// the controls, where the explanation of the move on the board is not in the
+// way of it.
+//
+// EVERY POSITION IS ANALYSED ONCE. Stockfish looks at each position the game
+// passes through a single time; that one analysis is both where its own move
+// comes from and half of the explanation of the move that led there. So one
+// search per move, kept, and stepping back through the game is free.
+//
+// IT IS TOLD THE WHOLE GAME, not just the position: the moves from the start,
+// so it knows which positions have already been on the board. A repetition is
+// a draw, and an engine that cannot see one coming will walk a won game into
+// it — or, a side worse off, miss the draw it could have forced.
+//
+// AND IT LOOKS AHEAD WHILE YOU READ. Once a move is on the board and its
+// explanation on screen, the next move and its analysis are started in the
+// background, so pressing Next is usually instant rather than a wait.
+
+/** The opponent list: every level of the ladder, and Stockfish itself. */
+function renderWatchOpponents() {
+  const select = $('watchSfOpponent');
+  if (!select || select.options.length) return;
+  const self = document.createElement('option');
+  self.value = 'stockfish';
+  self.textContent = 'Stockfish — itself';
+  select.appendChild(self);
+  BANDS.forEach((band, index) => {
+    const option = document.createElement('option');
+    option.value = String(index);
+    option.textContent = `Level ${bandLabelFor(band.elo)}`;
+    select.appendChild(option);
+  });
+  // 1500 by default: strong enough that the game is a game for a while, weak
+  // enough that Stockfish's punishment of its mistakes is the lesson.
+  const fifteen = BANDS.findIndex((b) => b.elo === 1500);
+  select.value = String(fifteen >= 0 ? fifteen : Math.floor(BANDS.length / 2));
+}
+
+/**
+ * How many plies of the drawn opening a Stockfish game follows: three to six
+ * moves, drawn. Stockfish is deterministic — the same position and the same
+ * budget give the same move — so against itself the opening is the only dice
+ * there is, and drawing its length as well as its name makes a hundred games
+ * out of twenty-five openings instead of twenty-five.
+ */
+const WATCH_SF_BOOK_PLIES = [6, 8, 10, 12];
+
+function startWatchStockfish(opponent) {
+  Watch.generation++;
+  Watch.source = 'stockfish';
+  Watch.famous = null;
+  Watch.bands = null;
+  Watch.finished = null;
+
+  const level = opponent === 'stockfish' ? null : BANDS[Number(opponent)] ?? null;
+  const sfIsWhite = level ? Math.random() < 0.5 : true;
+  Watch.sf = {
+    level,                                   // null when Stockfish plays itself
+    white: level && !sfIsWhite ? 'level' : 'stockfish',
+    black: level && sfIsWhite ? 'level' : 'stockfish',
+    fens: [new Board().fen()],               // position i: after i moves
+    ucis: [],                                // the moves, as Stockfish is told them
+    analysis: new Map(),                     // position index -> promise of Stockfish's analysis
+    ready: new Map(),                        // position index -> that analysis, once it has arrived
+    prep: new Map(),                         // ply -> promise that the move and both its analyses are ready
+    step: 0,                                 // the latest Next; an older one arriving late is dropped
+    thinking: false,
+    error: null,
+  };
+  if (level) {
+    const levelName = `Level ${bandLabelFor(level.elo)}`;
+    Watch.whiteName = sfIsWhite ? 'Stockfish' : levelName;
+    Watch.blackName = sfIsWhite ? levelName : 'Stockfish';
+    Watch.title = `${Watch.whiteName} against ${Watch.blackName}`;
+  } else {
+    Watch.whiteName = 'Stockfish, White';
+    Watch.blackName = 'Stockfish, Black';
+    Watch.title = 'Stockfish against itself';
+  }
+
+  const opening = OPENINGS[Math.floor(Math.random() * OPENINGS.length)];
+  const plies = WATCH_SF_BOOK_PLIES[Math.floor(Math.random() * WATCH_SF_BOOK_PLIES.length)];
+  Watch.book = opening.line.slice(0, Math.min(plies, opening.line.length));
+  Watch.bookName = opening.name;
+
+  resetWatch();
+  sfNote('');
+  // Started now rather than on the first move, so its second or so of loading
+  // overlaps with the reader looking at the empty board.
+  loadStockfish().catch((e) => sfFailed(e));
+}
+
+function sfNote(text, kind = 'note') {
+  const box = $('watchSfNote');
+  if (!box) return;
+  box.hidden = !text;
+  box.textContent = text;
+  box.className = kind;
+}
+
+function sfFailed(e) {
+  if (!Watch.sf) return;
+  Watch.sf.error = e?.message ?? String(e);
+  Watch.sf.thinking = false;
+  stopWatch();
+  sfNote(Watch.sf.error, 'note bad-note');
+  const box = $('watchNote');
+  box.textContent = Watch.sf.error;
+  box.className = 'note bad-note';
+  renderWatch();
+}
+
+/** Which side is to move in position `index`: 'stockfish' or 'level'. */
+function sfSideAt(index, sf = Watch.sf) {
+  return index % 2 === 0 ? sf.white : sf.black;
+}
+
+/**
+ * The board after `ply` moves, replayed from the start so that it knows its
+ * own history: a repetition is only a repetition to a board that saw the
+ * position the first two times. One made from a FEN never has.
+ */
+function watchBoardAt(ply) {
+  const board = new Board();
+  for (let i = 0; i < ply; i++) {
+    const move = sanToMove(board, Watch.sans[i]);
+    if (!move) return null;
+    board.make(move);
+  }
+  return board;
+}
+
+/** The same, from a Stockfish game's own record of its moves. */
+function sfBoardAt(sf, index) {
+  const board = new Board(sf.fens[0]);
+  for (let i = 0; i < index; i++) {
+    const move = moveFromUci(board, sf.ucis[i]);
+    if (!move) return null;
+    board.make(move);
+  }
+  return board;
+}
+
+/**
+ * Stockfish's analysis of position `index`, searched once and kept. Null for
+ * a finished game.
+ *
+ * EVERYTHING HERE TAKES THE GAME IT IS ABOUT, rather than reading whichever
+ * game is on the screen: a search for the last game can still be finishing
+ * when the next one starts, and it must not file its answer under the new
+ * game's positions.
+ */
+function sfAnalysis(sf, index) {
+  if (sf.analysis.has(index)) return sf.analysis.get(index);
+  const board = sfBoardAt(sf, index);
+  const job = !board || board.outcome()
+    ? Promise.resolve(null)
+    : stockfishAnalyse(sf.fens[0], { nodes: STOCKFISH_NODES, multipv: 3, moves: sf.ucis.slice(0, index) });
+  job.then((a) => sf.ready.set(index, a), () => {});
+  sf.analysis.set(index, job);
+  return job;
+}
+
+/**
+ * Make the move that takes the game to `ply`, and the two analyses its
+ * explanation needs. In order: a move needs every move before it.
+ */
+function sfPrepare(ply, sf = Watch.sf) {
+  if (sf.prep.has(ply)) return sf.prep.get(ply);
+  const current = () => Watch.sf === sf;
+  const job = (async () => {
+    if (ply > 1 && !(await sfPrepare(ply - 1, sf))) return false;
+    if (!current()) return false;
+    if (sf.ucis.length < ply) {
+      const index = ply - 1;
+      const board = sfBoardAt(sf, index);
+      if (!board) return false;
+      const over = board.outcome();
+      if (over) { Watch.finished = over; return false; }
+      let move = null;
+      if (index < Watch.book.length) move = sanToMove(board, Watch.book[index]);
+      if (!move && sfSideAt(index, sf) === 'stockfish') {
+        const a = await sfAnalysis(sf, index);
+        if (!current()) return false;
+        move = moveFromUci(board, a?.best);
+      }
+      if (!move && sf.level) {
+        // The level's move: the app's own engine, exactly as it plays on Play.
+        App.engine.reset();
+        move = App.engine.search(new Board(board.fen()), {
+          nodes: sf.level.nodes, maxDepth: sf.level.depth, blunder: sf.level.blunder, randomness: WATCH_RANDOMNESS,
+        }).move;
+      }
+      if (!move || !current() || sf.ucis.length !== index) return false;
+      Watch.sans.push(toSan(new Board(board.fen()), move));
+      sf.ucis.push(moveToUci(move));
+      board.make(move);
+      sf.fens[ply] = board.fen();
+    }
+    // Both sides of the move, for its explanation.
+    if (!current()) return false;
+    await sfAnalysis(sf, ply - 1);
+    await sfAnalysis(sf, ply);
+    return current();
+  })();
+  sf.prep.set(ply, job);
+  job.catch((e) => { if (current()) { sf.prep.delete(ply); sfFailed(e); } });
+  return job;
+}
+
+/**
+ * One step forward in a Stockfish game: wait for the move if it is not ready,
+ * then show it. Resolves true if a move was shown.
+ *
+ * THE READER MAY MOVE ON WHILE IT WAITS — press Back, pick a move from the
+ * list, press Next again — and the step that arrives late is then dropped
+ * rather than dragging the board forward from wherever they went.
+ */
+async function stepWatchStockfish() {
+  const sf = Watch.sf;
+  if (!sf || sf.error) return false;
+  const mine = Watch.generation;
+  const from = Watch.ply;
+  const token = ++sf.step;
+  const next = from + 1;
+  if (!sf.ready.has(next) || !sf.ready.has(from)) {
+    sf.thinking = true;
+    renderWatchProgress();
+  }
+  let ok = false;
+  try { ok = await sfPrepare(next); } catch { ok = false; }
+  if (mine !== Watch.generation || token !== sf.step) return false;
+  sf.thinking = false;
+  renderWatchProgress();
+  if (Watch.ply !== from) return false;
+  if (!ok) { stopWatch(); renderWatch(); return false; }
+
+  const move = sanToMove(Watch.board, Watch.sans[Watch.ply]);
+  if (!move) { stopWatch(); renderWatch(); return false; }
+  Watch.view.apply(move);
+  Watch.ply++;
+  Watch.board = watchBoardAt(Watch.ply) ?? new Board(Watch.view.board.fen());
+  const outcome = Watch.board.outcome();
+  if (outcome) { Watch.finished = outcome; stopWatch(); }
+  renderWatch();
+  explainWatchPly(Watch.ply);
+  // Look ahead while the explanation is read — after the piece has finished
+  // moving, because the level's own search runs on this thread and would
+  // stall the animation.
+  if (!outcome) setTimeout(() => { if (mine === Watch.generation) sfPrepare(Watch.ply + 1).catch(() => {}); }, 350);
+  return true;
+}
+
+/** The explanation of a ply in a Stockfish game, from the analyses already made. */
+function explainWatchPlyStockfish(ply, note) {
+  const sf = Watch.sf;
+  const a0 = sf.ready.get(ply - 1);
+  const a1 = sf.ready.get(ply);
+  if (a0 === undefined || a1 === undefined) {
+    // Not analysed yet: say so, and fill it in when it arrives — only then,
+    // or a failure would ask again forever.
+    const mine = Watch.generation;
+    sfPrepare(ply).then((ok) => {
+      if (ok && mine === Watch.generation && Watch.ply === ply && sf.ready.has(ply - 1) && sf.ready.has(ply)) {
+        explainWatchPly(ply);
+      }
+    }, () => {});
+    return;
+  }
+  const before = new Board(sf.fens[ply - 1]);
+  const move = sanToMove(before, Watch.sans[ply - 1]);
+  if (!move) return;
+  const inBook = ply <= Watch.book.length;
+  note.explained = explainMove({
+    fenBefore: sf.fens[ply - 1],
+    uci: sf.ucis[ply - 1],
+    prevFen: ply >= 2 ? sf.fens[ply - 2] : null,
+    prevUci: ply >= 2 ? sf.ucis[ply - 2] : null,
+    aPrev: ply >= 2 ? sf.ready.get(ply - 2) ?? null : null,
+    a0,
+    a1,
+    // How the game stands after the move, from a board that knows the game:
+    // a repetition, which a board made from the FEN alone cannot see.
+    outcome: watchBoardAt(ply)?.outcome() ?? null,
+    // A book move is the book's, whoever plays it: Stockfish did not choose it.
+    isEngine: sfSideAt(ply - 1) === 'stockfish' && !inBook,
+    search: (board) => { App.engine.reset(); return App.engine.search(board, { nodes: 15000, maxDepth: 5 }); },
+  });
+}
+
+/** Paint a Stockfish-game note: the book's word first, then the explanation, then the verdict. */
+function paintWatchNoteStockfish(note) {
+  const number = Math.ceil(note.ply / 2);
+  $('watchMove').textContent = `${number}${note.ply % 2 ? '.' : '…'} ${note.played} — ${note.moverName}`;
+  const why = $('watchWhy');
+  why.innerHTML = '';
+  for (const text of note.lines) why.appendChild(el('p', 'note', text));
+  const box = $('watchNote');
+  if (!note.explained) {
+    box.textContent = Watch.sf?.error ?? 'Stockfish is looking at the move…';
+    box.className = Watch.sf?.error ? 'note bad-note' : 'note';
+    return;
+  }
+  const { verdict, tone, sentences } = note.explained;
+  for (const text of sentences) why.appendChild(el('p', 'note', text));
+  box.textContent = verdict;
+  box.className = `note ${tone}`;
 }
 
 
@@ -17548,6 +18774,7 @@ async function boot() {
   Endgames.view = makeBoardView($('endgameBoard'), { onMove: onEndgameMove });
   Storm.view = makeBoardView($('stormBoard'), { onMove: onStormMove });
   Watch.view = makeBoardView($('watchBoard'), { interactive: false });
+  renderWatchOpponents();
   Notation.view = makeBoardView($('notationBoard'), { onMove: onNotationMove });
   Practice.view = makeBoardView($('practiceBoard'), { onMove: onPracticeMove });
   Practice.bar = makeEvalBar($('practiceEval'));
@@ -17688,6 +18915,7 @@ async function boot() {
 
   // Watch
   $('watchBots').addEventListener('click', () => { startWatchBots(); playWatch(); });
+  $('watchStockfish').addEventListener('click', () => { startWatchStockfish($('watchSfOpponent').value); playWatch(); });
   for (const seg of document.querySelectorAll('#watchSpeed .seg')) {
     seg.addEventListener('click', () => {
       Watch.speed = Number(seg.dataset.speed);
