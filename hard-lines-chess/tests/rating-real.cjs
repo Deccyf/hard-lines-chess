@@ -132,16 +132,17 @@ const { launch, serve, DIST, gotoSection } = require('./browser.cjs');
   check('it draws the rating over time', chart.trend, 1);
   check('over the real span of it', chart.axis[0], '1100');
   // THE REVIEW SETTING HAS NOTHING TO DO WITH YOUR RATING. The verdict under
-  // the chart warned that "a change of setting shows up here as a change in
-  // you", which is true of the three measures the engine produces and is
-  // nonsense about a number Chess.com gave you.
+  // the chart warned that a change of setting — and now of judge — "shows up
+  // here as a change in you", which is true of the three measures the engine
+  // produces and is nonsense about a number Chess.com gave you.
+  const WARNING = 'whatever setting and by whichever judge you reviewed them with, so a change of either shows up here';
   const ratingText = await page.$eval('#progressOut', (e) => e.textContent);
-  check('it does not blame the review setting', ratingText.includes('change of setting shows up here'), false);
+  check('it does not blame the review setting', ratingText.includes(WARNING), false);
   check('and says whose numbers these are', ratingText.includes('Chess.com’s numbers rather than this app’s'), true);
   await page.evaluate(() => { Progress.measure = 'accuracy'; renderProgress(); });
   await page.waitForTimeout(300);
   const accText = await page.$eval('#progressOut', (e) => e.textContent);
-  check('while accuracy still carries that warning', accText.includes('change of setting shows up here'), true);
+  check('while accuracy still carries that warning', accText.includes(WARNING), true);
 
   // An unreviewed game still has a rating, and the rating chart must use it —
   // your rating moved on every game, not only the walked ones.
