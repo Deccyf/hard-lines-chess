@@ -19189,12 +19189,12 @@ function renderImport() {
 
 const Walk = { running: false, cancelled: false, done: 0, total: 0, failed: 0, drills: 0 };
 
-/** The imported games with no review behind them, oldest first. */
 /** The judge the walk uses: the one picked, remembered between visits. */
 function walkJudgeName() {
   return judgeNamed(App.prefs?.judge).name;
 }
 
+/** The imported games with no review behind them, oldest first. */
 /**
  * The games the walk has work to do on, split by the reason.
  *
