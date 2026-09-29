@@ -84,6 +84,30 @@ function hasLegalReply(board) {
  * games in node and needs exactly this, and reaching it meant either dragging
  * in a file full of getElementById or keeping a second copy that could drift.
  */
+/**
+ * A UCI string — how Stockfish and Reckless write a move — back to this
+ * board's move, or null if it is not legal here. Matched against the legal
+ * moves rather than parsed, so a string that names no legal move is caught
+ * rather than played.
+ */
+function moveFromUci(board, uci) {
+  if (!uci) return null;
+  return board.legalMoves().find((m) => moveToUci(m) === uci) ?? null;
+}
+
+/** A line of UCI strings as this board's moves, stopping at the first that is not legal. */
+function movesFromUci(board, ucis) {
+  const copy = new Board(board.fen());
+  const out = [];
+  for (const uci of ucis ?? []) {
+    const move = moveFromUci(copy, uci);
+    if (!move) break;
+    out.push(move);
+    copy.make(move);
+  }
+  return out;
+}
+
 function lineToSan(board, moves) {
   const copy = new Board(board.fen());
   const out = [];

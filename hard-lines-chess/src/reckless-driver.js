@@ -71,6 +71,24 @@ async function recklessStatus() {
   return { state: need === 0 ? 'ready' : need === total ? 'none' : 'partial', need, total, version: manifest.version };
 }
 
+/**
+ * Where Reckless stands, in a sentence — the same words on the Watch screen
+ * and beside the choice of judge, so the two cannot describe one fact two ways.
+ */
+function recklessStatusText(status) {
+  const mb = (n) => `${Math.max(1, Math.round((n ?? 0) / 1e6))} MB`;
+  return {
+    ready: 'Reckless is on this device, and works without a connection.',
+    none: `Reckless, one of the two strongest engines there are, is a ${mb(status.total)} download the first time, and is kept on this device after that.`,
+    partial: `${mb((status.total ?? 0) - (status.need ?? 0))} of Reckless's ${mb(status.total)} is already here. The rest downloads from where it stopped.`,
+    offline: 'Reckless needs a connection the first time, to download it.',
+    apk: 'Reckless is in the website version of the app only. This app has no internet connection to download it with, and it is too big to carry inside — install the app from the same website this one came from.',
+    file: 'Reckless cannot run in a copy of the page opened from a file. It works in the app installed from the website.',
+    missing: 'This copy of the app was built without Reckless.',
+    unsupported: 'This browser cannot download and run Reckless.',
+  }[status?.state] ?? 'This browser cannot download and run Reckless.';
+}
+
 /** What a stopped start tells the person, from the worker's report of it. */
 function recklessFailureText(m) {
   if (m.code === 'download') {

@@ -909,17 +909,7 @@ async function renderWatchSfChoice() {
   const status = await recklessStatus().catch(() => ({ state: 'unsupported' }));
   if (mine !== Watch.rkCheck || Watch.rkBusy) return;
   const mb = (n) => `${Math.max(1, Math.round(n / 1e6))} MB`;
-  const says = {
-    ready: 'Reckless is on this device, and works without a connection.',
-    none: `Reckless, one of the two strongest engines there are, is a ${mb(status.total ?? 0)} download the first time, and is kept on this device after that.`,
-    partial: `${mb((status.total ?? 0) - (status.need ?? 0))} of Reckless's ${mb(status.total ?? 0)} is already here. The rest downloads from where it stopped.`,
-    offline: 'Reckless needs a connection the first time, to download it.',
-    apk: 'Reckless is in the website version of the app only. This app has no internet connection to download it with, and it is too big to carry inside — install the app from the same website this one came from.',
-    file: 'Reckless cannot run in a copy of the page opened from a file. It works in the app installed from the website.',
-    missing: 'This copy of the app was built without Reckless.',
-    unsupported: 'This browser cannot download and run Reckless.',
-  };
-  sfNote(says[status.state] ?? says.unsupported);
+  sfNote(recklessStatusText(status));
   if (status.state === 'none') button.textContent = `Download Reckless (${mb(status.total)}) and watch`;
   if (status.state === 'partial') button.textContent = `Download the rest (${mb(status.need)}) and watch`;
   button.disabled = !['ready', 'none', 'partial'].includes(status.state);

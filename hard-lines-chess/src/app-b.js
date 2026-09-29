@@ -448,6 +448,105 @@ const REVIEW_BUDGET = {
   12: { nodes: 250000 },
 };
 
+// ── who judges ─────────────────────────────────────────────────────────────
+//
+// THREE JUDGES, ONE REVIEW. This app's own engine, searched on the page; or
+// Stockfish or Reckless, each in its worker. reviewGame() asks them the same
+// questions and treats the answers the same way, so a review by one differs
+// from a review by another only in how right the answers are — and a stronger
+// judge finds more wrong with the same game. That is why the judge is stored
+// with every game, why each has its own strength-estimate calibration, and
+// why a history is re-judged rather than mixed when the judge changes.
+//
+// The same budgets for all three: positions a move, the setting picked. A
+// quarter of a million positions is a much deeper look for Stockfish than for
+// this app's engine, which is the point of picking it.
+const JUDGES = {
+  app: { name: 'app', words: "this app's engine", analyse: null },
+  stockfish: { name: 'stockfish', words: 'Stockfish', analyse: (fen, o) => stockfishAnalyse(fen, o) },
+  reckless: { name: 'reckless', words: 'Reckless', analyse: (fen, o) => recklessAnalyse(fen, o) },
+};
+const judgeNamed = (name) => JUDGES[name] ?? JUDGES.app;
+/** What reviewGame takes as its judge: null for this app's own engine. */
+const reviewJudge = (name) => (judgeNamed(name).analyse ? judgeNamed(name) : null);
+/** The judge a stored game was judged by — this app's engine for any game from before there was a choice. */
+const judgeOf = (game) => (game?.judge && JUDGES[game.judge] ? game.judge : 'app');
+const judgeWords = (name) => judgeNamed(name).words;
+
+/**
+ * What each judge is, in a sentence, for the line under the choice. Reckless's
+ * depends on whether it is on the device; the others are fixed.
+ */
+async function judgeNote(name) {
+  const calibrated = name === 'app' || Boolean(typeof RATING_FIT !== 'undefined' && RATING_FIT?.judges?.[name]);
+  const noEstimate = calibrated ? '' : ' Its reviews have no strength estimate: it has not been calibrated as a judge yet.';
+  if (name === 'stockfish') {
+    if (location.protocol === 'file:') return { text: 'Stockfish cannot run in a copy of the page opened from a file. It judges in the installed app and on the website.', usable: false };
+    return { text: `Stockfish 19. Far stronger than this app's engine, so it finds mistakes that one misses — the same game scores a lower accuracy.${noEstimate}`, usable: true };
+  }
+  if (name === 'reckless') {
+    const status = await recklessStatus().catch(() => ({ state: 'unsupported' }));
+    const usable = ['ready', 'none', 'partial'].includes(status.state);
+    return { text: `${recklessStatusText(status)}${usable ? ` Like Stockfish, it finds more than this app's engine does.${noEstimate}` : ''}`, usable, status };
+  }
+  return { text: "This app's own engine: quick, and the judge its strength estimate was first measured with, but it misses deeper ideas.", usable: true };
+}
+
+/**
+ * Both judge choices — on Review and on the walk — show the one preference,
+ * with the line under each saying what it means here. A judge that cannot run
+ * on this device is still listed, with the reason, rather than hidden.
+ */
+async function renderJudgeChoice() {
+  const name = judgeNamed(App.prefs.judge).name;
+  for (const id of ['reviewJudge', 'walkJudge']) {
+    const select = $(id);
+    if (select) select.value = name;
+  }
+  const mine = ++renderJudgeChoice.asked;
+  const { text, usable } = await judgeNote(name);
+  if (mine !== renderJudgeChoice.asked) return;
+  for (const id of ['reviewJudgeNote', 'walkJudgeNote']) {
+    const box = $(id);
+    if (!box) continue;
+    box.textContent = text;
+    box.className = usable ? 'note judge-note' : 'note judge-note bad-note';
+  }
+}
+renderJudgeChoice.asked = 0;
+
+/**
+ * Get the chosen judge ready before a review starts, or say why it cannot be.
+ * Stockfish starts in a moment; Reckless may first be a download, which fills
+ * `bar` and reports through `say` as it goes. Resolves true when ready.
+ */
+async function readyJudge(name, { say, bar }) {
+  if (name === 'stockfish') {
+    try { await loadStockfish(); return true; }
+    catch (e) { say(`Stockfish cannot judge here: ${e?.message ?? e}`, 'note bad-note'); return false; }
+  }
+  if (name === 'reckless') {
+    const status = await recklessStatus().catch(() => ({ state: 'unsupported' }));
+    if (!['ready', 'none', 'partial'].includes(status.state)) { say(recklessStatusText(status), 'note bad-note'); return false; }
+    navigator.storage?.persist?.().catch(() => {});
+    try {
+      await loadReckless((p) => {
+        if (p.phase === 'start') { if (bar) bar.hidden = true; say('Starting Reckless…'); return; }
+        if (bar) { bar.hidden = false; bar.firstElementChild.style.width = `${p.total ? (100 * p.saved) / p.total : 0}%`; }
+        say(`Downloading Reckless: ${(p.saved / 1e6).toFixed(1)} of ${(p.total / 1e6).toFixed(1)} MB`);
+      });
+      if (bar) bar.firstElementChild.style.width = '0%';
+      return true;
+    } catch (e) {
+      say(e?.message ?? String(e), 'note bad-note');
+      return false;
+    } finally {
+      renderJudgeChoice();
+    }
+  }
+  return true;
+}
+
 async function runReview() {
   if (Review.running) return;
   const text = $('pgnInput').value.trim();
@@ -486,10 +585,26 @@ async function runReview() {
 
   Review.running = true;
   $('reviewRun').disabled = true;
-  status.textContent = 'Walking the game…';
-  $('reviewBar').hidden = false;
   $('reviewOut').hidden = true;
   $('reviewBoardWrap').hidden = true;
+
+  // The judge first: Stockfish has to be started, and Reckless may be a
+  // download — which fills the same bar the review then uses.
+  const judgeName = judgeNamed($('reviewJudge').value).name;
+  const ready = await readyJudge(judgeName, {
+    say: (text, kind) => { status.textContent = text; },
+    bar: $('reviewBar'),
+  });
+  if (!ready) {
+    Review.running = false;
+    $('reviewRun').disabled = false;
+    $('reviewBar').hidden = true;
+    return;
+  }
+  const by = judgeName === 'app' ? '' : ` with ${judgeWords(judgeName)}`;
+  status.textContent = `Walking the game${by}…`;
+  $('reviewFill').style.width = '0%';
+  $('reviewBar').hidden = false;
 
   const depth = Number($('reviewDepth').value);
   const budget = REVIEW_BUDGET[depth] ?? REVIEW_BUDGET[9];
@@ -498,11 +613,12 @@ async function runReview() {
     result = await reviewGame(parsed, Review.side, {
       nodes: budget.nodes,
       depth,
+      judge: reviewJudge(judgeName),
       onProgress: (done, total, phase) => {
         $('reviewFill').style.width = `${Math.round((done / total) * 100)}%`;
         status.textContent = phase === 'tactics'
           ? `Checking what was on offer… ${done} of ${total}`
-          : `Walking the game… ${done} of ${total} positions`;
+          : `Walking the game${by}… ${done} of ${total} positions`;
       },
     });
   } catch (e) {
@@ -541,6 +657,9 @@ async function runReview() {
     tactics: result.tactics.length,
     meanLoss: result.meanLoss,
     depth,
+    // WHO JUDGED IT. A stronger judge finds more wrong with the same game, so
+    // this figure can only be set beside others judged the same way.
+    judge: judgeName,
     // WHAT BUDGET THIS FIGURE CAME OUT OF, stored because the estimate is
     // calibrated against it. A game reviewed before the reviewer counted
     // positions has no `nodes` and was measured under a clock — which means
@@ -559,7 +678,7 @@ async function runReview() {
     curve: result.whiteCp,
     marks: marksOf(result.judged),
     counted: result.counted,
-    estimate: result.meanLoss === null ? null : estimateRating(result.meanLoss, depth),
+    estimate: result.meanLoss === null ? null : estimateRating(result.meanLoss, depth, judgeName),
   });
   await Store.set('reviews', App.reviews);
   // The book is built from stored games, and one was just stored.
@@ -626,7 +745,8 @@ function renderCurve(box) {
 
   const panel = el('div', 'panel');
   panel.appendChild(el('h3', null, 'How the game went'));
-  panel.appendChild(el('p', 'note', `Your chance of winning after every move, yours and theirs. Above the middle line you were better. This is the engine's own figure turned into a chance, not a prediction about you.`));
+  const curveJudge = judgeNamed(Review.result?.judge).name;
+  panel.appendChild(el('p', 'note', `Your chance of winning after every move, yours and theirs. Above the middle line you were better. This is ${curveJudge === 'app' ? "the engine's" : `${judgeWords(curveJudge)}'s`} own figure turned into a chance, not a prediction about you.`));
 
   const NS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(NS, 'svg');
@@ -695,6 +815,34 @@ function renderCurve(box) {
   box.appendChild(panel);
 }
 
+/** The review settings by name, as the depth choice words them. */
+const SETTING_NAMES = { 7: 'Quick', 9: 'Normal', 12: 'Deep' };
+
+/**
+ * Why an estimate stops at its ceiling, and what reaches further, read from
+ * the calibration. Each judge's scale stops at its own level, and a slower
+ * setting reaches further for one judge and not for another, so a sentence
+ * written once for one of them would be wrong about the rest.
+ */
+function ceilingWords(est, judgeName, depth) {
+  const ceilingOf = (name, d) => (name === 'app' ? RATING_FIT : RATING_FIT?.judges?.[name])?.ceilings?.[String(d)] ?? null;
+  const others = Object.keys(JUDGES).filter((n) => n !== judgeName && ceilingOf(n, depth) > est.ceiling)
+    .map((n) => `${judgeWords(n)} (to ${ceilingOf(n, depth)})`);
+  const slower = Object.keys(REVIEW_BUDGET).map(Number).filter((d) => d > depth && ceilingOf(judgeName, d) > est.ceiling)
+    .map((d) => `${SETTING_NAMES[d] ?? d} to ${ceilingOf(judgeName, d)}`);
+  const further = [
+    others.length ? `${listOf(others)} ${others.length === 1 ? 'reaches' : 'reach'} further at this setting.` : '',
+    slower.length === 1 ? `With ${judgeWords(judgeName)}, the ${slower[0].replace(' to ', ' setting reaches ')}.` : '',
+    slower.length > 1 ? `With ${judgeWords(judgeName)}, slower settings reach further: ${listOf(slower)}.` : '',
+  ].filter(Boolean).map((s) => s[0].toUpperCase() + s.slice(1));
+  // At the top of the ladder the scale did not stop separating: it ran out.
+  const top = RATING_FIT?.bands?.[RATING_FIT.bands.length - 1];
+  const why = Number.isFinite(top) && est.ceiling >= top
+    ? `${est.ceiling} is the strongest level the calibration played, so there is nothing higher on the scale to set this game against.`
+    : `When ${judgeWords(judgeName)} was calibrated at this setting, the levels above ${est.ceiling} did not measure clearly better than ${est.ceiling} itself, so it cannot tell them apart and a figure up there would be invented.`;
+  return [why, ...further].join(' ');
+}
+
 function renderReviewResult() {
   const { mistakes, accuracy, judged, capped } = Review.result;
   const box = $('reviewOut');
@@ -704,21 +852,24 @@ function renderReviewResult() {
 
   const summary = el('div', 'panel');
   const blunders = mistakes.filter((m) => m.severity === 'blunder').length;
+  const judgeName = judgeNamed(Review.result.judge).name;
+  const budgetNodes = Review.result.nodes ?? REVIEW_BUDGET[Review.result.depth]?.nodes;
   summary.innerHTML = `<h3>${esc(h.White ?? '?')} vs ${esc(h.Black ?? '?')}</h3>
-    <p class="note">You played ${esc(Review.side)}. ${Math.ceil(Review.parsed.plies.length / 2)} moves, ${Review.result.counted} of your moves judged.</p>
+    <p class="note">You played ${esc(Review.side)}. ${Math.ceil(Review.parsed.plies.length / 2)} moves, ${Review.result.counted} of your moves judged by ${esc(judgeWords(judgeName))}${Number.isFinite(budgetNodes) ? `, looking at ${budgetNodes.toLocaleString('en-GB')} positions a move` : ''}.</p>
     <div class="readout">
       <div><span class="k">Accuracy</span><span class="v">${accuracy === null ? '—' : `${accuracy}%`}</span></div>
       <div><span class="k">Mistakes found</span><span class="v">${mistakes.length}</span></div>
     </div>
     <p class="note">${blunders} of them ${blunders === 1 ? 'was' : 'were'} a blunder. ${accuracy === null
       ? `No accuracy: only ${Review.result.counted} of your moves were judged and ${Review.result.minJudged} are needed before an average means anything.`
-      : `Accuracy here is your average loss per move, turned into a percentage. It is this engine's own
-    figure and will not match the one Chess.com or Lichess shows you.`}</p>`;
+      : `Accuracy here is your average loss per move, turned into a percentage. It is ${esc(judgeWords(judgeName))}'s
+    figure — a stronger judge finds more and scores the same game lower — and will not match the one Chess.com or
+    Lichess shows you.`}</p>`;
   box.appendChild(summary);
 
   // The estimate, with what it is and is not, every time. A number on its
   // own would be read as a rating; it is a comparison with the app's ladder.
-  const est = Review.result.meanLoss === null ? null : estimateRating(Review.result.meanLoss, Review.result.depth);
+  const est = Review.result.meanLoss === null ? null : estimateRating(Review.result.meanLoss, Review.result.depth, judgeName);
   if (est) {
     const panel = el('div', 'panel');
     panel.innerHTML = `<h3>How strong this game looked</h3>
@@ -727,20 +878,22 @@ function renderReviewResult() {
         <div><span class="k">Played like level</span><span class="v">${est.ceilingHit ? `${est.ceiling}+` : esc(est.band)}</span></div>
       </div>
       ${est.floorHit && Number.isFinite(est.floorLoss) ? `<p class="note"><strong>Why not a number:</strong> the weakest opponent this app has measured loses about ${(est.floorLoss / 100).toFixed(2)} points a move at this setting, and this game lost ${(Review.result.meanLoss / 100).toFixed(2)}. There is nothing below that on the scale — no weaker level has been measured — so this is where the measurement stops, not a statement about how strong you are. The figure gets useful as your loss per move comes down towards ${(est.floorLoss / 100).toFixed(2)}.</p>` : ''}
-      ${est.ceilingHit ? `<p class="note"><strong>Why not a number:</strong> above ${est.ceiling} this app's own opponents all look the same to its reviewer — they play the moves it would play, and lose next to nothing — so the measurement cannot separate them, and a figure up there would be invented. Use a slower review setting for a little more range.</p>` : ''}
-      <p class="note">From your average loss per move (${(Review.result.meanLoss / 100).toFixed(2)} points), compared with games this app's own opponents played against each other. <strong>A comparison with this app's levels, not a rating.</strong></p>
-      <details class="more"><summary>About this estimate</summary><p class="note">The level numbers are targets rather than measured strengths, so read this as "which level you played like today", not as your Chess.com or Lichess figure. The level named is one the calibration actually played — it was measured at ${est.step}-point steps, so the nearest level to play is ${esc(est.play.label)}. Measured ${esc(est.measured)}.</p></details>`;
+      ${est.ceilingHit ? `<p class="note"><strong>Why not a number:</strong> ${esc(ceilingWords(est, judgeName, Review.result.depth))}</p>` : ''}
+      <p class="note">From your average loss per move (${(Review.result.meanLoss / 100).toFixed(2)} points), compared with games this app's own opponents played against each other, judged by ${esc(judgeWords(judgeName))} the same way. <strong>A comparison with this app's levels, not a rating.</strong></p>
+      <details class="more"><summary>About this estimate</summary><p class="note">The level numbers are targets rather than measured strengths, so read this as "which level you played like today", not as your Chess.com or Lichess figure. The level named is one the calibration actually played — it was measured at ${est.step}-point steps, so the nearest level to play is ${esc(est.play.label)}. ${Number.isFinite(est.r2) ? `The calibration games scatter around the line fitted through them: at this setting the line accounts for about ${Math.round(est.r2 * 100)}% of the spread in what they lost, ${est.r2 >= 0.7 ? 'a fair fit' : 'a loose fit, so read the figure as rougher still'}. ` : ''}Measured ${esc(est.measured)}, judged by ${esc(judgeWords(judgeName))}.</p></details>`;
     box.appendChild(panel);
   } else if (Review.result.meanLoss === null) {
     box.appendChild(el('p', 'note', `No strength estimate: too few of your moves to estimate from (${Review.result.counted} judged, ${Review.result.minJudged} needed).`));
   } else {
-    box.appendChild(el('p', 'note', 'No strength estimate: the calibration for this setting has not been made, and a figure without one would be a guess with a number on it.'));
+    box.appendChild(el('p', 'note', judgeName !== 'app' && !RATING_FIT?.judges?.[judgeName]
+      ? `No strength estimate: ${judgeWords(judgeName)} has not been calibrated as a judge, and a figure measured against another judge's scale would be wrong.`
+      : 'No strength estimate: the calibration for this setting has not been made, and a figure without one would be a guess with a number on it.'));
   }
 
   // Beside the ladder's answer, the one built out of your own rated games.
   const yours = Review.result.meanLoss === null
     ? null
-    : renderPersonalEstimate(Review.result.meanLoss, { heading: 'What your own games say' });
+    : renderPersonalEstimate(Review.result.meanLoss, { heading: 'What your own games say', judge: judgeName });
   if (yours) box.appendChild(yours);
 
   // COUNTED AND STATED, never dropped quietly. A mate moment is capped at one
@@ -807,7 +960,7 @@ function renderReviewResult() {
     const cost = m.loss === null ? m.label : `lost ${(m.loss / 100).toFixed(1)} points`;
     row.innerHTML = `<span class="mistake-move">${esc(moveLabel(m))}</span>
       <span class="mistake-sev">${esc(m.severity)}</span>
-      <span class="mistake-note">${esc(cost)}${m.best ? ` · the engine wanted ${esc(m.best.san)}` : ''}</span>
+      <span class="mistake-note">${esc(cost)}${m.best ? ` · ${judgeNamed(Review.result?.judge).name === 'app' ? 'the engine' : esc(judgeWords(Review.result.judge))} wanted ${esc(m.best.san)}` : ''}</span>
       ${m.reason ? `<span class="mistake-why">${esc(m.reason)}</span>` : ''}`;
     row.addEventListener('click', () => showMistake(m));
     panel.appendChild(row);
@@ -867,6 +1020,8 @@ function openStoredReview(game) {
     accuracy: game.accuracy ?? null,
     meanLoss: game.meanLoss ?? null,
     depth: game.depth ?? 9,
+    nodes: Number.isFinite(game.nodes) ? game.nodes : null,
+    judge: judgeOf(game),
     counted: game.counted ?? judged.filter((j) => j.mine).length,
     minJudged: MIN_JUDGED,
     judged,
@@ -911,20 +1066,70 @@ function fillBestMove(j, depth) {
   }
 }
 
+/**
+ * The same, from the judge that judged the game, when that was Stockfish or
+ * Reckless — asked in the background, because it is a worker, with the moves
+ * that led there. Nothing is downloaded for it: a game judged by Reckless on a
+ * device that no longer has Reckless says the engine wanted something else,
+ * rather than starting a 44 MB download because a move was tapped.
+ */
+async function fillBestMoveFrom(name, j) {
+  if (j.best || j.noBest || j.asking) return false;
+  j.asking = true;
+  try {
+    const at = new Board(j.fen);
+    if (at.outcome()) { j.noBest = true; return false; }
+    if (name === 'reckless' && !Reckless.worker && (await recklessStatus().catch(() => ({}))).state !== 'ready') {
+      j.noBest = true;
+      return false;
+    }
+    const start = new Board(Review.parsed.startFen ?? undefined).fen();
+    const moves = Review.parsed.plies.slice(0, j.ply - 1).map((p) => p.uci);
+    const nodes = Review.result.nodes ?? (REVIEW_BUDGET[Review.result.depth] ?? REVIEW_BUDGET[9]).nodes;
+    const a = await judgeNamed(name).analyse(start, { nodes, multipv: 1, moves });
+    const move = moveFromUci(at, a?.best);
+    if (!move) { j.noBest = true; return false; }
+    j.best = { uci: a.best, san: toSan(new Board(j.fen), move) };
+    return true;
+  } catch {
+    j.noBest = true;
+    return false;
+  } finally {
+    j.asking = false;
+  }
+}
+
 function describeJudged(j) {
   const who = j.mine ? 'You' : 'They';
+  // Named when it was not this app's engine: "Stockfish wanted Nf3" is a
+  // different claim from "the engine wanted Nf3", and the reader should know
+  // which one is being made.
+  const name = judgeNamed(Review.result?.judge).name;
+  const judge = name === 'app' ? 'the engine' : judgeWords(name);
+  const Judge = judge.replace(/^./, (c) => c.toUpperCase());
   if (j.mates) return `${moveLabel(j)} — checkmate.`;
-  if (j.cls === 'best') return `${moveLabel(j)} — the engine's own move.`;
-  if (j.kind !== 'material') return `${moveLabel(j)} — ${j.label} The engine wanted ${j.best?.san ?? 'something else'}.`;
-  if (j.cls === 'good') return `${moveLabel(j)} — fine. ${who} lost ${(j.loss / 100).toFixed(2)} points against ${j.best?.san ?? 'the engine’s move'}.`;
-  return `${moveLabel(j)} — ${j.cls}: lost ${(j.loss / 100).toFixed(1)} points. The engine wanted ${j.best?.san ?? 'something else'}.`;
+  if (j.cls === 'best') return `${moveLabel(j)} — ${judge}'s own move.`;
+  if (j.kind !== 'material') return `${moveLabel(j)} — ${j.label} ${Judge} wanted ${j.best?.san ?? 'something else'}.`;
+  if (j.cls === 'good') return `${moveLabel(j)} — fine. ${who} lost ${(j.loss / 100).toFixed(2)} points against ${j.best?.san ?? `${judge}'s move`}.`;
+  return `${moveLabel(j)} — ${j.cls}: lost ${(j.loss / 100).toFixed(1)} points. ${Judge} wanted ${j.best?.san ?? 'something else'}.`;
 }
 
 function showJudged(j) {
   // A reopened game has no engine move stored for this position; it is worked
   // out now, before anything is drawn, so the arrow and the sentence under the
   // board agree with each other.
-  if (Review.result?.stored) fillBestMove(j, Review.result.depth);
+  if (Review.result?.stored) {
+    const name = judgeNamed(Review.result.judge).name;
+    if (name === 'app') fillBestMove(j, Review.result.depth);
+    else {
+      // Drawn now without it, and again when the judge answers — if this move
+      // is still the one on the board by then.
+      fillBestMoveFrom(name, j).then((found) => {
+        if (found && Review.shown === j) showJudged(j);
+      });
+    }
+  }
+  Review.shown = j;
   $('reviewBoardWrap').hidden = false;
   Review.view.orientation = Review.side === 'white' ? WHITE : BLACK;
   Review.view.interactive = false;
@@ -1226,7 +1431,7 @@ const PROGRESS_MEASURES = {
     value: (game) => (Number.isFinite(game.accuracy) ? game.accuracy : null),
     format: (v) => `${Math.round(v)}%`,
     noun: 'an accuracy',
-    caveat: 'Both halves are your own games at whatever setting you reviewed them with, so a change of setting shows up here as a change in you.',
+    caveat: 'Both halves are your own games at whatever setting and by whichever judge you reviewed them with, so a change of either shows up here as a change in you.',
   },
   mistakes: {
     label: 'Mistakes a game',
@@ -1235,7 +1440,7 @@ const PROGRESS_MEASURES = {
     value: (game) => (game.mistakes ?? []).length,
     format: (v) => v.toFixed(1),
     noun: 'a mistake count',
-    caveat: 'Both halves are your own games at whatever setting you reviewed them with, so a change of setting shows up here as a change in you.',
+    caveat: 'Both halves are your own games at whatever setting and by whichever judge you reviewed them with, so a change of either shows up here as a change in you.',
   },
   estimate: {
     label: 'Strength estimate',
@@ -1244,7 +1449,7 @@ const PROGRESS_MEASURES = {
     value: (game) => (Number.isFinite(game.estimate?.elo) ? game.estimate.elo : null),
     format: (v) => String(Math.round(v)),
     noun: 'a strength estimate',
-    caveat: 'Both halves are your own games at whatever setting you reviewed them with, so a change of setting shows up here as a change in you.',
+    caveat: 'Both halves are your own games at whatever setting and by whichever judge you reviewed them with, so a change of either shows up here as a change in you.',
   },
   // THE ONLY LINE ON THIS SCREEN THAT IS NOT THIS APP'S OPINION. Everything
   // else here is something the engine worked out about your moves; this is the
@@ -1328,8 +1533,11 @@ function rollingSpread(values, window) {
  *
  * Returns null when there is nothing to show at all.
  */
-function renderPersonalEstimate(meanLoss, { heading = 'What your own games say', from } = {}) {
-  const games = from ?? App.reviews.games;
+function renderPersonalEstimate(meanLoss, { heading = 'What your own games say', from, judge = 'app' } = {}) {
+  // ONLY GAMES JUDGED THE SAME WAY. A loss per move measured by Stockfish is
+  // not the same quantity as one measured by this app's engine — the stronger
+  // judge finds more in every game — so neighbours are drawn from one judge.
+  const games = (from ?? App.reviews.games).filter((g) => judgeOf(g) === judge);
   const near = ratingNear(meanLoss, games);
   if (!near) return null;
 
@@ -1338,7 +1546,7 @@ function renderPersonalEstimate(meanLoss, { heading = 'What your own games say',
 
   if (near.short) {
     panel.appendChild(el('p', 'note',
-      `Not yet. This compares a game with your own rated games, and needs ${near.need} that have both a Chess.com rating and a review — there ${near.have === 1 ? 'is' : 'are'} ${near.have}. Import your games, then walk some of them, and this fills in with the one number on this screen that is not this app's opinion.`));
+      `Not yet. This compares a game with your own rated games judged the same way, and needs ${near.need} that have both a Chess.com rating and a review by ${judgeWords(judge)} — there ${near.have === 1 ? 'is' : 'are'} ${near.have}. Import your games, then walk some of them with the same judge, and this fills in with the one number on this screen that is not this app's opinion.`));
     return panel;
   }
 
@@ -1756,6 +1964,15 @@ function renderProgress() {
       <div><span class="k">Mistakes a game</span><span class="v">${perGame}</span></div>
       <div><span class="k">Mean accuracy</span><span class="v">${accuracy === null ? '—' : `${accuracy}%`}</span></div>
     </div>${scored.length < games.length ? `<p class="note">${games.length - scored.length} of these ${games.length - scored.length === 1 ? 'was' : 'were'} too short to score and ${games.length - scored.length === 1 ? 'is' : 'are'} left out of the mean.</p>` : ''}`;
+  // MORE THAN ONE JUDGE IN THE SET is said, not averaged over quietly. A
+  // stronger judge finds more wrong with the same game, so these figures move
+  // when the judge changes whether the player did or not.
+  const judgeCounts = {};
+  for (const g of games) judgeCounts[judgeOf(g)] = (judgeCounts[judgeOf(g)] ?? 0) + 1;
+  if (Object.keys(judgeCounts).length > 1) {
+    const parts = Object.entries(judgeCounts).sort((a, b) => b[1] - a[1]).map(([name, n]) => `${n} by ${judgeWords(name)}`);
+    summary.appendChild(el('p', 'note', `These games were judged by more than one judge — ${listOf(parts)}. A stronger judge finds more in the same game, so accuracy and mistakes change with the judge as well as with you. Analyse your games, on Review, judges them all again with the one you pick.`));
+  }
   box.appendChild(summary);
   // A measure can ask for a different set of games than the reviewed ones —
   // your rating moved on every game you played, not only the walked ones.
@@ -1765,10 +1982,13 @@ function renderProgress() {
   // What your own rated games say, using the loss per move of your recent
   // ones. Above the ladder's panel, because it is the better answer of the
   // two when there is enough to give it.
-  const losses = games.map((g) => g.meanLoss).filter(Number.isFinite).slice(-8);
+  // From ONE judge's games: the judge of the most recent review, which is
+  // the one in use. Losses measured by two judges are not one quantity.
+  const latestJudge = judgeOf(games[games.length - 1]);
+  const losses = games.filter((g) => judgeOf(g) === latestJudge).map((g) => g.meanLoss).filter(Number.isFinite).slice(-8);
   if (losses.length) {
     const recent = [...losses].sort((a, b) => a - b)[Math.floor(losses.length / 2)];
-    const yours = renderPersonalEstimate(recent, { heading: 'What your own rating says', from: pool });
+    const yours = renderPersonalEstimate(recent, { heading: 'What your own rating says', from: pool, judge: latestJudge });
     if (yours) box.appendChild(yours);
   }
 
@@ -1922,7 +2142,7 @@ function renderProgress() {
     row.type = 'button';
     const when = new Date(g.at).toLocaleDateString();
     row.innerHTML = `<span class="record-band">${esc(g.white)} vs ${esc(g.black)}</span>
-      <span class="record-score">${esc(when)} · ${(g.mistakes ?? []).length} found · ${Number.isFinite(g.accuracy) ? `${g.accuracy}%` : 'too short to score'}${estimateWords(g.estimate, { short: true }) ? ` · looked like ${estimateWords(g.estimate, { short: true })}` : ''}</span>`;
+      <span class="record-score">${esc(when)} · ${(g.mistakes ?? []).length} found · ${Number.isFinite(g.accuracy) ? `${g.accuracy}%` : 'too short to score'}${estimateWords(g.estimate, { short: true }) ? ` · looked like ${estimateWords(g.estimate, { short: true })}` : ''}${judgeOf(g) !== 'app' ? ` · judged by ${esc(judgeWords(judgeOf(g)))}` : ''}</span>`;
     row.addEventListener('click', () => openStoredReview(g));
     list.appendChild(row);
   }

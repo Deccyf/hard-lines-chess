@@ -156,7 +156,7 @@ function renderImport() {
   const waiting = walkWaiting();
   if (waiting) walkNote(waiting);
   else if ((App.reviews?.games ?? []).some((g) => g.pgn)) {
-    walkNote('Every game has been analysed, and every one of them under a fixed amount of work — so the figures on Progress all rest on the same measurement.', 'note good-note');
+    walkNote(`Every game has been analysed by ${judgeWords(walkJudgeName())}, and every one of them under a fixed amount of work — so the figures on Progress all rest on the same measurement.`, 'note good-note');
   } else {
     walkNote('');
   }
@@ -184,11 +184,16 @@ function renderImport() {
 
 const Walk = { running: false, cancelled: false, done: 0, total: 0, failed: 0, drills: 0 };
 
+/** The judge the walk uses: the one picked, remembered between visits. */
+function walkJudgeName() {
+  return judgeNamed(App.prefs?.judge).name;
+}
+
 /** The imported games with no review behind them, oldest first. */
 /**
  * The games the walk has work to do on, split by the reason.
  *
- * TWO REASONS, AND THEY ARE NOT THE SAME THING.
+ * THREE REASONS, AND THEY ARE NOT THE SAME THING.
  *
  *   fresh — imported and never analysed. The walk's original job.
  *
@@ -201,21 +206,31 @@ const Walk = { running: false, cancelled: false, done: 0, total: 0, failed: 0, d
  *           quietly averaged the two would be presenting the machine's
  *           variation as the player's.
  *
- * A game measured under a work budget is LEFT ALONE whatever setting it used,
- * because that measurement is repeatable: running it again returns the same
- * answer, so there is nothing to gain. Redoing it at a deeper setting is a
- * different decision from this one, and not one to make on somebody's behalf.
+ *   other — measured properly, but by a different judge from the one picked.
+ *           A stronger judge finds more wrong with the same game, so a history
+ *           judged half by this app's engine and half by Stockfish charts the
+ *           change of judge as a change in the player. Judging them again puts
+ *           them all on one judge.
+ *
+ * A game measured under a work budget BY THE PICKED JUDGE is left alone
+ * whatever setting it used, because that measurement is repeatable: running it
+ * again returns the same answer, so there is nothing to gain. Redoing it at a
+ * deeper setting is a different decision from this one, and not one to make on
+ * somebody's behalf.
  */
-function walkQueue() {
-  const fresh = [], stale = [];
+function walkQueue(judge = walkJudgeName()) {
+  const fresh = [], stale = [], other = [];
   for (const game of App.reviews?.games ?? []) {
     if (!game.pgn) continue;
     if (game.reviewed === false) { fresh.push(game); continue; }
+    if (game.walkFailed) continue;
     // Measured, with no record of how much work did the measuring.
-    if (Number.isFinite(game.meanLoss) && !Number.isFinite(game.nodes)) stale.push(game);
+    if (Number.isFinite(game.meanLoss) && !Number.isFinite(game.nodes)) { stale.push(game); continue; }
+    // Reviewed — by the walk or on its own — and by somebody else.
+    if (judgeOf(game) !== judge) other.push(game);
   }
   const oldestFirst = (a, b) => (a.at ?? 0) - (b.at ?? 0);
-  return { fresh: fresh.sort(oldestFirst), stale: stale.sort(oldestFirst) };
+  return { fresh: fresh.sort(oldestFirst), stale: stale.sort(oldestFirst), other: other.sort(oldestFirst) };
 }
 
 /**
@@ -226,21 +241,32 @@ function walkQueue() {
  * ones that already have some.
  */
 function unwalkedGames() {
-  const { fresh, stale } = walkQueue();
-  return [...fresh, ...stale];
+  const { fresh, stale, other } = walkQueue();
+  return [...fresh, ...stale, ...other];
 }
 
 /** What is waiting, in a sentence, or null when there is nothing to do. */
 function walkWaiting() {
-  const { fresh, stale } = walkQueue();
-  if (!fresh.length && !stale.length) return null;
+  const judge = walkJudgeName();
+  const { fresh, stale, other } = walkQueue(judge);
+  if (!fresh.length && !stale.length && !other.length) return null;
   const parts = [];
   if (fresh.length) parts.push(`${fresh.length} ${fresh.length === 1 ? 'game has' : 'games have'} not been analysed`);
   if (stale.length) {
     parts.push(`${stale.length} ${stale.length === 1 ? 'was' : 'were'} analysed before the reviewer counted positions`
       + ` instead of seconds, so ${stale.length === 1 ? 'its figures depend' : 'their figures depend'} on the device and the moment they were measured on`);
   }
-  return `${parts.join(', and ')}.`;
+  if (other.length) {
+    const by = [...new Set(other.map(judgeOf))].map(judgeWords);
+    parts.push(`${other.length} ${other.length === 1 ? 'was' : 'were'} judged by ${listOf(by)}, and will be judged again by ${judgeWords(judge)}`
+      + ' so that every figure on Progress comes from one judge');
+  }
+  return `${parts.join(', and ')}.`.replace(/^./, (c) => c.toUpperCase());
+}
+
+/** "a", "a and b", "a, b and c". */
+function listOf(xs) {
+  return xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
 }
 
 function walkNote(text, kind = 'note') {
@@ -262,6 +288,19 @@ async function walkImported() {
   Walk.done = 0; Walk.failed = 0; Walk.drills = 0; Walk.total = queue.length;
   $('walkRun').hidden = true;
   $('walkStop').hidden = false;
+
+  // The judge first: Stockfish has to be started, and Reckless may be a
+  // download, which fills the walk's own bar while it arrives.
+  const judgeName = walkJudgeName();
+  const ready = await readyJudge(judgeName, { say: walkNote, bar: $('walkBar') });
+  if (!ready || Walk.cancelled) {
+    Walk.running = false;
+    $('walkRun').hidden = false;
+    $('walkStop').hidden = true;
+    $('walkBar').hidden = true;
+    return;
+  }
+  $('walkFill').style.width = '0%';
   $('walkBar').hidden = false;
 
   const depth = Number($('walkDepth').value) || 7;
@@ -269,7 +308,9 @@ async function walkImported() {
 
   for (const game of queue) {
     if (Walk.cancelled) break;
-    walkNote(`${Number.isFinite(game.meanLoss) ? 'Re-measuring' : 'Walking'} ${Walk.done + 1} of ${Walk.total}`
+    const doing = !Number.isFinite(game.meanLoss) ? 'Walking'
+      : judgeOf(game) !== judgeName && Number.isFinite(game.nodes) ? 'Re-judging' : 'Re-measuring';
+    walkNote(`${doing} ${Walk.done + 1} of ${Walk.total}${judgeName === 'app' ? '' : ` with ${judgeWords(judgeName)}`}`
       + ` — ${game.white} vs ${game.black}…`);
     try {
       const parsed = parsePgn(game.pgn);
@@ -277,6 +318,7 @@ async function walkImported() {
       const result = await reviewGame(parsed, game.side, {
         nodes: budget.nodes,
         depth,
+        judge: reviewJudge(judgeName),
         onProgress: (at, of) => {
           $('walkFill').style.width = `${Math.round(((Walk.done + at / of) / Walk.total) * 100)}%`;
         },
@@ -290,7 +332,16 @@ async function walkImported() {
       game.tactics = result.tactics.length;
       game.depth = depth;
       game.nodes = budget.nodes;
-      game.estimate = result.meanLoss === null ? null : estimateRating(result.meanLoss, depth);
+      game.judge = judgeName;
+      // What the review saw, kept so the game reopens without walking it again
+      // — the same two things a single review keeps.
+      game.curve = result.whiteCp;
+      game.marks = marksOf(result.judged);
+      game.counted = result.counted;
+      // Only where the import did not record it: the clocks are lined up
+      // against the game's own count, which may be longer than what parsed.
+      if (!Number.isFinite(game.plies)) game.plies = parsed.plies.length;
+      game.estimate = result.meanLoss === null ? null : estimateRating(result.meanLoss, depth, judgeName);
       // AND THE MISTAKES BECOME DRILLS, which is the whole point of walking
       // them. This did not happen: addMistakesToDrills had exactly one caller,
       // a button on the single-game review screen, so importing and walking
@@ -328,7 +379,7 @@ async function walkImported() {
   refreshBook();
 
   const left = unwalkedGames().length;
-  walkNote(`${Walk.done} reviewed${Walk.failed ? `, ${Walk.failed} of them would not read` : ''}.`
+  walkNote(`${Walk.done} reviewed${judgeName === 'app' ? '' : ` by ${judgeWords(judgeName)}`}${Walk.failed ? `, ${Walk.failed} of them would not read` : ''}.`
     + (Walk.drills ? ` ${Walk.drills} new ${Walk.drills === 1 ? 'position' : 'positions'} added to your drills.` : '')
     + (left ? ` ${left} still to go — press it again to carry on.`
             : ' Every game now rests on the same measurement.'),

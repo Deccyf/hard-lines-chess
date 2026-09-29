@@ -234,6 +234,32 @@ that. `tests/reckless.test.mjs` checks the vendored pieces and runs the engine
 in node; `tests/reckless-watch.cjs` cuts a download off halfway, carries it on,
 publishes a new version of the app under it, takes it offline and plays.
 
+## Who judges a review
+
+A game can be judged by this app's own engine, by Stockfish, or by Reckless —
+picked beside the depth setting, on Review and on the walk, and remembered.
+`reviewGame()` asks each the same two questions — what is this position worth
+and what would you play; and, where a tactic is claimed, how far apart are the
+best two moves — and treats the answers identically, so reviews by two judges
+differ only in how right the answers are. `tests/judge.test.mjs` holds that to
+account: a stand-in judge answering in UCI from this app's own engine must
+produce a review identical to the engine's direct one, to the centipawn.
+
+**A stronger judge finds more.** The same game scores a lower accuracy under
+Stockfish than under this app's engine, so the judge is stored with every
+game, Progress says when the games in view were judged by more than one, the
+comparison with your own rated games only ever uses games judged the same way,
+and the walk offers to judge again any game judged by someone else. Each judge
+has its own strength-estimate calibration, measured on the same games (see
+below): Stockfish's reaches level 1800 where this app's engine stops at 1200,
+and Reckless's reaches as far but fits more loosely. A judge without a
+calibration gives no estimate rather than another judge's.
+
+**The same rules otherwise.** A number of positions a move, never seconds; the
+engine cleared before every position; the game from its first move. A game
+judged twice by Stockfish is judged the same way twice. Reckless as a judge is
+the website's, as on Watch — downloaded the first time it is picked.
+
 ## Speed
 
 Everything the app knows about a game it reads back out of the game's own PGN,
@@ -275,12 +301,12 @@ over every one- and two-piece ending.
 
 ```
 npm install            # playwright, for the browser drivers
-npm test               # 20 node suites: perft, motifs, the move explainer, Reckless, traps,
+npm test               # 21 node suites: perft, motifs, the move explainer, Reckless, the judges, traps,
                        # mate cap, multi-line search, the solved table, endgame
                        # and opening prose, notation, clocks, evaluation
                        # symmetry, the fast paths against the long way round,
                        # repeatability, interface vocabulary
-npm run test:browser   # 47 Playwright drivers against dist/
+npm run test:browser   # 48 Playwright drivers against dist/
 npm run verify:openings
 ```
 
@@ -328,17 +354,36 @@ way.
 - **Level strength** is a target, not a rating. Self-play shows the ladder
   climbs (level 800 beat level 0 six of six; 1600 scored 5½/6 against 800) but
   neighbouring levels were not separated.
-- **The per-game strength estimate** is calibrated: eight levels played
-  themselves, every game reviewed at each of the three settings, log-linear fit
-  of mean centipawn loss against level. Above some level the reviewer cannot
-  tell levels apart, so the page says "or above" instead of a number. See
-  `tools/calibrate-rating.mjs`. That calibration is a handful of samples a level
-  — which is why the estimate from your own rated games sits beside it and is
-  the better answer whenever there is enough of your own history to give it.
-  The budgets it was measured under are written into
-  `tools/rating-calibration.json`, and `tests/repeatable.test.mjs` holds the
-  app's own review settings to them: a fit maps a loss onto a rating, and a
-  loss measured under a different amount of work is a different loss.
+- **The per-game strength estimate** is calibrated once for each judge: eight
+  levels played themselves, and every game was reviewed at each of the three
+  settings by this app's engine, by Stockfish and by Reckless (the same games
+  for all three), with a log-linear fit of mean centipawn loss against level
+  for each judge. Above some level a judge cannot tell levels apart, so the
+  page says "or above" instead of a number. That ceiling is the level whose
+  games lost least, or the level from which the losses sink under the noise,
+  whichever is lower, and never above what a slower setting reaches. See
+  `tools/calibrate-rating.mjs`. Measured:
+
+  | judge | ceiling: Quick / Normal / Deep | fit (R²): Quick / Normal / Deep |
+  |---|---|---|
+  | this app's engine | 1200 / 1200 / 1200 | 0.81 / 0.82 / 0.83 |
+  | Stockfish | 1800 / 1800 / 1800 | 0.76 / 0.75 / 0.76 |
+  | Reckless | 1500 / 1800 / 2100 | 0.53 / 0.60 / 0.54 |
+
+  Reckless counts smaller losses than Stockfish on the same games (39
+  centipawns a move against 55, on average, at Normal) and its losses barely
+  move between levels 600 and 1200, so its fit is the loosest of the three,
+  and the page says so. It puts the games in much the same order as Stockfish
+  does: rank correlation with level −0.86 against Stockfish's −0.88 at Normal.
+  The top of the ladder is thin for every judge: level 2100 plays the same
+  game every time and 1800 only two, so the ceilings up there rest on very few
+  games. The whole calibration is a handful of samples a level, which is why
+  the estimate from your own rated games sits beside it and is the better
+  answer whenever there is enough of your own history to give it. The budgets
+  it was measured under are written into `tools/rating-calibration.json`, and
+  `tests/repeatable.test.mjs` holds the app's own review settings to them: a
+  fit maps a loss onto a rating, and a loss measured under a different amount
+  of work is a different loss.
 - **Traps** are measured as shallow-search preference against deep-search
   truth. That finds material traps and not positional ones.
 - **Every counted claim in the openings prose** is checked on the board by

@@ -216,6 +216,21 @@ const MATE_EDGE = 29000;
 const CHECKMATE_SCORE = 30000;
 
 /**
+ * Another engine's score (UCI: from the side to move, centipawns or a mate
+ * count in moves) written the way this app's own engine writes one, so every
+ * rule below that reads a mate off the edge of the scale reads theirs too. A
+ * mate in N moves becomes a score N moves inside the edge.
+ */
+function scoreToApp(score) {
+  if (!score) return 0;
+  if (score.mate !== undefined) {
+    if (score.mate === 0) return -CHECKMATE_SCORE;
+    return score.mate > 0 ? CHECKMATE_SCORE - (2 * score.mate - 1) : -(CHECKMATE_SCORE - 2 * -score.mate);
+  }
+  return score.cp;
+}
+
+/**
  * What a finished position is worth to the side to move. The engine cannot
  * be asked — it answers "no legal moves" with a score of zero — and zero is
  * right for a draw and wrong by the whole scale for a checkmate. The side to
@@ -309,10 +324,41 @@ const TACTIC = {
   perGame: 6,         // and only the biggest few, so one rout is not a course
 };
 
-async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress = null, yieldEvery = 1, withTactics = true } = {}) {
-  const engine = new Engine();
+/**
+ * WHO JUDGES. By default this app's own engine, searched here and now. Or an
+ * engine in a worker — Stockfish, or Reckless — asked the same two questions
+ * the reviewer always asks: what is this position worth and what would you
+ * play, and, where a tactic is claimed, how far apart are the best two moves.
+ *
+ * `judge` is { name, analyse(fen, {nodes, multipv, moves}) } answering in the
+ * shape stockfishAnalyse() does, or null for this app's engine. Everything
+ * after the asking is the same whoever answered: the same thresholds, the same
+ * rules about mates, the same motifs read off the same kind of line — so a
+ * review by Stockfish differs from one by this app's engine only in how right
+ * its answers are.
+ *
+ * A JUDGE IN A WORKER IS TOLD THE GAME, the moves from the start rather than
+ * the position alone, as on the Watch screen: it is how it knows a position
+ * has been on the board before.
+ */
+async function askJudge(judge, startFen, moves, at, { nodes, lines = 1 }) {
+  const a = await judge.analyse(startFen, { nodes, multipv: lines, moves });
+  const toLine = (l) => {
+    const move = moveFromUci(at, l.move);
+    return move ? { move, score: scoreToApp(l.score), line: movesFromUci(at, l.pv) } : null;
+  };
+  const found = (a?.lines ?? []).map(toLine).filter(Boolean);
+  // The best move is the one the engine played, which heads its first line.
+  const top = found[0] ?? null;
+  return { move: top?.move ?? null, score: top?.score ?? 0, line: top?.line ?? [], lines: found, depth: a?.depth ?? 0, ranOutOfTime: false };
+}
+
+async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress = null, yieldEvery = 1, withTactics = true, judge = null } = {}) {
+  const engine = judge ? null : new Engine();
   const board = new Board(parsed.startFen ?? undefined);
+  const startFen = board.fen();
   const positions = [];
+  const ucis = [];
 
   // Every position the game passed through, in order, with the FEN and whose
   // turn it was — collected first so the search loop is a flat walk.
@@ -320,6 +366,7 @@ async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress =
   for (const ply of parsed.plies) {
     const move = sanToMove(board, ply.san);
     if (!move) break;
+    ucis.push(moveToUci(move));
     board.make(move);
     positions.push({ fen: board.fen(), turn: board.turn });
   }
@@ -346,9 +393,14 @@ async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress =
       // RESET BEFORE EVERY POSITION, which is half of what makes a review
       // repeatable: a table carried over from the previous position would make
       // this search's answer depend on which game it was reading and where in
-      // it, so the same position could be judged two ways.
-      engine.reset();
-      const result = engine.search(at, { nodes, maxDepth: depth });
+      // it, so the same position could be judged two ways. (A judge in a
+      // worker clears itself before every question for the same reason.)
+      let result;
+      if (judge) result = await askJudge(judge, startFen, ucis.slice(0, i), at, { nodes });
+      else {
+        engine.reset();
+        result = engine.search(at, { nodes, maxDepth: depth });
+      }
       if (result.ranOutOfTime) ranOutOfTime++;
       evals[i] = result.score;
       // The LINE is kept as well as the move: a motif is demonstrated by the
@@ -507,12 +559,17 @@ async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress =
     for (let n = 0; n < shortlist.length; n++) {
       const c = shortlist[n];
       const at = new Board(positions[c.i + 1].fen);
-      engine.reset();
       // A HARDER LOOK THAN THE WALK GOT: this decides whether a position
       // becomes a puzzle at all, and a shallow search calls two moves equal
       // that are not, or vice versa. Never less than the walk's own budget,
       // whichever setting is in use.
-      const check = engine.search(at, { nodes: Math.max(nodes, TACTIC_NODES), maxDepth: depth + 2, lines: 2 });
+      let check;
+      if (judge) {
+        check = await askJudge(judge, startFen, ucis.slice(0, c.i + 1), at, { nodes: Math.max(nodes, TACTIC_NODES), lines: 2 });
+      } else {
+        engine.reset();
+        check = engine.search(at, { nodes: Math.max(nodes, TACTIC_NODES), maxDepth: depth + 2, lines: 2 });
+      }
       if (check.ranOutOfTime) ranOutOfTime++;
 
       if (onProgress) onProgress(n + 1, shortlist.length, 'tactics');
@@ -573,7 +630,7 @@ async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress =
   // fewer than MIN_JUDGED of his moves to average over.
   const { accuracy, meanLoss } = accuracyFrom(lost, counted);
 
-  return { evals, mistakes, accuracy, counted, minJudged: MIN_JUDGED, judged, whiteCp, tactics, capped, tacticsPassed: passed, meanLoss, depth, nodes, ranOutOfTime };
+  return { evals, mistakes, accuracy, counted, minJudged: MIN_JUDGED, judged, whiteCp, tactics, capped, tacticsPassed: passed, meanLoss, depth, nodes, ranOutOfTime, judge: judge?.name ?? 'app' };
 }
 
 
@@ -598,9 +655,16 @@ function ply_san(parsed, i) {
 // calibrated against a ladder whose own numbers are aimed rather than
 // measured. What it can honestly claim is ordering and rough scale — "this
 // game looked like the 900 band" — and never "you are 900".
-function estimateRating(meanLoss, depth) {
-  if (typeof RATING_FIT === 'undefined' || !RATING_FIT?.fits) return null;
-  const fit = RATING_FIT.fits[String(depth)];
+function estimateRating(meanLoss, depth, judge = 'app') {
+  if (typeof RATING_FIT === 'undefined' || !RATING_FIT) return null;
+  // EACH JUDGE HAS ITS OWN SCALE. A stronger judge finds more wrong with the
+  // same game, so the same loss per move means a stronger player under
+  // Stockfish than under this app's engine — and a fit made with one judge
+  // says nothing about losses measured by another. A judge that has not been
+  // calibrated gets no estimate rather than somebody else's.
+  const source = !judge || judge === 'app' ? RATING_FIT : RATING_FIT.judges?.[judge];
+  if (!source?.fits) return null;
+  const fit = source.fits[String(depth)];
   if (!fit || meanLoss === null || meanLoss === undefined) return null;
   // ln(loss) = m*elo + c  →  elo = (ln(loss) - c) / m. A loss of zero is a
   // perfect game and has no logarithm; it is pinned at a small floor.
@@ -613,7 +677,7 @@ function estimateRating(meanLoss, depth) {
   const lowest = bands[0];
   // The ceiling is where the measurement stopped telling bands apart. Above
   // it the honest answer is "at least this", not a number.
-  const ceiling = RATING_FIT.ceilings?.[String(depth)] ?? bands[bands.length - 1];
+  const ceiling = source.ceilings?.[String(depth)] ?? bands[bands.length - 1];
   const floorHit = raw < lowest;
   const ceilingHit = raw >= ceiling;
   const elo = Math.round(Math.min(ceiling, Math.max(lowest, raw)) / 10) * 10;
@@ -631,11 +695,12 @@ function estimateRating(meanLoss, depth) {
     // the measured band is what was played like; this is what can be played.
     play: nearestPlayableBand(elo),
     r2: fit.r2,
-    measured: RATING_FIT.measured,
+    measured: source.measured ?? RATING_FIT.measured,
+    judge: !judge ? 'app' : judge,
     // What the weakest and strongest opponents in the calibration actually
     // lost per move at this setting, so a screen can explain its own limits
     // with the measurement rather than with an adjective.
-    floorLoss: RATING_FIT.losses?.[String(depth)]?.[String(bands[0])] ?? null,
+    floorLoss: source.losses?.[String(depth)]?.[String(bands[0])] ?? null,
   };
 }
 

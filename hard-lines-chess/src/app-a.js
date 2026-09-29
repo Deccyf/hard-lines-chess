@@ -58,6 +58,7 @@ const DEFAULT_PREFS = {
   animate: true,
   longPress: 1,          // highlight colour a long-press means, 1..4
   think: 'normal',       // fast | normal | deep — the practice board's budget
+  judge: 'app',          // app | stockfish | reckless — who judges a reviewed game
 };
 
 const THINK = {

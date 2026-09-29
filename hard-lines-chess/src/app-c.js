@@ -223,6 +223,19 @@ async function boot() {
 
   // Review
   $('reviewRun').addEventListener('click', runReview);
+  // ONE JUDGE, TWO PLACES TO PICK IT. The choice on Review and the choice on
+  // the walk are the same preference: a history reviewed one game at a time by
+  // one judge and walked by another would chart the change of judge as a
+  // change in the player.
+  for (const id of ['reviewJudge', 'walkJudge']) {
+    $(id).addEventListener('change', (e) => {
+      App.prefs.judge = judgeNamed(e.target.value).name;
+      savePrefs();
+      renderJudgeChoice();
+      renderImport();
+    });
+  }
+  renderJudgeChoice();
 
   // Drills
   $('drillStart').addEventListener('click', startDrill);
@@ -300,7 +313,7 @@ async function boot() {
   $('settingAnimate').addEventListener('change', (e) => { App.prefs.animate = e.target.checked; savePrefs(); });
   $('settingLongPress').addEventListener('change', (e) => { App.prefs.longPress = Number(e.target.value); savePrefs(); });
   $('settingThink').addEventListener('change', (e) => { App.prefs.think = e.target.value; savePrefs(); });
-  $('settingReset').addEventListener('click', () => { App.prefs = { ...DEFAULT_PREFS }; savePrefs(); renderSettings(); });
+  $('settingReset').addEventListener('click', () => { App.prefs = { ...DEFAULT_PREFS }; savePrefs(); renderSettings(); renderJudgeChoice(); renderImport(); });
 
   // Taking it with you. The button is hidden in exactly ONE case: the page is
   // already running from a saved file, where offering to save it again is

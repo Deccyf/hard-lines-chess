@@ -52,25 +52,8 @@ const EXPLAIN_LINE_PLIES = 8;
 const colourWord = (c) => (c === WHITE ? 'White' : 'Black');
 const pieceWord = (piece) => EXPLAIN_NAME[typeOf(piece)];
 
-/** A UCI string back to this board's move, or null if it is not legal here. */
-function moveFromUci(board, uci) {
-  if (!uci) return null;
-  return board.legalMoves().find((m) => moveToUci(m) === uci) ?? null;
-}
-
-/**
- * A Stockfish score (from the side to move) as the app's own engine would
- * write it, so plainEval() can put it into words. A mate in N moves becomes a
- * score N moves inside the mate edge, which is how plainEval counts back to N.
- */
-function scoreToApp(score) {
-  if (!score) return 0;
-  if (score.mate !== undefined) {
-    if (score.mate === 0) return -CHECKMATE_SCORE;
-    return score.mate > 0 ? CHECKMATE_SCORE - (2 * score.mate - 1) : -(CHECKMATE_SCORE - 2 * -score.mate);
-  }
-  return score.cp;
-}
+// moveFromUci() lives in notation.js and scoreToApp() in review.js: the
+// reviewer reads other engines' answers too, and loads without this file.
 
 /**
  * The value of a move to the side that played it, from the two analyses

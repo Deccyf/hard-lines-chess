@@ -325,8 +325,18 @@
             reviewed twice could come out up to 220 rating points apart. Re-measuring puts every game on Progress on
             the same footing. Games already measured by positions are left alone: running those again would return the
             same answer.</p>
+          <p class="note">It also re-judges any game judged by a different judge from the one picked here. A stronger
+            judge finds more wrong with the same game, so the accuracy of a game judged by Stockfish cannot be set beside
+            one judged by this app's engine; judging them all again puts Progress back on one judge.</p>
         </details>
         <div class="fields">
+          <label class="field"><span>Judge</span>
+            <select id="walkJudge" class="judge-select">
+              <option value="app">This app's engine</option>
+              <option value="stockfish">Stockfish</option>
+              <option value="reckless">Reckless</option>
+            </select>
+          </label>
           <label class="field"><span>Depth</span>
             <select id="walkDepth">
               <option value="7" selected>Quick — 25,000 positions a move</option>
@@ -335,6 +345,7 @@
             </select>
           </label>
         </div>
+        <p class="note judge-note" id="walkJudgeNote"></p>
         <div class="row" style="margin-top:10px">
           <button class="btn" id="walkRun" type="button">Analyse and re-measure</button>
           <button class="btn danger" id="walkStop" type="button" hidden>Stop</button>
@@ -371,6 +382,14 @@
           </select>
         </label>
         <label class="field">
+          <span>Judge</span>
+          <select id="reviewJudge" class="judge-select">
+            <option value="app">This app's engine</option>
+            <option value="stockfish">Stockfish</option>
+            <option value="reckless">Reckless</option>
+          </select>
+        </label>
+        <label class="field">
           <span>Depth</span>
           <select id="reviewDepth">
             <option value="7">Quick — 25,000 positions a move</option>
@@ -379,6 +398,7 @@
           </select>
         </label>
       </div>
+      <p class="note judge-note" id="reviewJudgeNote"></p>
 
       <div class="row">
         <button class="btn primary" id="reviewRun">Review game</button>
