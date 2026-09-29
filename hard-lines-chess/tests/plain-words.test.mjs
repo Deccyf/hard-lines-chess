@@ -46,7 +46,7 @@ const BANNED = [
 // Files whose strings reach a screen. openings.js, famous.js and
 // notation-lessons.js are chess prose about pieces and are exempt by name.
 const files = ['src/body.html', ...readdirSync(new URL('src/', root))
-  .filter((f) => /^(app-|review|import|deviation|motifs|traps|explain|stockfish-driver)/.test(f) && f.endsWith('.js'))
+  .filter((f) => /^(app-|review|import|deviation|motifs|traps|explain|stockfish-driver|reckless-)/.test(f) && f.endsWith('.js'))
   .map((f) => 'src/' + f)];
 
 /**

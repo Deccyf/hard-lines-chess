@@ -385,6 +385,30 @@ function significantMotif(motif, { prevLoss = null, recapture = false } = {}) {
   return kept.length ? { ...motif, themes: kept } : null;
 }
 
+/** A difference in centipawns, as the screens say one: "0.4 of a point", "1.5 points". */
+function pointsWords(cp) {
+  const x = (cp / 100).toFixed(1);
+  return cp < 100 ? `${x} of a point` : `${x} points`;
+}
+
+/**
+ * Why this move and not the next one, by the count of the engine that chose
+ * it: `gap` is how far behind its next best was. Stockfish's own words are
+ * the plain ones; another engine's say whose count it is.
+ */
+function alternativeSentence(name, secondSan, gap) {
+  const stockfish = name === 'Stockfish';
+  if (gap >= 150) {
+    return stockfish
+      ? `It is the only good move here: the next best, ${secondSan}, is ${(gap / 100).toFixed(1)} points worse.`
+      : `For ${name} it was the only good move: its next best, ${secondSan}, is ${(gap / 100).toFixed(1)} points worse.`;
+  }
+  if (gap <= 20) return stockfish ? `${secondSan} was just as good.` : `${name} rated ${secondSan} just as good.`;
+  return stockfish
+    ? `The next best was ${secondSan}, ${(gap / 100).toFixed(1)} of a point behind.`
+    : `${name}'s next best was ${secondSan}, ${(gap / 100).toFixed(1)} of a point behind.`;
+}
+
 /**
  * Everything worth saying about one move.
  *
@@ -399,6 +423,8 @@ function significantMotif(motif, { prevLoss = null, recapture = false } = {}) {
  * @param {?string} p.outcome    how the game stands after the move, from a board that knows the game's
  *                               history — a repetition, which a board made from the FEN alone cannot see
  * @param {boolean} p.isEngine   true when the mover IS Stockfish — its move is its choice by definition
+ * @param {?string} p.chooser    the name of another engine that chose the move (Reckless), or null
+ * @param {?object} p.own        that engine's own analysis of fenBefore — where its line comes from
  * @param {?Function} p.search   (board) -> {move, score}: a small search for a mate threat, or null to skip
  * @returns {{verdict: string, tone: string, sentences: string[], facts: object}}
  */
@@ -441,6 +467,16 @@ function explainMove(p) {
   const depth = a0?.depth ?? 0;
   const ahead = depth ? `looking about ${Math.max(1, Math.round(depth / 2))} moves ahead` : '';
 
+  // A MATE IS NOT A NUMBER OF POINTS. Scores carry mates as values pushed past
+  // anything a position can be worth, so the difference between a mate and a
+  // pawn up is a meaningless 990-odd "points". Where a mate is involved the
+  // verdict says what happened to it instead.
+  const MATE_VALUE = 90000;
+  const allowsMate = value !== null && value <= -MATE_VALUE && (bestValue === null || bestValue > -MATE_VALUE);
+  const missesMate = bestValue !== null && bestValue >= MATE_VALUE && (value === null || value < MATE_VALUE);
+  const bestMate = a0?.lines?.[0]?.score?.mate;
+  const slowerWin = missesMate && value !== null && value >= 300;
+
   const sentences = [];
   const out = { facts: { san, mover, loss, isBest, bestSan, depth, whiteNow, ...facts }, sentences };
 
@@ -454,16 +490,43 @@ function explainMove(p) {
     return out;
   }
 
-  // ── a move Stockfish would play, or did ──────────────────────────────────
-  if (isBest) {
-    out.tone = 'good-note';
-    out.verdict = p.isEngine
-      ? withEval(`Stockfish's choice${ahead ? `, ${ahead}` : ''}`)
-      : withEval(`Stockfish agrees${ahead ? `, ${ahead}` : ''}`);
+  // ── a move Stockfish would play, or did — or another engine chose ────────
+  //
+  // ANOTHER ENGINE'S MOVE IS EXPLAINED LIKE STOCKFISH'S OWN — what it does, what
+  // it threatens, the line it expects — from that engine's analysis, because
+  // its line is ITS reason. Stockfish's opinion of it is the verdict: two of
+  // the strongest engines there are, agreeing or not, and by how much. It is
+  // not called a mistake; at this budget each is right far more often than
+  // either can prove the other wrong, and the rest of the game says who was.
+  const chooser = p.chooser ?? null;
+  const reasoner = chooser ? { name: chooser, analysis: p.own ?? null } : { name: 'Stockfish', analysis: a0 };
+  if (isBest || chooser) {
+    if (!chooser) {
+      out.tone = 'good-note';
+      out.verdict = p.isEngine
+        ? withEval(`Stockfish's choice${ahead ? `, ${ahead}` : ''}`)
+        : withEval(`Stockfish agrees${ahead ? `, ${ahead}` : ''}`);
+    } else {
+      const ownDepth = p.own?.depth ?? 0;
+      const chosen = `${chooser}'s choice${ownDepth ? `, looking about ${Math.max(1, Math.round(ownDepth / 2))} moves ahead` : ''}`;
+      if (isBest) {
+        out.tone = 'good-note';
+        out.verdict = withEval(`${chosen}. Stockfish agrees`);
+      } else if (missesMate) {
+        out.tone = slowerWin ? 'note' : 'bad-note';
+        out.verdict = withEval(`${chosen}. Stockfish sees a forced mate instead: ${bestSan}, mating in ${bestMate}`);
+      } else if (allowsMate) {
+        out.tone = 'bad-note';
+        out.verdict = withEval(`${chosen}. Stockfish thinks it lets ${other} force mate, which ${bestSan} did not`);
+      } else {
+        out.tone = loss >= 150 ? 'bad-note' : 'note';
+        out.verdict = withEval(`${chosen}. Stockfish would have played ${bestSan}, ${pointsWords(loss)} better by its count`);
+      }
+    }
 
     // 1. WHAT IT DOES TO THE OTHER SIDE, when the board proves a motif — the
     //    previous move as the mistake, this one as the punishment.
-    const line = (a0?.lines?.find((l) => l.move === p.uci)?.pv) ?? [p.uci, ...(a1?.lines?.[0]?.pv ?? [])];
+    const line = (reasoner.analysis?.lines?.find((l) => l.move === p.uci)?.pv) ?? [p.uci, ...(a1?.lines?.[0]?.pv ?? [])];
     let tactic = '';
     if (p.prevFen && p.prevUci) {
       // What the previous move cost its player, from Stockfish either side of
@@ -497,38 +560,41 @@ function explainMove(p) {
       // the square it stands on now — "the knight on c3 goes on to e2", not
       // "the knight on b1", which is where it no longer is.
       const words = highlightWords(lineHighlights(after, expected));
-      sentences.push(`The line Stockfish expects: ${moves}${words ? ` — ${words}` : ''}.`);
+      sentences.push(`The line ${reasoner.name} expects: ${moves}${words ? ` — ${words}` : ''}.`);
     }
 
-    // 5. WHY THIS AND NOT THE NEXT ONE.
-    const rest = (a0?.lines ?? []).filter((l) => l.move !== p.uci);
-    if (rest.length && bestValue !== null) {
+    // 5. WHY THIS AND NOT THE NEXT ONE, by the count of the engine that chose it.
+    const lines = reasoner.analysis?.lines ?? [];
+    const rest = lines.filter((l) => l.move !== p.uci);
+    const played = lines.find((l) => l.move === p.uci);
+    const top = chooser ? (played ? stockfishValue(played.score) : null)
+      : bestValue === null ? null : (p.uci === bestUci ? bestValue : value ?? bestValue);
+    if (rest.length && top !== null) {
       const second = rest[0];
       const secondMove = moveFromUci(before, second.move);
       const secondSan = secondMove ? toSan(new Board(p.fenBefore), secondMove) : second.move;
-      const gap = (p.uci === bestUci ? bestValue : value ?? bestValue) - stockfishValue(second.score);
-      if (gap >= 150) {
-        sentences.push(`It is the only good move here: the next best, ${secondSan}, is ${(gap / 100).toFixed(1)} points worse.`);
-      } else if (gap <= 20) {
-        sentences.push(`${secondSan} was just as good.`);
-      } else {
-        sentences.push(`The next best was ${secondSan}, ${(gap / 100).toFixed(1)} of a point behind.`);
+      sentences.push(alternativeSentence(reasoner.name, secondSan, top - stockfishValue(second.score)));
+    }
+
+    // 6. AND WHERE STOCKFISH DISAGREES BY A REAL MARGIN, what it wanted instead.
+    if (chooser && !isBest) {
+      const wanted = a0?.lines?.[0];
+      const reply = a1?.lines?.[0];
+      if (missesMate && wanted?.pv?.length && bestMate > 0) {
+        sentences.push(`The mate Stockfish saw: ${lineAsSan(before, wanted.pv, Math.min(2 * bestMate - 1, 9))}.`);
+      } else if (allowsMate && reply?.pv?.length && reply.score?.mate > 0) {
+        sentences.push(`The mate Stockfish expects: ${lineAsSan(after, reply.pv, Math.min(2 * reply.score.mate - 1, 9))}.`);
+      } else if (loss >= 50 && wanted?.pv?.length >= 2 && bestMove) {
+        const afterBest = new Board(p.fenBefore);
+        afterBest.make(bestMove);
+        const moves = lineAsSan(afterBest, wanted.pv.slice(1), 4);
+        sentences.push(`Stockfish wanted ${bestSan}${moves ? `, expecting ${moves}` : ''}.`);
       }
     }
     return out;
   }
 
   // ── a move Stockfish would not have played ───────────────────────────────
-  //
-  // A MATE IS NOT A NUMBER OF POINTS. Scores carry mates as values pushed past
-  // anything a position can be worth, so the difference between a mate and a
-  // pawn up is a meaningless 990-odd "points". Where a mate is involved the
-  // verdict says what happened to it instead.
-  const MATE_VALUE = 90000;
-  const allowsMate = value !== null && value <= -MATE_VALUE && (bestValue === null || bestValue > -MATE_VALUE);
-  const missesMate = bestValue !== null && bestValue >= MATE_VALUE && (value === null || value < MATE_VALUE);
-  const bestMate = a0?.lines?.[0]?.score?.mate;
-  const slowerWin = missesMate && value !== null && value >= 300;
   let severity = severityFor(loss);
   if (slowerWin) {
     // Still winning, just not by force: a slower win, not a lost game.

@@ -14,9 +14,21 @@
 // is still what lets an old shell be thrown away atomically on activate.
 const VERSION = '__VERSION__';
 // The engine is part of the shell: an installed app that plays Stockfish when
-// it has a connection and cannot when it does not is not offline.
+// it has a connection and cannot when it does not is not offline. So is the
+// small script that fetches and runs Reckless — but not Reckless itself.
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png',
-  './stockfish.js', './stockfish.wasm'];
+  './stockfish.js', './stockfish.wasm', './reckless-worker.js'];
+
+// RECKLESS IS NOT THIS WORKER'S TO KEEP. It is 44 MB, downloaded only by the
+// people who ask for it, and kept by its own worker in a cache of its own
+// (see src/reckless-worker.js). This worker throws away every cache but its
+// current one when a new version of the app arrives — which, applied to that
+// one, would make a phone download Reckless again after every update — and
+// copies whatever it fetches into the cache it is about to throw away, which
+// would keep the engine twice. So that cache survives activation, and the
+// files under reckless/ go past this worker untouched.
+const KEEP = ['reckless-engine'];
+const RECKLESS = new URL('reckless/', self.registration.scope).href;
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
@@ -30,7 +42,7 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
-    for (const key of await caches.keys()) if (key !== VERSION) await caches.delete(key);
+    for (const key of await caches.keys()) if (key !== VERSION && !KEEP.includes(key)) await caches.delete(key);
     await self.clients.claim();
   })());
 });
@@ -45,6 +57,7 @@ self.addEventListener('fetch', (event) => {
   // a cached or substituted response here is a 1.9MB file that installs as
   // nothing. Handing it back to the browser untouched is the whole fix.
   if (new URL(request.url).pathname.endsWith('.apk')) return;
+  if (request.url.startsWith(RECKLESS)) return;
 
   // A navigation always gets the app, online or not. Without this an install
   // that opens on a dead connection shows the browser's error page, which

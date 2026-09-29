@@ -1265,15 +1265,16 @@
 
     <div class="panel">
       <h3>Stockfish, explained</h3>
-      <p class="note">The strongest engine there is, against one of this app's levels or against itself. Every move is
-        explained: what it does, what it threatens, the line Stockfish expects to follow, and why it was chosen over the
-        next best.</p>
+      <p class="note">Stockfish, the strongest engine there is, against Reckless, one of this app's levels, or itself.
+        Every move is explained: what it does, what it threatens, the line the engine expects to follow, and why it was
+        chosen over the next best.</p>
       <div class="fields">
         <label class="field"><span>Opponent</span>
           <select id="watchSfOpponent"></select>
         </label>
       </div>
       <button class="btn primary" id="watchStockfish" type="button">Watch Stockfish play</button>
+      <div class="progress" id="watchRkBar" hidden><span></span></div>
       <p class="note" id="watchSfNote" hidden></p>
     </div>
 
@@ -1338,6 +1339,10 @@
           the line shows, you are given the line and the number rather than a story nothing computed. Stockfish looks at
           a quarter of a million positions a move, a fixed amount of work, so a position gets the same explanation on any
           device.</p>
+        <p class="note">Against Reckless, the other engine's moves are explained the same way from its own analysis — the line
+          Reckless expects is its reason — and Stockfish says whether it agrees, and by how much. Neither side is called a
+          mistake for disagreeing: they each look at the same number of positions, and the rest of the game shows who was
+          right. Reckless is free software (AGPL); the build and the one change made to it are in the app's source.</p>
         <p class="note">For the other games there are three sources. While the game is still in one of the app's openings, that opening's own note for
           the move just played. On a famous game, at the moves that have one, a sentence written about that exact move.
           And after every move, a search deeper than the one that played it — if it preferred something else, the gap
@@ -8100,6 +8105,30 @@ function significantMotif(motif, { prevLoss = null, recapture = false } = {}) {
   return kept.length ? { ...motif, themes: kept } : null;
 }
 
+/** A difference in centipawns, as the screens say one: "0.4 of a point", "1.5 points". */
+function pointsWords(cp) {
+  const x = (cp / 100).toFixed(1);
+  return cp < 100 ? `${x} of a point` : `${x} points`;
+}
+
+/**
+ * Why this move and not the next one, by the count of the engine that chose
+ * it: `gap` is how far behind its next best was. Stockfish's own words are
+ * the plain ones; another engine's say whose count it is.
+ */
+function alternativeSentence(name, secondSan, gap) {
+  const stockfish = name === 'Stockfish';
+  if (gap >= 150) {
+    return stockfish
+      ? `It is the only good move here: the next best, ${secondSan}, is ${(gap / 100).toFixed(1)} points worse.`
+      : `For ${name} it was the only good move: its next best, ${secondSan}, is ${(gap / 100).toFixed(1)} points worse.`;
+  }
+  if (gap <= 20) return stockfish ? `${secondSan} was just as good.` : `${name} rated ${secondSan} just as good.`;
+  return stockfish
+    ? `The next best was ${secondSan}, ${(gap / 100).toFixed(1)} of a point behind.`
+    : `${name}'s next best was ${secondSan}, ${(gap / 100).toFixed(1)} of a point behind.`;
+}
+
 /**
  * Everything worth saying about one move.
  *
@@ -8114,6 +8143,8 @@ function significantMotif(motif, { prevLoss = null, recapture = false } = {}) {
  * @param {?string} p.outcome    how the game stands after the move, from a board that knows the game's
  *                               history — a repetition, which a board made from the FEN alone cannot see
  * @param {boolean} p.isEngine   true when the mover IS Stockfish — its move is its choice by definition
+ * @param {?string} p.chooser    the name of another engine that chose the move (Reckless), or null
+ * @param {?object} p.own        that engine's own analysis of fenBefore — where its line comes from
  * @param {?Function} p.search   (board) -> {move, score}: a small search for a mate threat, or null to skip
  * @returns {{verdict: string, tone: string, sentences: string[], facts: object}}
  */
@@ -8156,6 +8187,16 @@ function explainMove(p) {
   const depth = a0?.depth ?? 0;
   const ahead = depth ? `looking about ${Math.max(1, Math.round(depth / 2))} moves ahead` : '';
 
+  // A MATE IS NOT A NUMBER OF POINTS. Scores carry mates as values pushed past
+  // anything a position can be worth, so the difference between a mate and a
+  // pawn up is a meaningless 990-odd "points". Where a mate is involved the
+  // verdict says what happened to it instead.
+  const MATE_VALUE = 90000;
+  const allowsMate = value !== null && value <= -MATE_VALUE && (bestValue === null || bestValue > -MATE_VALUE);
+  const missesMate = bestValue !== null && bestValue >= MATE_VALUE && (value === null || value < MATE_VALUE);
+  const bestMate = a0?.lines?.[0]?.score?.mate;
+  const slowerWin = missesMate && value !== null && value >= 300;
+
   const sentences = [];
   const out = { facts: { san, mover, loss, isBest, bestSan, depth, whiteNow, ...facts }, sentences };
 
@@ -8169,16 +8210,43 @@ function explainMove(p) {
     return out;
   }
 
-  // ── a move Stockfish would play, or did ──────────────────────────────────
-  if (isBest) {
-    out.tone = 'good-note';
-    out.verdict = p.isEngine
-      ? withEval(`Stockfish's choice${ahead ? `, ${ahead}` : ''}`)
-      : withEval(`Stockfish agrees${ahead ? `, ${ahead}` : ''}`);
+  // ── a move Stockfish would play, or did — or another engine chose ────────
+  //
+  // ANOTHER ENGINE'S MOVE IS EXPLAINED LIKE STOCKFISH'S OWN — what it does, what
+  // it threatens, the line it expects — from that engine's analysis, because
+  // its line is ITS reason. Stockfish's opinion of it is the verdict: two of
+  // the strongest engines there are, agreeing or not, and by how much. It is
+  // not called a mistake; at this budget each is right far more often than
+  // either can prove the other wrong, and the rest of the game says who was.
+  const chooser = p.chooser ?? null;
+  const reasoner = chooser ? { name: chooser, analysis: p.own ?? null } : { name: 'Stockfish', analysis: a0 };
+  if (isBest || chooser) {
+    if (!chooser) {
+      out.tone = 'good-note';
+      out.verdict = p.isEngine
+        ? withEval(`Stockfish's choice${ahead ? `, ${ahead}` : ''}`)
+        : withEval(`Stockfish agrees${ahead ? `, ${ahead}` : ''}`);
+    } else {
+      const ownDepth = p.own?.depth ?? 0;
+      const chosen = `${chooser}'s choice${ownDepth ? `, looking about ${Math.max(1, Math.round(ownDepth / 2))} moves ahead` : ''}`;
+      if (isBest) {
+        out.tone = 'good-note';
+        out.verdict = withEval(`${chosen}. Stockfish agrees`);
+      } else if (missesMate) {
+        out.tone = slowerWin ? 'note' : 'bad-note';
+        out.verdict = withEval(`${chosen}. Stockfish sees a forced mate instead: ${bestSan}, mating in ${bestMate}`);
+      } else if (allowsMate) {
+        out.tone = 'bad-note';
+        out.verdict = withEval(`${chosen}. Stockfish thinks it lets ${other} force mate, which ${bestSan} did not`);
+      } else {
+        out.tone = loss >= 150 ? 'bad-note' : 'note';
+        out.verdict = withEval(`${chosen}. Stockfish would have played ${bestSan}, ${pointsWords(loss)} better by its count`);
+      }
+    }
 
     // 1. WHAT IT DOES TO THE OTHER SIDE, when the board proves a motif — the
     //    previous move as the mistake, this one as the punishment.
-    const line = (a0?.lines?.find((l) => l.move === p.uci)?.pv) ?? [p.uci, ...(a1?.lines?.[0]?.pv ?? [])];
+    const line = (reasoner.analysis?.lines?.find((l) => l.move === p.uci)?.pv) ?? [p.uci, ...(a1?.lines?.[0]?.pv ?? [])];
     let tactic = '';
     if (p.prevFen && p.prevUci) {
       // What the previous move cost its player, from Stockfish either side of
@@ -8212,38 +8280,41 @@ function explainMove(p) {
       // the square it stands on now — "the knight on c3 goes on to e2", not
       // "the knight on b1", which is where it no longer is.
       const words = highlightWords(lineHighlights(after, expected));
-      sentences.push(`The line Stockfish expects: ${moves}${words ? ` — ${words}` : ''}.`);
+      sentences.push(`The line ${reasoner.name} expects: ${moves}${words ? ` — ${words}` : ''}.`);
     }
 
-    // 5. WHY THIS AND NOT THE NEXT ONE.
-    const rest = (a0?.lines ?? []).filter((l) => l.move !== p.uci);
-    if (rest.length && bestValue !== null) {
+    // 5. WHY THIS AND NOT THE NEXT ONE, by the count of the engine that chose it.
+    const lines = reasoner.analysis?.lines ?? [];
+    const rest = lines.filter((l) => l.move !== p.uci);
+    const played = lines.find((l) => l.move === p.uci);
+    const top = chooser ? (played ? stockfishValue(played.score) : null)
+      : bestValue === null ? null : (p.uci === bestUci ? bestValue : value ?? bestValue);
+    if (rest.length && top !== null) {
       const second = rest[0];
       const secondMove = moveFromUci(before, second.move);
       const secondSan = secondMove ? toSan(new Board(p.fenBefore), secondMove) : second.move;
-      const gap = (p.uci === bestUci ? bestValue : value ?? bestValue) - stockfishValue(second.score);
-      if (gap >= 150) {
-        sentences.push(`It is the only good move here: the next best, ${secondSan}, is ${(gap / 100).toFixed(1)} points worse.`);
-      } else if (gap <= 20) {
-        sentences.push(`${secondSan} was just as good.`);
-      } else {
-        sentences.push(`The next best was ${secondSan}, ${(gap / 100).toFixed(1)} of a point behind.`);
+      sentences.push(alternativeSentence(reasoner.name, secondSan, top - stockfishValue(second.score)));
+    }
+
+    // 6. AND WHERE STOCKFISH DISAGREES BY A REAL MARGIN, what it wanted instead.
+    if (chooser && !isBest) {
+      const wanted = a0?.lines?.[0];
+      const reply = a1?.lines?.[0];
+      if (missesMate && wanted?.pv?.length && bestMate > 0) {
+        sentences.push(`The mate Stockfish saw: ${lineAsSan(before, wanted.pv, Math.min(2 * bestMate - 1, 9))}.`);
+      } else if (allowsMate && reply?.pv?.length && reply.score?.mate > 0) {
+        sentences.push(`The mate Stockfish expects: ${lineAsSan(after, reply.pv, Math.min(2 * reply.score.mate - 1, 9))}.`);
+      } else if (loss >= 50 && wanted?.pv?.length >= 2 && bestMove) {
+        const afterBest = new Board(p.fenBefore);
+        afterBest.make(bestMove);
+        const moves = lineAsSan(afterBest, wanted.pv.slice(1), 4);
+        sentences.push(`Stockfish wanted ${bestSan}${moves ? `, expecting ${moves}` : ''}.`);
       }
     }
     return out;
   }
 
   // ── a move Stockfish would not have played ───────────────────────────────
-  //
-  // A MATE IS NOT A NUMBER OF POINTS. Scores carry mates as values pushed past
-  // anything a position can be worth, so the difference between a mate and a
-  // pawn up is a meaningless 990-odd "points". Where a mate is involved the
-  // verdict says what happened to it instead.
-  const MATE_VALUE = 90000;
-  const allowsMate = value !== null && value <= -MATE_VALUE && (bestValue === null || bestValue > -MATE_VALUE);
-  const missesMate = bestValue !== null && bestValue >= MATE_VALUE && (value === null || value < MATE_VALUE);
-  const bestMate = a0?.lines?.[0]?.score?.mate;
-  const slowerWin = missesMate && value !== null && value >= 300;
   let severity = severityFor(loss);
   if (slowerWin) {
     // Still winning, just not by force: a slower win, not a lost game.
@@ -8543,6 +8614,175 @@ async function runStockfishSearch(position, nodes, multipv) {
     worker.postMessage(`setoption name MultiPV value ${multipv}`);
     worker.postMessage(position);
     worker.postMessage(`go nodes ${nodes}`);
+  });
+}
+
+
+// ── Reckless, the other engine ─────────────────────────────────────────────
+//
+// One of the two strongest chess engines there are, playing Stockfish on the
+// Watch screen. It is here only in the website version of the app: it is a
+// 44 MB download, fetched the first time somebody asks for it, and the APK
+// has no internet permission to fetch it with and no reason to carry it for
+// everybody. vendor/reckless/README.md says what the build is.
+//
+// The work happens in reckless-worker.js — the download, the checks, the
+// engine. This is the page's side of it: finding out where things stand
+// without downloading anything, starting it with a progress report, and
+// asking it questions one at a time.
+//
+// THE SAME RULES AS STOCKFISH. A number of positions, never seconds; the
+// engine cleared before every search; the game from its first move. And the
+// same budget as Stockfish, so neither side of a game between them is given
+// more to work with than the other.
+
+const Reckless = {
+  worker: null,
+  loading: null,     // the promise every caller shares while it starts
+  queue: Promise.resolve(),
+  version: null,
+  nextId: 1,
+  onProgress: null,  // the latest caller's progress report
+};
+
+/** The cache the worker keeps the engine in; the service worker leaves it alone. */
+const RECKLESS_CACHE = 'reckless-engine';
+const RECKLESS_NODES = STOCKFISH_NODES;
+const RECKLESS_SEARCH_MS = 120000;
+
+const recklessUrl = (path) => new URL(`reckless/${path}`, location.href).href;
+
+/**
+ * Where Reckless stands on this device, found without downloading it.
+ *
+ *   'apk'         the Android app, which cannot fetch it
+ *   'file'        a copy of the page opened from a file, which cannot run it
+ *   'unsupported' a browser without what the download needs
+ *   'missing'     a build of the app without Reckless in it
+ *   'offline'     never downloaded, and no connection to do it now
+ *   'none' | 'partial' | 'ready'  how much of it is kept: `need` bytes to go of `total`
+ */
+async function recklessStatus() {
+  if (typeof IN_ANDROID_APP !== 'undefined' && IN_ANDROID_APP) return { state: 'apk' };
+  if (location.protocol === 'file:') return { state: 'file' };
+  if (typeof Worker === 'undefined' || typeof caches === 'undefined'
+      || typeof DecompressionStream === 'undefined' || !globalThis.crypto?.subtle) {
+    return { state: 'unsupported' };
+  }
+  const cache = await caches.open(RECKLESS_CACHE);
+  let manifest = null;
+  let answered = false;
+  try {
+    const response = await fetch(recklessUrl('manifest.json'), { cache: 'no-cache' });
+    answered = true;
+    if (response.ok) manifest = await response.json();
+  } catch { /* offline */ }
+  if (!manifest) {
+    const kept = await cache.match(recklessUrl('manifest.json'));
+    if (kept) manifest = await kept.json();
+  }
+  if (!manifest) return { state: answered ? 'missing' : 'offline' };
+  let need = 0;
+  const total = manifest.pieces.reduce((n, p) => n + p.bytes, 0);
+  for (const piece of manifest.pieces) {
+    if (!(await cache.match(recklessUrl(piece.file)))) need += piece.bytes;
+  }
+  if (need && !answered) return { state: 'offline', need, total };
+  return { state: need === 0 ? 'ready' : need === total ? 'none' : 'partial', need, total, version: manifest.version };
+}
+
+/** What a stopped start tells the person, from the worker's report of it. */
+function recklessFailureText(m) {
+  if (m.code === 'download') {
+    const mb = (n) => (n / 1e6).toFixed(1);
+    return `The download stopped at ${mb(m.saved)} of ${mb(m.total)} MB (${m.message}). What arrived is kept — press the button to carry on from there.`;
+  }
+  return m.message;
+}
+
+/**
+ * Get Reckless onto the device if it is not, and start it. Every caller gets
+ * the same promise; a failure clears it, so asking again carries on the
+ * download from the last piece kept.
+ *
+ * @param {(p: {phase: string, saved: number, total: number}) => void} onProgress
+ */
+function loadReckless(onProgress) {
+  Reckless.onProgress = onProgress ?? null;
+  if (Reckless.loading) return Reckless.loading;
+  Reckless.loading = new Promise((resolve, reject) => {
+    let worker;
+    const fail = (message, extra = {}) => {
+      try { worker?.terminate(); } catch { /* already gone */ }
+      Reckless.worker = null;
+      Reckless.loading = null;
+      reject(Object.assign(new Error(message), extra));
+    };
+    try {
+      worker = new Worker('reckless-worker.js', { type: 'module' });
+    } catch (e) {
+      fail(`Reckless could not be started here (${e?.message ?? e}).`);
+      return;
+    }
+    worker.onerror = (e) => fail(`Reckless could not be started${e?.message ? ` (${e.message})` : ''}.`);
+    worker.onmessage = (e) => {
+      const m = e.data;
+      if (m.type === 'progress') Reckless.onProgress?.(m);
+      else if (m.type === 'failed') fail(recklessFailureText(m), { code: m.code, saved: m.saved, total: m.total });
+      else if (m.type === 'ready') {
+        worker.onmessage = null;
+        worker.onerror = null;
+        Reckless.worker = worker;
+        Reckless.version = m.version;
+        resolve(m);
+      }
+    };
+    worker.postMessage({ type: 'load' });
+  });
+  return Reckless.loading;
+}
+
+/**
+ * Search one position — the same question, and the same shape of answer, as
+ * stockfishAnalyse(): `moves` are the game's moves from `fen`, in UCI.
+ */
+function recklessAnalyse(fen, { nodes = RECKLESS_NODES, multipv = 3, moves = [] } = {}) {
+  const job = Reckless.queue.then(() => runRecklessSearch(fen, moves, nodes, multipv));
+  Reckless.queue = job.catch(() => {});
+  return job;
+}
+
+async function runRecklessSearch(fen, moves, nodes, multipv) {
+  await loadReckless(Reckless.onProgress);
+  const worker = Reckless.worker;
+  const id = Reckless.nextId++;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      worker.onmessage = null;
+      try { worker.terminate(); } catch { /* already gone */ }
+      Reckless.worker = null;
+      Reckless.loading = null;
+      reject(new Error('Reckless stopped answering in the middle of a search.'));
+    }, RECKLESS_SEARCH_MS);
+    worker.onmessage = (e) => {
+      const m = e.data;
+      if (m.id !== id) return;
+      clearTimeout(timer);
+      worker.onmessage = null;
+      if (m.type === 'error') {
+        // An engine that failed mid-search is not asked again: this one goes,
+        // and the next question starts a fresh one from the copy kept here.
+        try { worker.terminate(); } catch { /* already gone */ }
+        Reckless.worker = null;
+        Reckless.loading = null;
+        reject(new Error(`Reckless stopped working (${m.message}).`));
+        return;
+      }
+      // Its output is standard UCI, so it is read the way Stockfish's is.
+      const infos = m.lines.map(parseStockfishInfo).filter(Boolean);
+      resolve(summariseStockfish(m.best && m.best !== '(none)' ? m.best : null, infos));
+    };
+    worker.postMessage({ type: 'go', id, fen, moves, nodes, multipv });
   });
 }
 
@@ -17095,6 +17335,8 @@ const Watch = {
   busy: false,
   generation: 0,
   finished: null,
+  rkCheck: 0,            // the latest look at whether Reckless is on the device; an older answer is dropped
+  rkBusy: false,         // Reckless is downloading or starting
 };
 
 /** How wide a window of "equally good" the two sides pick inside. */
@@ -17467,7 +17709,10 @@ function renderWatch() {
     : Watch.bands
       ? `A drawn pairing, a drawn opening and a window of equally good moves — so this is not a game either of them has played before.${Watch.bookName ? ` Opening: the ${Watch.bookName}.` : ''}`
       : Watch.source === 'stockfish' && Watch.sf
-        ? `Stockfish looks at ${STOCKFISH_NODES.toLocaleString('en-GB')} positions before every move, and every move is explained from what it saw.${Watch.sf.level ? ' The level plays exactly as it does on Play.' : ''}${Watch.bookName ? ` Opening: the ${Watch.bookName}.` : ''}`
+        ? (Watch.sf.white === 'reckless' || Watch.sf.black === 'reckless'
+          ? `Stockfish and Reckless each look at ${STOCKFISH_NODES.toLocaleString('en-GB')} positions before every move. Reckless's moves are explained from its own analysis, and Stockfish says what it makes of them.`
+          : `Stockfish looks at ${STOCKFISH_NODES.toLocaleString('en-GB')} positions before every move, and every move is explained from what it saw.${Watch.sf.level ? ' The level plays exactly as it does on Play.' : ''}`)
+          + (Watch.bookName ? ` Opening: the ${Watch.bookName}.` : '')
         : '';
 
   renderWatchProgress();
@@ -17511,7 +17756,8 @@ function renderWatchProgress() {
     ? `Move ${Math.max(1, Math.ceil(Watch.ply / 2))} of ${Math.ceil(total / 2)}`
     : Watch.ply ? `Move ${Math.ceil(Watch.ply / 2)}` : '';
   if (Watch.source === 'stockfish' && Watch.sf?.thinking) {
-    const doing = Stockfish.worker ? 'Stockfish is thinking…' : 'Starting Stockfish…';
+    const doing = Watch.ply >= Watch.book.length && sfSideAt(Watch.ply) === 'reckless' ? 'Reckless is thinking…'
+      : Stockfish.worker ? 'Stockfish is thinking…' : 'Starting Stockfish…';
     text = text ? `${text} · ${doing}` : doing;
   }
   $('watchProgress').textContent = text;
@@ -17595,6 +17841,10 @@ function renderWatchOpponents() {
   self.value = 'stockfish';
   self.textContent = 'Stockfish — itself';
   select.appendChild(self);
+  const reckless = document.createElement('option');
+  reckless.value = 'reckless';
+  reckless.textContent = 'Reckless';
+  select.appendChild(reckless);
   BANDS.forEach((band, index) => {
     const option = document.createElement('option');
     option.value = String(index);
@@ -17623,25 +17873,30 @@ function startWatchStockfish(opponent) {
   Watch.bands = null;
   Watch.finished = null;
 
-  const level = opponent === 'stockfish' ? null : BANDS[Number(opponent)] ?? null;
-  const sfIsWhite = level ? Math.random() < 0.5 : true;
+  const vsReckless = opponent === 'reckless';
+  const level = opponent === 'stockfish' || vsReckless ? null : BANDS[Number(opponent)] ?? null;
+  // Who Stockfish plays: a level, Reckless, or — neither — itself.
+  const rival = vsReckless ? 'reckless' : level ? 'level' : 'stockfish';
+  const sfIsWhite = rival === 'stockfish' ? true : Math.random() < 0.5;
   Watch.sf = {
-    level,                                   // null when Stockfish plays itself
-    white: level && !sfIsWhite ? 'level' : 'stockfish',
-    black: level && sfIsWhite ? 'level' : 'stockfish',
+    level,                                   // null when Stockfish plays Reckless or itself
+    white: sfIsWhite ? 'stockfish' : rival,
+    black: sfIsWhite ? rival : 'stockfish',
     fens: [new Board().fen()],               // position i: after i moves
     ucis: [],                                // the moves, as Stockfish is told them
     analysis: new Map(),                     // position index -> promise of Stockfish's analysis
     ready: new Map(),                        // position index -> that analysis, once it has arrived
     prep: new Map(),                         // ply -> promise that the move and both its analyses are ready
+    rk: new Map(),                           // position index -> promise of Reckless's own analysis, where it moves
+    rkReady: new Map(),
     step: 0,                                 // the latest Next; an older one arriving late is dropped
     thinking: false,
     error: null,
   };
-  if (level) {
-    const levelName = `Level ${bandLabelFor(level.elo)}`;
-    Watch.whiteName = sfIsWhite ? 'Stockfish' : levelName;
-    Watch.blackName = sfIsWhite ? levelName : 'Stockfish';
+  if (level || vsReckless) {
+    const rivalName = vsReckless ? 'Reckless' : `Level ${bandLabelFor(level.elo)}`;
+    Watch.whiteName = sfIsWhite ? 'Stockfish' : rivalName;
+    Watch.blackName = sfIsWhite ? rivalName : 'Stockfish';
     Watch.title = `${Watch.whiteName} against ${Watch.blackName}`;
   } else {
     Watch.whiteName = 'Stockfish, White';
@@ -17681,7 +17936,7 @@ function sfFailed(e) {
   renderWatch();
 }
 
-/** Which side is to move in position `index`: 'stockfish' or 'level'. */
+/** Which side is to move in position `index`: 'stockfish', 'reckless' or 'level'. */
 function sfSideAt(index, sf = Watch.sf) {
   return index % 2 === 0 ? sf.white : sf.black;
 }
@@ -17732,6 +17987,15 @@ function sfAnalysis(sf, index) {
   return job;
 }
 
+/** Reckless's own analysis of position `index` — its move, and its reason — searched once and kept. */
+function rkAnalysis(sf, index) {
+  if (sf.rk.has(index)) return sf.rk.get(index);
+  const job = recklessAnalyse(sf.fens[0], { nodes: RECKLESS_NODES, multipv: 3, moves: sf.ucis.slice(0, index) });
+  job.then((a) => sf.rkReady.set(index, a), () => {});
+  sf.rk.set(index, job);
+  return job;
+}
+
 /**
  * Make the move that takes the game to `ply`, and the two analyses its
  * explanation needs. In order: a move needs every move before it.
@@ -17754,6 +18018,14 @@ function sfPrepare(ply, sf = Watch.sf) {
         const a = await sfAnalysis(sf, index);
         if (!current()) return false;
         move = moveFromUci(board, a?.best);
+      }
+      if (!move && sfSideAt(index, sf) === 'reckless') {
+        // Both engines at once, each in its own worker: Reckless for its move,
+        // Stockfish for what it makes of the position the move is played in.
+        const [a] = await Promise.all([rkAnalysis(sf, index), sfAnalysis(sf, index)]);
+        if (!current()) return false;
+        move = moveFromUci(board, a?.best);
+        if (!move) throw new Error('Reckless did not answer with a move.');
       }
       if (!move && sf.level) {
         // The level's move: the app's own engine, exactly as it plays on Play.
@@ -17842,6 +18114,11 @@ function explainWatchPlyStockfish(ply, note) {
   const move = sanToMove(before, Watch.sans[ply - 1]);
   if (!move) return;
   const inBook = ply <= Watch.book.length;
+  const side = sfSideAt(ply - 1);
+  // Reckless's move is explained from its own analysis; a book move is the
+  // book's, whoever plays it.
+  const rkChose = side === 'reckless' && !inBook;
+  if (rkChose && !sf.rkReady.has(ply - 1)) return;
   note.explained = explainMove({
     fenBefore: sf.fens[ply - 1],
     uci: sf.ucis[ply - 1],
@@ -17854,7 +18131,9 @@ function explainWatchPlyStockfish(ply, note) {
     // a repetition, which a board made from the FEN alone cannot see.
     outcome: watchBoardAt(ply)?.outcome() ?? null,
     // A book move is the book's, whoever plays it: Stockfish did not choose it.
-    isEngine: sfSideAt(ply - 1) === 'stockfish' && !inBook,
+    isEngine: side === 'stockfish' && !inBook,
+    chooser: rkChose ? 'Reckless' : null,
+    own: rkChose ? sf.rkReady.get(ply - 1) : null,
     search: (board) => { App.engine.reset(); return App.engine.search(board, { nodes: 15000, maxDepth: 5 }); },
   });
 }
@@ -17876,6 +18155,90 @@ function paintWatchNoteStockfish(note) {
   for (const text of sentences) why.appendChild(el('p', 'note', text));
   box.textContent = verdict;
   box.className = `note ${tone}`;
+}
+
+// ── getting Reckless onto the device ───────────────────────────────────────
+//
+// Reckless is a 44 MB download the first time, so picking it never starts one
+// by itself. The button says what pressing it will do — "Download Reckless
+// (44 MB) and watch" — and the line under it says where things stand: on
+// this device already, partly downloaded, or not available here and why.
+// While it downloads the bar fills; if the download stops, the pieces that
+// arrived are kept and the button offers to carry on from there.
+
+/** The Stockfish panel's button and note, for whichever opponent is picked. */
+async function renderWatchSfChoice() {
+  const select = $('watchSfOpponent');
+  const button = $('watchStockfish');
+  if (!select || !button) return;
+  const mine = ++Watch.rkCheck;
+  if (select.value !== 'reckless') {
+    button.textContent = 'Watch Stockfish play';
+    button.disabled = false;
+    // A download already under way carries on, and keeps its bar and its line.
+    if (!Watch.rkBusy) { $('watchRkBar').hidden = true; sfNote(''); }
+    return;
+  }
+  if (Watch.rkBusy) return;
+  button.textContent = 'Watch Stockfish play Reckless';
+  button.disabled = true;
+  sfNote('Checking whether Reckless is on this device…');
+  const status = await recklessStatus().catch(() => ({ state: 'unsupported' }));
+  if (mine !== Watch.rkCheck || Watch.rkBusy) return;
+  const mb = (n) => `${Math.max(1, Math.round(n / 1e6))} MB`;
+  const says = {
+    ready: 'Reckless is on this device, and works without a connection.',
+    none: `Reckless, one of the two strongest engines there are, is a ${mb(status.total ?? 0)} download the first time, and is kept on this device after that.`,
+    partial: `${mb((status.total ?? 0) - (status.need ?? 0))} of Reckless's ${mb(status.total ?? 0)} is already here. The rest downloads from where it stopped.`,
+    offline: 'Reckless needs a connection the first time, to download it.',
+    apk: 'Reckless is in the website version of the app only. This app has no internet connection to download it with, and it is too big to carry inside — install the app from the same website this one came from.',
+    file: 'Reckless cannot run in a copy of the page opened from a file. It works in the app installed from the website.',
+    missing: 'This copy of the app was built without Reckless.',
+    unsupported: 'This browser cannot download and run Reckless.',
+  };
+  sfNote(says[status.state] ?? says.unsupported);
+  if (status.state === 'none') button.textContent = `Download Reckless (${mb(status.total)}) and watch`;
+  if (status.state === 'partial') button.textContent = `Download the rest (${mb(status.need)}) and watch`;
+  button.disabled = !['ready', 'none', 'partial'].includes(status.state);
+}
+
+/** The Stockfish panel's button. Against Reckless, download it first if it is not here. */
+async function watchStockfishClicked() {
+  const opponent = $('watchSfOpponent').value;
+  if (opponent !== 'reckless') { startWatchStockfish(opponent); playWatch(); return; }
+  if (Watch.rkBusy) return;
+  const button = $('watchStockfish');
+  const bar = $('watchRkBar');
+  Watch.rkBusy = true;
+  button.disabled = true;
+  // Asked to keep it: 44 MB evicted under storage pressure is 44 MB to fetch again.
+  navigator.storage?.persist?.().catch(() => {});
+  try {
+    await loadReckless((p) => {
+      if (p.phase === 'start') {
+        bar.hidden = true;
+        sfNote('Starting Reckless…');
+        return;
+      }
+      bar.hidden = false;
+      bar.firstElementChild.style.width = `${p.total ? (100 * p.saved) / p.total : 0}%`;
+      sfNote(`Downloading Reckless: ${(p.saved / 1e6).toFixed(1)} of ${(p.total / 1e6).toFixed(1)} MB`);
+    });
+  } catch (e) {
+    Watch.rkBusy = false;
+    bar.hidden = true;
+    await renderWatchSfChoice();
+    // The reason goes last, over the status line: it is what the person needs.
+    sfNote(e.message, 'note bad-note');
+    if (e.code === 'download') button.textContent = 'Carry on downloading';
+    return;
+  }
+  Watch.rkBusy = false;
+  bar.hidden = true;
+  if ($('watchSfOpponent').value !== 'reckless') { renderWatchSfChoice(); return; }
+  startWatchStockfish('reckless');
+  playWatch();
+  renderWatchSfChoice();
 }
 
 
@@ -18922,7 +19285,12 @@ async function boot() {
 
   // Watch
   $('watchBots').addEventListener('click', () => { startWatchBots(); playWatch(); });
-  $('watchStockfish').addEventListener('click', () => { startWatchStockfish($('watchSfOpponent').value); playWatch(); });
+  $('watchStockfish').addEventListener('click', watchStockfishClicked);
+  $('watchSfOpponent').addEventListener('change', renderWatchSfChoice);
+  // A connection coming or going changes what the Reckless button can do.
+  const recheckReckless = () => { if ($('watchSfOpponent').value === 'reckless') renderWatchSfChoice(); };
+  window.addEventListener('online', recheckReckless);
+  window.addEventListener('offline', recheckReckless);
   for (const seg of document.querySelectorAll('#watchSpeed .seg')) {
     seg.addEventListener('click', () => {
       Watch.speed = Number(seg.dataset.speed);

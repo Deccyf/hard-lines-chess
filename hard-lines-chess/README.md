@@ -7,7 +7,7 @@ win-chance curve and motif classification, tactics puzzles mined from your own
 games, spaced-repetition drills, a teaching opponent that sets traps, an endgame
 trainer refereed by a solved table, a three-minute timed mode, a board-vision
 drill, a screen that explains chess notation by taking your own moves apart, a
-watch mode that puts Stockfish on the board — against any level or against
+watch mode that puts Stockfish on the board — against Reckless, any level, or
 itself — and explains every move it and its opponent make, plays two levels
 against each other and replays seven famous games move by move, a report that
 checks your own games against your repertoire
@@ -15,10 +15,12 @@ and names the move you keep leaving it on, an importer that fetches your public
 Chess.com games — with their ratings and clocks — and a coach that explains
 positions from engine output, with or without a model to write the sentences.
 
-Everything is one HTML file, except Stockfish: the engine the Watch screen
-puts on the board is two more files beside it, and the one part of the app that
-needs a real web address rather than a file opened from disk. It all works
-offline once loaded and can be installed as an app from any web address.
+Everything is one HTML file, except the two engines the Watch screen puts on
+the board: Stockfish is two more files beside it, and Reckless is a 44 MB
+download the website version fetches the first time somebody asks for it.
+They are the one part of the app that needs a real web address rather than a
+file opened from disk. It all works offline once loaded and can be installed
+as an app from any web address.
 
 ## Two rules
 
@@ -210,6 +212,28 @@ the line and the number. `tests/explain.test.mjs` pins the wording from canned
 analysis, and `tests/stockfish-watch.cjs` plays real games with the real engine
 and reads every explanation back off the screen.
 
+## Reckless
+
+Stockfish's opponent at the top: Reckless, one of the two strongest engines
+there are, built for one thread in WebAssembly from a pinned commit with one
+six-line change, and vendored in `vendor/reckless/` with the build script,
+checksums and licence (AGPL). It gets the same budget as Stockfish, 250,000
+positions a move, from a cleared engine, told the whole game. Its moves are
+explained from its own analysis — its line is its reason — and Stockfish's
+opinion of each is the verdict; neither is called a mistake for disagreeing.
+
+**Website only, fetched when asked for.** It is 64 MB, almost all network
+weights, so it is not in the APK (which has no internet permission to fetch
+it) and not in anybody's download until they pick it. Then it arrives as 16
+gzipped pieces, 43.8 MB, each checked against its checksum and kept as it
+arrives, so a connection that drops loses only the piece in flight and the
+next press of the button carries on from there. A piece that goes twenty
+seconds without a byte counts as stalled and is asked for again. It is kept in
+a cache of its own that app updates leave alone, and it works offline after
+that. `tests/reckless.test.mjs` checks the vendored pieces and runs the engine
+in node; `tests/reckless-watch.cjs` cuts a download off halfway, carries it on,
+publishes a new version of the app under it, takes it offline and plays.
+
 ## Speed
 
 Everything the app knows about a game it reads back out of the game's own PGN,
@@ -251,12 +275,12 @@ over every one- and two-piece ending.
 
 ```
 npm install            # playwright, for the browser drivers
-npm test               # 19 node suites: perft, motifs, the move explainer, traps,
+npm test               # 20 node suites: perft, motifs, the move explainer, Reckless, traps,
                        # mate cap, multi-line search, the solved table, endgame
                        # and opening prose, notation, clocks, evaluation
                        # symmetry, the fast paths against the long way round,
                        # repeatability, interface vocabulary
-npm run test:browser   # 46 Playwright drivers against dist/
+npm run test:browser   # 47 Playwright drivers against dist/
 npm run verify:openings
 ```
 

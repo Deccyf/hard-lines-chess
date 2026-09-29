@@ -58,6 +58,8 @@ const Watch = {
   busy: false,
   generation: 0,
   finished: null,
+  rkCheck: 0,            // the latest look at whether Reckless is on the device; an older answer is dropped
+  rkBusy: false,         // Reckless is downloading or starting
 };
 
 /** How wide a window of "equally good" the two sides pick inside. */
@@ -430,7 +432,10 @@ function renderWatch() {
     : Watch.bands
       ? `A drawn pairing, a drawn opening and a window of equally good moves — so this is not a game either of them has played before.${Watch.bookName ? ` Opening: the ${Watch.bookName}.` : ''}`
       : Watch.source === 'stockfish' && Watch.sf
-        ? `Stockfish looks at ${STOCKFISH_NODES.toLocaleString('en-GB')} positions before every move, and every move is explained from what it saw.${Watch.sf.level ? ' The level plays exactly as it does on Play.' : ''}${Watch.bookName ? ` Opening: the ${Watch.bookName}.` : ''}`
+        ? (Watch.sf.white === 'reckless' || Watch.sf.black === 'reckless'
+          ? `Stockfish and Reckless each look at ${STOCKFISH_NODES.toLocaleString('en-GB')} positions before every move. Reckless's moves are explained from its own analysis, and Stockfish says what it makes of them.`
+          : `Stockfish looks at ${STOCKFISH_NODES.toLocaleString('en-GB')} positions before every move, and every move is explained from what it saw.${Watch.sf.level ? ' The level plays exactly as it does on Play.' : ''}`)
+          + (Watch.bookName ? ` Opening: the ${Watch.bookName}.` : '')
         : '';
 
   renderWatchProgress();
@@ -474,7 +479,8 @@ function renderWatchProgress() {
     ? `Move ${Math.max(1, Math.ceil(Watch.ply / 2))} of ${Math.ceil(total / 2)}`
     : Watch.ply ? `Move ${Math.ceil(Watch.ply / 2)}` : '';
   if (Watch.source === 'stockfish' && Watch.sf?.thinking) {
-    const doing = Stockfish.worker ? 'Stockfish is thinking…' : 'Starting Stockfish…';
+    const doing = Watch.ply >= Watch.book.length && sfSideAt(Watch.ply) === 'reckless' ? 'Reckless is thinking…'
+      : Stockfish.worker ? 'Stockfish is thinking…' : 'Starting Stockfish…';
     text = text ? `${text} · ${doing}` : doing;
   }
   $('watchProgress').textContent = text;
@@ -558,6 +564,10 @@ function renderWatchOpponents() {
   self.value = 'stockfish';
   self.textContent = 'Stockfish — itself';
   select.appendChild(self);
+  const reckless = document.createElement('option');
+  reckless.value = 'reckless';
+  reckless.textContent = 'Reckless';
+  select.appendChild(reckless);
   BANDS.forEach((band, index) => {
     const option = document.createElement('option');
     option.value = String(index);
@@ -586,25 +596,30 @@ function startWatchStockfish(opponent) {
   Watch.bands = null;
   Watch.finished = null;
 
-  const level = opponent === 'stockfish' ? null : BANDS[Number(opponent)] ?? null;
-  const sfIsWhite = level ? Math.random() < 0.5 : true;
+  const vsReckless = opponent === 'reckless';
+  const level = opponent === 'stockfish' || vsReckless ? null : BANDS[Number(opponent)] ?? null;
+  // Who Stockfish plays: a level, Reckless, or — neither — itself.
+  const rival = vsReckless ? 'reckless' : level ? 'level' : 'stockfish';
+  const sfIsWhite = rival === 'stockfish' ? true : Math.random() < 0.5;
   Watch.sf = {
-    level,                                   // null when Stockfish plays itself
-    white: level && !sfIsWhite ? 'level' : 'stockfish',
-    black: level && sfIsWhite ? 'level' : 'stockfish',
+    level,                                   // null when Stockfish plays Reckless or itself
+    white: sfIsWhite ? 'stockfish' : rival,
+    black: sfIsWhite ? rival : 'stockfish',
     fens: [new Board().fen()],               // position i: after i moves
     ucis: [],                                // the moves, as Stockfish is told them
     analysis: new Map(),                     // position index -> promise of Stockfish's analysis
     ready: new Map(),                        // position index -> that analysis, once it has arrived
     prep: new Map(),                         // ply -> promise that the move and both its analyses are ready
+    rk: new Map(),                           // position index -> promise of Reckless's own analysis, where it moves
+    rkReady: new Map(),
     step: 0,                                 // the latest Next; an older one arriving late is dropped
     thinking: false,
     error: null,
   };
-  if (level) {
-    const levelName = `Level ${bandLabelFor(level.elo)}`;
-    Watch.whiteName = sfIsWhite ? 'Stockfish' : levelName;
-    Watch.blackName = sfIsWhite ? levelName : 'Stockfish';
+  if (level || vsReckless) {
+    const rivalName = vsReckless ? 'Reckless' : `Level ${bandLabelFor(level.elo)}`;
+    Watch.whiteName = sfIsWhite ? 'Stockfish' : rivalName;
+    Watch.blackName = sfIsWhite ? rivalName : 'Stockfish';
     Watch.title = `${Watch.whiteName} against ${Watch.blackName}`;
   } else {
     Watch.whiteName = 'Stockfish, White';
@@ -644,7 +659,7 @@ function sfFailed(e) {
   renderWatch();
 }
 
-/** Which side is to move in position `index`: 'stockfish' or 'level'. */
+/** Which side is to move in position `index`: 'stockfish', 'reckless' or 'level'. */
 function sfSideAt(index, sf = Watch.sf) {
   return index % 2 === 0 ? sf.white : sf.black;
 }
@@ -695,6 +710,15 @@ function sfAnalysis(sf, index) {
   return job;
 }
 
+/** Reckless's own analysis of position `index` — its move, and its reason — searched once and kept. */
+function rkAnalysis(sf, index) {
+  if (sf.rk.has(index)) return sf.rk.get(index);
+  const job = recklessAnalyse(sf.fens[0], { nodes: RECKLESS_NODES, multipv: 3, moves: sf.ucis.slice(0, index) });
+  job.then((a) => sf.rkReady.set(index, a), () => {});
+  sf.rk.set(index, job);
+  return job;
+}
+
 /**
  * Make the move that takes the game to `ply`, and the two analyses its
  * explanation needs. In order: a move needs every move before it.
@@ -717,6 +741,14 @@ function sfPrepare(ply, sf = Watch.sf) {
         const a = await sfAnalysis(sf, index);
         if (!current()) return false;
         move = moveFromUci(board, a?.best);
+      }
+      if (!move && sfSideAt(index, sf) === 'reckless') {
+        // Both engines at once, each in its own worker: Reckless for its move,
+        // Stockfish for what it makes of the position the move is played in.
+        const [a] = await Promise.all([rkAnalysis(sf, index), sfAnalysis(sf, index)]);
+        if (!current()) return false;
+        move = moveFromUci(board, a?.best);
+        if (!move) throw new Error('Reckless did not answer with a move.');
       }
       if (!move && sf.level) {
         // The level's move: the app's own engine, exactly as it plays on Play.
@@ -805,6 +837,11 @@ function explainWatchPlyStockfish(ply, note) {
   const move = sanToMove(before, Watch.sans[ply - 1]);
   if (!move) return;
   const inBook = ply <= Watch.book.length;
+  const side = sfSideAt(ply - 1);
+  // Reckless's move is explained from its own analysis; a book move is the
+  // book's, whoever plays it.
+  const rkChose = side === 'reckless' && !inBook;
+  if (rkChose && !sf.rkReady.has(ply - 1)) return;
   note.explained = explainMove({
     fenBefore: sf.fens[ply - 1],
     uci: sf.ucis[ply - 1],
@@ -817,7 +854,9 @@ function explainWatchPlyStockfish(ply, note) {
     // a repetition, which a board made from the FEN alone cannot see.
     outcome: watchBoardAt(ply)?.outcome() ?? null,
     // A book move is the book's, whoever plays it: Stockfish did not choose it.
-    isEngine: sfSideAt(ply - 1) === 'stockfish' && !inBook,
+    isEngine: side === 'stockfish' && !inBook,
+    chooser: rkChose ? 'Reckless' : null,
+    own: rkChose ? sf.rkReady.get(ply - 1) : null,
     search: (board) => { App.engine.reset(); return App.engine.search(board, { nodes: 15000, maxDepth: 5 }); },
   });
 }
@@ -839,4 +878,88 @@ function paintWatchNoteStockfish(note) {
   for (const text of sentences) why.appendChild(el('p', 'note', text));
   box.textContent = verdict;
   box.className = `note ${tone}`;
+}
+
+// ── getting Reckless onto the device ───────────────────────────────────────
+//
+// Reckless is a 44 MB download the first time, so picking it never starts one
+// by itself. The button says what pressing it will do — "Download Reckless
+// (44 MB) and watch" — and the line under it says where things stand: on
+// this device already, partly downloaded, or not available here and why.
+// While it downloads the bar fills; if the download stops, the pieces that
+// arrived are kept and the button offers to carry on from there.
+
+/** The Stockfish panel's button and note, for whichever opponent is picked. */
+async function renderWatchSfChoice() {
+  const select = $('watchSfOpponent');
+  const button = $('watchStockfish');
+  if (!select || !button) return;
+  const mine = ++Watch.rkCheck;
+  if (select.value !== 'reckless') {
+    button.textContent = 'Watch Stockfish play';
+    button.disabled = false;
+    // A download already under way carries on, and keeps its bar and its line.
+    if (!Watch.rkBusy) { $('watchRkBar').hidden = true; sfNote(''); }
+    return;
+  }
+  if (Watch.rkBusy) return;
+  button.textContent = 'Watch Stockfish play Reckless';
+  button.disabled = true;
+  sfNote('Checking whether Reckless is on this device…');
+  const status = await recklessStatus().catch(() => ({ state: 'unsupported' }));
+  if (mine !== Watch.rkCheck || Watch.rkBusy) return;
+  const mb = (n) => `${Math.max(1, Math.round(n / 1e6))} MB`;
+  const says = {
+    ready: 'Reckless is on this device, and works without a connection.',
+    none: `Reckless, one of the two strongest engines there are, is a ${mb(status.total ?? 0)} download the first time, and is kept on this device after that.`,
+    partial: `${mb((status.total ?? 0) - (status.need ?? 0))} of Reckless's ${mb(status.total ?? 0)} is already here. The rest downloads from where it stopped.`,
+    offline: 'Reckless needs a connection the first time, to download it.',
+    apk: 'Reckless is in the website version of the app only. This app has no internet connection to download it with, and it is too big to carry inside — install the app from the same website this one came from.',
+    file: 'Reckless cannot run in a copy of the page opened from a file. It works in the app installed from the website.',
+    missing: 'This copy of the app was built without Reckless.',
+    unsupported: 'This browser cannot download and run Reckless.',
+  };
+  sfNote(says[status.state] ?? says.unsupported);
+  if (status.state === 'none') button.textContent = `Download Reckless (${mb(status.total)}) and watch`;
+  if (status.state === 'partial') button.textContent = `Download the rest (${mb(status.need)}) and watch`;
+  button.disabled = !['ready', 'none', 'partial'].includes(status.state);
+}
+
+/** The Stockfish panel's button. Against Reckless, download it first if it is not here. */
+async function watchStockfishClicked() {
+  const opponent = $('watchSfOpponent').value;
+  if (opponent !== 'reckless') { startWatchStockfish(opponent); playWatch(); return; }
+  if (Watch.rkBusy) return;
+  const button = $('watchStockfish');
+  const bar = $('watchRkBar');
+  Watch.rkBusy = true;
+  button.disabled = true;
+  // Asked to keep it: 44 MB evicted under storage pressure is 44 MB to fetch again.
+  navigator.storage?.persist?.().catch(() => {});
+  try {
+    await loadReckless((p) => {
+      if (p.phase === 'start') {
+        bar.hidden = true;
+        sfNote('Starting Reckless…');
+        return;
+      }
+      bar.hidden = false;
+      bar.firstElementChild.style.width = `${p.total ? (100 * p.saved) / p.total : 0}%`;
+      sfNote(`Downloading Reckless: ${(p.saved / 1e6).toFixed(1)} of ${(p.total / 1e6).toFixed(1)} MB`);
+    });
+  } catch (e) {
+    Watch.rkBusy = false;
+    bar.hidden = true;
+    await renderWatchSfChoice();
+    // The reason goes last, over the status line: it is what the person needs.
+    sfNote(e.message, 'note bad-note');
+    if (e.code === 'download') button.textContent = 'Carry on downloading';
+    return;
+  }
+  Watch.rkBusy = false;
+  bar.hidden = true;
+  if ($('watchSfOpponent').value !== 'reckless') { renderWatchSfChoice(); return; }
+  startWatchStockfish('reckless');
+  playWatch();
+  renderWatchSfChoice();
 }

@@ -54,7 +54,8 @@ const PLIES = Number(process.env.PLIES || 30);
   // ── the opponent list ─────────────────────────────────────────────────────
   const options = await page.$$eval('#watchSfOpponent option', (o) => o.map((x) => x.textContent));
   check('the first opponent is Stockfish itself', options[0], 'Stockfish — itself');
-  check('and every level follows', options.length, await page.evaluate(() => BANDS.length + 1));
+  check('then Reckless', options[1], 'Reckless');
+  check('and every level follows', options.length, await page.evaluate(() => BANDS.length + 2));
   check('the default is level 1500',
     await page.$eval('#watchSfOpponent', (s) => s.options[s.selectedIndex].textContent.startsWith('Level 1500')), true);
 

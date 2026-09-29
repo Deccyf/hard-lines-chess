@@ -556,15 +556,16 @@
 
     <div class="panel">
       <h3>Stockfish, explained</h3>
-      <p class="note">The strongest engine there is, against one of this app's levels or against itself. Every move is
-        explained: what it does, what it threatens, the line Stockfish expects to follow, and why it was chosen over the
-        next best.</p>
+      <p class="note">Stockfish, the strongest engine there is, against Reckless, one of this app's levels, or itself.
+        Every move is explained: what it does, what it threatens, the line the engine expects to follow, and why it was
+        chosen over the next best.</p>
       <div class="fields">
         <label class="field"><span>Opponent</span>
           <select id="watchSfOpponent"></select>
         </label>
       </div>
       <button class="btn primary" id="watchStockfish" type="button">Watch Stockfish play</button>
+      <div class="progress" id="watchRkBar" hidden><span></span></div>
       <p class="note" id="watchSfNote" hidden></p>
     </div>
 
@@ -629,6 +630,10 @@
           the line shows, you are given the line and the number rather than a story nothing computed. Stockfish looks at
           a quarter of a million positions a move, a fixed amount of work, so a position gets the same explanation on any
           device.</p>
+        <p class="note">Against Reckless, the other engine's moves are explained the same way from its own analysis — the line
+          Reckless expects is its reason — and Stockfish says whether it agrees, and by how much. Neither side is called a
+          mistake for disagreeing: they each look at the same number of positions, and the rest of the game shows who was
+          right. Reckless is free software (AGPL); the build and the one change made to it are in the app's source.</p>
         <p class="note">For the other games there are three sources. While the game is still in one of the app's openings, that opening's own note for
           the move just played. On a famous game, at the moves that have one, a sentence written about that exact move.
           And after every move, a search deeper than the one that played it — if it preferred something else, the gap

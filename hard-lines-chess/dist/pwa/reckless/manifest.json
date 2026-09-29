@@ -1,0 +1,121 @@
+{
+  "engine": "Reckless",
+  "version": "0.10.0-dev",
+  "source": "https://github.com/codedeliveryservice/reckless",
+  "commit": "31d9cd6fd2bea6d9f72eeb35e0bac70daa295fb1",
+  "network": {
+    "name": "v60-7f587dfb.nnue",
+    "sha256": "7f587dfb1fe5d74d53909328afa6fd51650c8c7f45907602db7fbb1e52948c61"
+  },
+  "built": {
+    "rust": "1.94.1",
+    "wasmBindgen": "0.2.123",
+    "features": "-C target-feature=+simd128,+relaxed-simd"
+  },
+  "wasm": {
+    "bytes": 64454914,
+    "sha256": "10aad950888c3d53cec2ab357ae8cfa1600b5e92a1b2696daf832e3d51d945a8"
+  },
+  "glue": {
+    "file": "reckless-f074b6d9c114.js",
+    "sha256": "f074b6d9c11429d30386d87c74431a6decec5c469cd3f1a64519590e828fd05f"
+  },
+  "pieces": [
+    {
+      "file": "pieces/00-410412dae9e6.bin",
+      "bytes": 2945034,
+      "raw": 4194304,
+      "sha256": "410412dae9e6f7351bc167f11af6717a70ec4806e33654447c83b2820cb4c79a"
+    },
+    {
+      "file": "pieces/01-ddab7547d2e4.bin",
+      "bytes": 3014502,
+      "raw": 4194304,
+      "sha256": "ddab7547d2e474484f84bbdf4a81023d167464a58d39d235fdf78c268d68134e"
+    },
+    {
+      "file": "pieces/02-d2606c5c64fc.bin",
+      "bytes": 2981611,
+      "raw": 4194304,
+      "sha256": "d2606c5c64fc2163e3cc787dd3c403db6cefb59e8031f453872b27322d299a49"
+    },
+    {
+      "file": "pieces/03-231d33c33983.bin",
+      "bytes": 3076573,
+      "raw": 4194304,
+      "sha256": "231d33c339833cad1c7a8ab4013b847ad2ce806daf4abe568baa1e77629227ab"
+    },
+    {
+      "file": "pieces/04-e974f8d25468.bin",
+      "bytes": 2960474,
+      "raw": 4194304,
+      "sha256": "e974f8d254684c3dfc43efe0b3623e6a4da23d944f9490cfd1c91a408cf23c2e"
+    },
+    {
+      "file": "pieces/05-8a79d2a61a2c.bin",
+      "bytes": 2870823,
+      "raw": 4194304,
+      "sha256": "8a79d2a61a2c926aa7fa4b399ee8704ad15edd0d5bc9d91f5db6a04a48e60d90"
+    },
+    {
+      "file": "pieces/06-9b787ae78da3.bin",
+      "bytes": 2998023,
+      "raw": 4194304,
+      "sha256": "9b787ae78da371861c75e4224002cb0eb39dad9eef9a399c4bf0a64423559f95"
+    },
+    {
+      "file": "pieces/07-d7ad398f7c2e.bin",
+      "bytes": 3025440,
+      "raw": 4194304,
+      "sha256": "d7ad398f7c2e8bbae1886ee092aa6a8135bba23b9a5fa9ed93b40f3ac9dd0d60"
+    },
+    {
+      "file": "pieces/08-363db3aa7d9e.bin",
+      "bytes": 3058131,
+      "raw": 4194304,
+      "sha256": "363db3aa7d9ef509a922397e319f617fdedd3f14fe0a8b09d6d190c1595ff96d"
+    },
+    {
+      "file": "pieces/09-266acaedc015.bin",
+      "bytes": 3155484,
+      "raw": 4194304,
+      "sha256": "266acaedc0159b9e22acf89048c11358f7723856fdc1f08d52ac88c3436b6179"
+    },
+    {
+      "file": "pieces/10-84e54af312f7.bin",
+      "bytes": 3046891,
+      "raw": 4194304,
+      "sha256": "84e54af312f7bbabf5b69dc80c02a6499ad2286afa3616e3050cd5379007f967"
+    },
+    {
+      "file": "pieces/11-c482198a0bd4.bin",
+      "bytes": 2902023,
+      "raw": 4194304,
+      "sha256": "c482198a0bd464e09069433310ef445de038c533c0d3a0455c14b00993052142"
+    },
+    {
+      "file": "pieces/12-d0a78d0550b1.bin",
+      "bytes": 2577716,
+      "raw": 4194304,
+      "sha256": "d0a78d0550b1511a87f0367836c3fdc0b06c8f62aa541dc68bbc9cda7bda1689"
+    },
+    {
+      "file": "pieces/13-7cee5cad8196.bin",
+      "bytes": 2390542,
+      "raw": 4194304,
+      "sha256": "7cee5cad81969f877c41e76e52f4dd7cbe9db85e43042aa11331c6809c17a34c"
+    },
+    {
+      "file": "pieces/14-ef38f11f80cc.bin",
+      "bytes": 2413708,
+      "raw": 4194304,
+      "sha256": "ef38f11f80cc821df36ccaf49316ef8773da5befa129a0b1bb91c90b5c0d8583"
+    },
+    {
+      "file": "pieces/15-1bb7263c086b.bin",
+      "bytes": 413052,
+      "raw": 1540354,
+      "sha256": "1bb7263c086ba8d563a49314c21311a08f22966b38748c1f83d6f2094c6de166"
+    }
+  ]
+}

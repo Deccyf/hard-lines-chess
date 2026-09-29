@@ -88,9 +88,20 @@ jobs:
       - name: Check the kit is complete
         working-directory: hard-lines-chess
         run: |
-          for f in index.html manifest.webmanifest sw.js icon-192.png icon-512.png icon-maskable-512.png stockfish.js stockfish.wasm; do
+          for f in index.html manifest.webmanifest sw.js icon-192.png icon-512.png icon-maskable-512.png stockfish.js stockfish.wasm reckless-worker.js reckless/manifest.json; do
             test -s "dist/pwa/$f" || { echo "dist/pwa/$f is missing or empty"; exit 1; }
           done
+          # Reckless is downloaded piece by piece, and a piece the manifest names
+          # but the site does not serve is a download that stops at the same
+          # place on every phone, for ever.
+          node -e '
+            const fs = require("fs");
+            const m = JSON.parse(fs.readFileSync("dist/pwa/reckless/manifest.json", "utf8"));
+            const files = [m.glue.file, ...m.pieces.map((p) => p.file)];
+            const missing = files.filter((f) => !fs.existsSync("dist/pwa/reckless/" + f) || fs.statSync("dist/pwa/reckless/" + f).size === 0);
+            if (missing.length) { console.error("dist/pwa/reckless is missing " + missing.join(", ")); process.exit(1); }
+            console.log(`Reckless ok — ${m.pieces.length} pieces`);
+          '
           grep -q 'rel="manifest"' dist/pwa/index.html || { echo 'dist/pwa/index.html does not link the manifest'; exit 1; }
           echo "kit ok — index.html is $(wc -c < dist/pwa/index.html) bytes"
 

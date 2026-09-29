@@ -300,6 +300,51 @@ has('mated in 2 reads as the other side mating', plainEval(scoreToApp({ mate: -2
   noHoles('checkmate', out);
 }
 
+// ── another engine's move ──────────────────────────────────────────────────
+//
+// Reckless's move is explained from ITS analysis — its line is its reason —
+// with Stockfish's opinion as the verdict, and never called a mistake.
+{
+  const own = analysis([
+    line('d2d4', ['d2d4', 'g8f6', 'c2c4', 'e7e6', 'g1f3', 'd7d5'], { cp: 25 }, 16),
+    line('e2e4', ['e2e4', 'e7e5'], { cp: 20 }, 16),
+  ], 16);
+  const after = analysis([line('g8f6', ['g8f6', 'c2c4'], { cp: -25 })]);
+  const agreed = explainMove({
+    fenBefore: START, uci: 'd2d4', chooser: 'Reckless', own,
+    a0: analysis([line('d2d4', ['d2d4', 'd7d5'], { cp: 30 }), line('e2e4', ['e2e4'], { cp: 28 })]),
+    a1: after,
+  });
+  has('another engine: its choice, Stockfish agreeing', agreed.verdict, "Reckless's choice, looking about 8 moves ahead. Stockfish agrees.");
+  eq('another engine agreed with: good tone', agreed.tone, 'good-note');
+  has('another engine: its own line', agreed.sentences.join(' '), 'The line Reckless expects: 1…Nf6 2.c4 e6 3.Nf3 d5.');
+  has('another engine: its own next best, by its own count', agreed.sentences.join(' '), 'Reckless rated e4 just as good.');
+  lacks('another engine: not Stockfish\'s line', agreed.sentences.join(' '), 'The line Stockfish expects');
+  noHoles('another engine agreed with', agreed);
+
+  const slightly = explainMove({
+    fenBefore: START, uci: 'd2d4', chooser: 'Reckless', own,
+    a0: analysis([line('e2e4', ['e2e4', 'e7e5'], { cp: 30 }), line('d2d4', ['d2d4'], { cp: -10 })]),
+    a1: after,
+  });
+  has('a small disagreement: what Stockfish would have played',
+    slightly.verdict, "Reckless's choice, looking about 8 moves ahead. Stockfish would have played e4, 0.4 of a point better by its count.");
+  eq('a small disagreement: plain tone', slightly.tone, 'note');
+  lacks('a small disagreement: no second line from Stockfish', slightly.sentences.join(' '), 'Stockfish wanted');
+  lacks('and never called a mistake', slightly.verdict, 'Inaccuracy');
+
+  const widely = explainMove({
+    fenBefore: START, uci: 'd2d4', chooser: 'Reckless', own,
+    a0: analysis([line('e2e4', ['e2e4', 'e7e5', 'g1f3', 'b8c6'], { cp: 250 }), line('d2d4', ['d2d4'], { cp: 50 })]),
+    a1: after,
+  });
+  has('a wide disagreement: in points', widely.verdict, 'Stockfish would have played e4, 2.0 points better by its count.');
+  eq('a wide disagreement: bad tone', widely.tone, 'bad-note');
+  has('a wide disagreement: what Stockfish wanted', widely.sentences.join(' '), 'Stockfish wanted e4, expecting 1…e5 2.Nf3 Nc6.');
+  lacks('still not called a blunder', widely.verdict, 'Blunder');
+  noHoles('a wide disagreement', widely);
+}
+
 // ── worth saying, not merely true ──────────────────────────────────────────
 
 {

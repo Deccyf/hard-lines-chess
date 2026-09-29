@@ -257,7 +257,12 @@ async function boot() {
 
   // Watch
   $('watchBots').addEventListener('click', () => { startWatchBots(); playWatch(); });
-  $('watchStockfish').addEventListener('click', () => { startWatchStockfish($('watchSfOpponent').value); playWatch(); });
+  $('watchStockfish').addEventListener('click', watchStockfishClicked);
+  $('watchSfOpponent').addEventListener('change', renderWatchSfChoice);
+  // A connection coming or going changes what the Reckless button can do.
+  const recheckReckless = () => { if ($('watchSfOpponent').value === 'reckless') renderWatchSfChoice(); };
+  window.addEventListener('online', recheckReckless);
+  window.addEventListener('offline', recheckReckless);
   for (const seg of document.querySelectorAll('#watchSpeed .seg')) {
     seg.addEventListener('click', () => {
       Watch.speed = Number(seg.dataset.speed);

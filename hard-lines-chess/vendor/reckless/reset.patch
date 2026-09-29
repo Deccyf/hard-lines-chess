@@ -1,0 +1,18 @@
+diff --git a/src/wasm.rs b/src/wasm.rs
+index c11fbe0..5673a36 100644
+--- a/src/wasm.rs
++++ b/src/wasm.rs
+@@ -109,6 +109,13 @@ impl Engine {
+     pub fn reset(&mut self) {
+         self.threads.clear();
+         self.shared.tt.clear(1);
++        // As `ucinewgame` does: the correction histories are shared, not per
++        // thread, so clearing the threads leaves them behind.
++        for corrhist in self.shared.history.all() {
++            corrhist.pawn.clear();
++            corrhist.non_pawn[crate::types::Color::White].clear();
++            corrhist.non_pawn[crate::types::Color::Black].clear();
++        }
+     }
+ }
+ 
