@@ -17,7 +17,7 @@ const src = [
   readFileSync(new URL('../src/review.js', import.meta.url), 'utf8'),
 ].join('\n');
 const S = new Function('window', 'localStorage', src
-  + '; return { parsePgn, clocksFrom, timeControlOf, timeSpent, chessComGame, chessComMonth, timeTrouble, lossesFromStore, judgedFromStore, headerOf, marksOf, SPENT_BUCKETS, LEFT_BUCKETS, bucketFor };')({}, undefined);
+  + '; return { parsePgn, clocksFrom, timeControlOf, timeSpent, chessComGame, chessComMonth, importSummary, timeTrouble, lossesFromStore, judgedFromStore, headerOf, marksOf, SPENT_BUCKETS, LEFT_BUCKETS, bucketFor };')({}, undefined);
 
 let pass = 0;
 const fails = [];
@@ -118,6 +118,35 @@ eq('and so does the time control', stored[0].timeControl, '180+2');
 eq('nothing the review found is touched', stored[0].accuracy, 71);
 // Running it a third time has nothing left to do.
 eq('a second pass reports no further change', S.chessComMonth([api()], 'you', stored).updated, 0);
+
+// ── and that a game you pasted in is recognised when it arrives ────────────
+//
+// A game pasted into Review has no Chess.com link and the time it was
+// reviewed, not played, so neither the link nor the time can find it — and
+// it used to be stored a second time, both copies counted on every chart. It
+// is found by its moves instead, and joined.
+{
+  const pasted = [{
+    at: 1800000000000, side: 'white', white: 'you', black: 'them', reviewed: undefined, accuracy: 64, meanLoss: 90,
+    pgn: '[White "you"] [Black "them"]\n1. e4 e5 2. Nf3 Nc6 3. Bb5',
+    curve: [0, 30, 20, 40, 30, 50], marks: '.....',
+  }];
+  const month = S.chessComMonth([api()], 'you', pasted);
+  eq('a game pasted in earlier is not stored twice', [month.rows.length, month.duplicate, month.joined], [0, 1, 1]);
+  eq('it becomes the Chess.com game: link, rating, clocks',
+    [pasted[0].url, pasted[0].myRating, pasted[0].timeControl, pasted[0].source, /%clk/.test(pasted[0].pgn)],
+    ['https://www.chess.com/game/live/1', 1043, '180+2', 'chess.com', true]);
+  eq('with the same moves, so the review still lines up with them',
+    S.parsePgn(pasted[0].pgn).plies.map((p) => p.uci), ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1b5']);
+  eq('and nothing the review found is touched', [pasted[0].accuracy, pasted[0].meanLoss, pasted[0].marks], [64, 90, '.....']);
+  eq('the summary says so', /1 of those you had already reviewed by pasting it in/.test(S.importSummary({ found: 1, duplicate: 1, joined: 1, months: 1 })), true);
+  eq('a second pass finds it by its link', S.chessComMonth([api()], 'you', pasted).joined, 0);
+
+  const other = [{ at: 1800000000000, side: 'white', pgn: '1. e4 e5 2. Nf3 Nc6 3. Bc4', accuracy: 50 }];
+  eq('a different game is not joined', S.chessComMonth([api()], 'you', other).rows.length, 1);
+  const theirSide = [{ at: 1800000000000, side: 'black', pgn: '1. e4 e5 2. Nf3 Nc6 3. Bb5', accuracy: 50 }];
+  eq('nor the same game reviewed from the other side', S.chessComMonth([api()], 'you', theirSide).rows.length, 1);
+}
 
 // ── where the time goes, without replaying eight thousand moves ───────────
 //

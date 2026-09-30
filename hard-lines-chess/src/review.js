@@ -934,11 +934,21 @@ function timeTrouble(games) {
   const spentRows = SPENT_BUCKETS.map((b) => ({ ...b, n: 0, lost: 0, blunders: 0 }));
   const leftRows = LEFT_BUCKETS.map((b) => ({ ...b, n: 0, lost: 0, blunders: 0 }));
   let used = 0, skipped = 0, moves = 0;
+  // WHY EACH ONE WAS LEFT OUT, because the three are fixed three different
+  // ways: a game not yet reviewed wants reviewing, a game reviewed before the
+  // move by move record was kept wants walking again, and a game with no
+  // clocks can never be used.
+  const why = { unreviewed: 0, noRecord: 0, noClock: 0 };
+  const leave = (reason) => { skipped++; why[reason]++; };
 
   for (const game of games ?? []) {
-    if (!game?.pgn || !Array.isArray(game.curve) || typeof game.marks !== 'string') { skipped++; continue; }
+    if (!game?.pgn || game.walkFailed) { leave('noClock'); continue; }
+    if (!Array.isArray(game.curve) || typeof game.marks !== 'string') {
+      leave(game.reviewed === false ? 'unreviewed' : 'noRecord');
+      continue;
+    }
     const judged = lossesFromStore(game.curve, game.marks, game.side ?? 'white');
-    if (!judged.length) { skipped++; continue; }
+    if (!judged.length) { leave('noRecord'); continue; }
     // ONE CLOCK PER MOVE OF THE GAME, or none at all: a clock lined up against
     // a move it does not belong to reports time trouble in the wrong half of
     // the game. The count to check against is the game's own, stored when it
@@ -946,10 +956,10 @@ function timeTrouble(games) {
     // a curve stops short, and would throw away the moves it does cover.
     const plies = Number.isFinite(game.plies) && game.plies >= judged.length ? game.plies : judged.length;
     const clocks = clocksFrom(game.pgn, plies);
-    if (!clocks) { skipped++; continue; }
+    if (!clocks) { leave('noClock'); continue; }
     const control = timeControlOf(headerOf(game.pgn, 'TimeControl') ?? game.timeControl);
     const spent = timeSpent(clocks, control);
-    if (!spent) { skipped++; continue; }
+    if (!spent) { leave('noClock'); continue; }
 
     used++;
     for (let i = 0; i < judged.length; i++) {
@@ -976,5 +986,5 @@ function timeTrouble(games) {
     meanLoss: r.n ? r.lost / r.n : null,
     blunderRate: r.n ? r.blunders / r.n : null,
   }));
-  return { spent: finish(spentRows), left: finish(leftRows), used, skipped, moves };
+  return { spent: finish(spentRows), left: finish(leftRows), used, skipped, moves, why };
 }

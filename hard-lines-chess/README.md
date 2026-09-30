@@ -260,6 +260,30 @@ engine cleared before every position; the game from its first move. A game
 judged twice by Stockfish is judged the same way twice. Reckless as a judge is
 the website's, as on Watch — downloaded the first time it is picked.
 
+**Judging again replaces everything, together.** Whether a game is judged
+again by the walk or reviewed again on Review, one function writes the new
+judgement onto the stored game: accuracy, mistakes, the curve and the marks
+behind every chart, the setting, the budget and the judge, all at once, so no
+screen can read one judge's curve beside another judge's accuracy. What the
+game is (when it was played, where it came from, the rating and the clocks)
+is kept. A game reviewed again takes the place of its earlier review instead
+of being counted twice, and a game pasted into Review and later imported from
+Chess.com is recognised by its moves and joined to that review, gaining the
+link, the rating and the clocks. Its drills follow: a drill made from the old
+judgement asks for the new judge's move, or goes if the new judge does not call
+that move a mistake, and says whose answer it is. The strength estimate on
+every screen is worked out from the calibration when it is shown, for every
+game measured under the budget the calibration was measured at, rather than
+read back from when the game was stored. If the judge stops partway through a walk, the
+walk stops there and every game it had not finished is left exactly as it
+was. The walk also offers games analysed before the move by move record was
+kept, and walks them again at the setting they were measured at, so they
+reappear in "Where your time goes" with the same figures.
+`tests/rejudge-drive.cjs` checks this: a history walked by this app's engine
+and then judged again by Stockfish must end up identical to the same games
+judged by Stockfish from the start. That covers every stored figure, every
+chart and panel on Progress, the reopened review and the drills.
+
 ## Speed
 
 Everything the app knows about a game it reads back out of the game's own PGN,
@@ -306,7 +330,7 @@ npm test               # 21 node suites: perft, motifs, the move explainer, Reck
                        # and opening prose, notation, clocks, evaluation
                        # symmetry, the fast paths against the long way round,
                        # repeatability, interface vocabulary
-npm run test:browser   # 48 Playwright drivers against dist/
+npm run test:browser   # 49 Playwright drivers against dist/
 npm run verify:openings
 ```
 

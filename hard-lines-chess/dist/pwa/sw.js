@@ -12,7 +12,7 @@
 // shell only ever changes when the worker does; a network-first one is fresh
 // whenever it can be and offline whenever it must be. The version-keyed cache
 // is still what lets an old shell be thrown away atomically on activate.
-const VERSION = 'hard-lines-41c41dcca021';
+const VERSION = 'hard-lines-cd7b24d92c29';
 // The engine is part of the shell: an installed app that plays Stockfish when
 // it has a connection and cannot when it does not is not offline. So is the
 // small script that fetches and runs Reckless — but not Reckless itself.

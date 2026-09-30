@@ -8,7 +8,8 @@
 //
 //   2. THE REVIEW IS THAT JUDGE'S. Stockfish's verdicts, named as Stockfish's,
 //      stored with the game — and a different judge's review of the same game
-//      is a different curve, or the choice changed nothing.
+//      is a different curve, or the choice changed nothing. It takes the place
+//      of the earlier review rather than being counted beside it.
 //
 //   3. THE SAME QUESTION GETS THE SAME ANSWER from the new judges too: the
 //      same game reviewed twice by Stockfish stores the same curve and marks.
@@ -36,6 +37,8 @@ const ANDROID_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 
 const OPERA = '[White "Morphy"] [Black "Allies"]\n1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Nf6 7. Qb3 Qe7 '
   + '8. Nc3 c6 9. Bg5 b5 10. Nxb5 cxb5 11. Bxb5+ Nbd7 12. O-O-O Rd8 13. Rxd7 Rxd7 14. Rd1 Qe6 15. Bxd7+ Nxd7 '
   + '16. Qb8+ Nxb8 17. Rd8#';
+// A second game, so that two judges can each have one of them.
+const TRAP = '[White "Morphy"] [Black "Someone"]\n1. e4 e5 2. Nf3 Nc6 3. Bc4 Nd4 4. Nxe5 Qg5 5. Nxf7 Qxg2 6. Rf1 Qxe4+ 7. Be2 Nf3#';
 const IMPORTED = [
   '1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. Bg5 Be7 5. e3 O-O 6. Nf3 h6 7. Bh4 b6 8. cxd5 Nxd5 9. Bxe7 Qxe7 10. Nxd5 exd5 11. Rc1 Be6 12. Qa4 c5 13. Qa3 Rc8 14. Bb5 a6',
   '1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 a6 6. Be3 e5 7. Nb3 Be6 8. f3 Be7 9. Qd2 O-O 10. O-O-O Nbd7 11. g4 b5 12. g5 b4 13. Ne2 Ne8 14. f4 a5',
@@ -72,23 +75,25 @@ const IMPORTED = [
   check('and it is kept as a preference', await page.evaluate(() => App.prefs.judge), 'stockfish');
 
   // ── 2 and 3. a review by Stockfish, twice ────────────────────────────────
-  const review = async () => {
-    await page.fill('#pgnInput', OPERA);
+  const review = async (pgn = OPERA) => {
+    await page.fill('#pgnInput', pgn);
     await page.fill('#reviewName', 'Morphy');
     await page.selectOption('#reviewDepth', '7');
     await page.click('#reviewRun');
     await page.waitForFunction(() => /^Done/.test(document.getElementById('reviewStatus').textContent)
       || /failed|cannot/.test(document.getElementById('reviewStatus').textContent), null, { timeout: 300000 });
-    return page.evaluate(() => {
-      const g = App.reviews.games[App.reviews.games.length - 1];
+    return page.evaluate((black) => {
+      // Wherever it is stored: a game reviewed again keeps its place.
+      const g = App.reviews.games.find((x) => (x.pgn ?? '').includes(`[Black "${black}"]`));
       return {
+        stored: App.reviews.games.length,
         status: document.getElementById('reviewStatus').textContent,
         judge: g.judge, curve: JSON.stringify(g.curve), marks: g.marks, meanLoss: g.meanLoss,
         estimate: Boolean(g.estimate), calibrated: Boolean(RATING_FIT?.judges?.[g.judge]) || g.judge === 'app',
         summary: document.querySelector('#reviewOut .panel .note')?.textContent ?? '',
         mistakes: [...document.querySelectorAll('#reviewOut .mistake-note')].map((e) => e.textContent),
       };
-    });
+    }, /\[Black "([^"]+)"\]/.exec(pgn)[1]);
   };
   const byStockfish = await review();
   say('Stockfish\'s review', byStockfish.status.slice(0, 90));
@@ -99,11 +104,7 @@ const IMPORTED = [
   const again = await review();
   check('the same game twice, the same curve', again.curve, byStockfish.curve);
   check('and the same marks', again.marks, byStockfish.marks);
-
-  await page.selectOption('#reviewJudge', 'app');
-  const byApp = await review();
-  check('this app\'s engine judged the next one', byApp.judge, 'app');
-  check('and saw the game differently', byApp.curve !== byStockfish.curve, true);
+  check('and it is still one stored game, not two', again.stored, 1);
 
   // ── 4. a reopened game asks its own judge ────────────────────────────────
   const reopened = await page.evaluate(async () => {
@@ -123,6 +124,18 @@ const IMPORTED = [
   say('a reopened Stockfish review, tapped', reopened.note);
   check('the move it names is the one Stockfish wants there', reopened.best !== null && reopened.best === reopened.stockfish, true);
   check('and the note under the board says it', reopened.san !== null && reopened.note.includes(reopened.san), true);
+
+  // ── 2, again: another judge's review of the same game replaces it ────────
+  await gotoSection(page, 'review');
+  await page.selectOption('#reviewJudge', 'app');
+  const byApp = await review();
+  check('this app\'s engine judged it next', byApp.judge, 'app');
+  check('and saw the game differently', byApp.curve !== byStockfish.curve, true);
+  check('in place of Stockfish\'s review, not beside it', byApp.stored, 1);
+  // And a different game by Stockfish, so two judges share the history.
+  await page.selectOption('#reviewJudge', 'stockfish');
+  const trap = await review(TRAP);
+  check('a second game, judged by Stockfish', `${trap.judge} ${trap.stored}`, 'stockfish 2');
 
   // ── 6. Progress says when the judges differ ──────────────────────────────
   await gotoSection(page, 'progress');
@@ -155,7 +168,7 @@ const IMPORTED = [
   await page.waitForTimeout(200);
   const back = await page.$eval('#walkNote', (e) => e.textContent);
   say('switched back, the walk offers', back);
-  check('to judge them all again with this app\'s engine', /5 were judged by Stockfish, and will be judged again by this app's engine/.test(back), true);
+  check('to judge them all again with this app\'s engine', /4 were judged by Stockfish, and will be judged again by this app's engine/.test(back), true);
 
   // ── 1, again: the choice survives a reload ───────────────────────────────
   await page.selectOption('#reviewJudge', 'reckless');

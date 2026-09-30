@@ -210,7 +210,16 @@ async function runStockfishSearch(position, nodes, multipv) {
   return new Promise((resolve, reject) => {
     const infos = [];
     const timer = setTimeout(() => {
+      // AND THAT ENGINE IS FINISHED WITH. Left running, it could still answer
+      // the search it abandoned — and that late "bestmove" would be read as
+      // the answer to whichever position was asked next. The next question
+      // starts a fresh one.
       worker.onmessage = null;
+      try { worker.terminate(); } catch { /* already gone */ }
+      if (Stockfish.worker === worker) {
+        Stockfish.worker = null;
+        Stockfish.loading = null;
+      }
       reject(new Error('Stockfish stopped answering in the middle of a search.'));
     }, STOCKFISH_SEARCH_MS);
     worker.onmessage = (e) => {

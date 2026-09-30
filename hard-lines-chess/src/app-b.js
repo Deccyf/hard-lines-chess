@@ -474,6 +474,27 @@ const judgeOf = (game) => (game?.judge && JUDGES[game.judge] ? game.judge : 'app
 const judgeWords = (name) => judgeNamed(name).words;
 
 /**
+ * A stored game's strength estimate, worked out now from what it lost, at the
+ * setting and by the judge that measured it, against the calibration this page
+ * carries — rather than read back from whenever the game was stored. The
+ * review panel always worked it out afresh while Progress and the list of
+ * reviewed games read the stored one, so a calibration measured again could
+ * leave two screens saying different things about the same game.
+ *
+ * ONLY FOR A GAME THE CALIBRATION DESCRIBES: one measured under the budget the
+ * calibration was measured at, for its setting. A game measured under a clock,
+ * before the reviewer counted positions, keeps the figure it was stored with —
+ * the fit was never measured on a loss like that, the screens that show it
+ * already say so, and the walk offers to measure it again.
+ */
+function estimateOf(game) {
+  if (!game || !Number.isFinite(game.meanLoss)) return null;
+  const budget = typeof RATING_FIT === 'undefined' ? undefined : RATING_FIT?.budgets?.[String(game.depth)];
+  if (!Number.isFinite(game.nodes) || game.nodes !== budget) return game.estimate ?? null;
+  return estimateRating(game.meanLoss, game.depth, judgeOf(game)) ?? game.estimate ?? null;
+}
+
+/**
  * What each judge is, in a sentence, for the line under the choice. Reckless's
  * depends on whether it is on the device; the others are fixed.
  */
@@ -545,6 +566,72 @@ async function readyJudge(name, { say, bar }) {
     }
   }
   return true;
+}
+
+/**
+ * A judgement, written onto a stored game — ALL of it, every time.
+ *
+ * The walk and a review both write here, onto a game that may already carry
+ * another judge's figures. Writing them in one place, together, is what keeps
+ * any screen from reading one judge's curve beside another judge's accuracy:
+ * every field a judge decides is replaced, and a field left over from before
+ * would be exactly that.
+ */
+function writeJudgement(game, result, { depth, nodes, judge }) {
+  game.reviewed = true;
+  delete game.walkFailed;
+  // NULL when fewer than `minJudged` of his moves were judged — never a 100%
+  // that an empty sample would earn.
+  game.accuracy = result.accuracy;
+  game.meanLoss = result.meanLoss;
+  game.mistakes = result.mistakes;
+  game.tactics = result.tactics.length;
+  game.depth = depth;
+  // WHAT BUDGET THIS FIGURE CAME OUT OF, stored because the estimate is
+  // calibrated against it. A game reviewed before the reviewer counted
+  // positions has no `nodes` and was measured under a clock — which means
+  // whatever the machine managed that day — so it cannot be set beside these
+  // ones without saying so.
+  game.nodes = nodes;
+  // WHO JUDGED IT. A stronger judge finds more wrong with the same game, so
+  // this figure can only be set beside others judged the same way.
+  game.judge = judge;
+  // WHAT IT TOOK TO WORK ALL THAT OUT, kept so the game reopens without it
+  // being worked out again. The curve is the evaluation from White's side
+  // after every move, and the marks are what the judge called each one, a
+  // character apiece. See judgedFromStore() for why those two are enough and
+  // what they leave out.
+  game.curve = result.whiteCp;
+  game.marks = marksOf(result.judged);
+  game.counted = result.counted;
+  game.estimate = result.meanLoss === null ? null : estimateRating(result.meanLoss, depth, judge);
+  return game;
+}
+
+/**
+ * The stored review of this same game, if there is one: the same side, from
+ * the same start, with the same moves. Headers are not compared — a game
+ * pasted in again, or pasted after it was imported, carries different ones.
+ */
+function storedReviewOf(parsed, side) {
+  const ucis = (p) => p.plies.map((x) => x.uci).join(' ');
+  const moves = ucis(parsed);
+  const start = parsed.startFen ?? '';
+  // The opening first, which is a fraction of the reading: only a game that
+  // starts the same way is read to the end. See "Speed" in the README for what
+  // reading every stored game in full costs.
+  const OPENING = 12;
+  const opening = parsed.plies.slice(0, OPENING).map((x) => x.uci).join(' ');
+  return App.reviews.games.find((g) => {
+    if (!g.pgn || (g.side ?? 'white') !== side) return false;
+    try {
+      const head = parsePgn(g.pgn, { maxPlies: OPENING });
+      if ((head.startFen ?? '') !== start || ucis(head) !== opening) return false;
+      return ucis(parsePgn(g.pgn)) === moves;
+    } catch {
+      return false;
+    }
+  }) ?? null;
 }
 
 async function runReview() {
@@ -636,57 +723,40 @@ async function runReview() {
 
   // Kept, so the mistakes can become drills and the progress page has
   // something to count.
-  const at = Date.now();
   const label = `${parsed.headers.White ?? '?'} vs ${parsed.headers.Black ?? '?'}`;
   forgetDeviations();
-  App.reviews.games.push({
-    at,
+  // THE SAME GAME REVIEWED AGAIN REPLACES ITS REVIEW. Every review used to be
+  // a new row, so a game reviewed twice — at another setting, or by another
+  // judge to compare — was counted twice on every chart on Progress, and the
+  // walk then judged both copies. Now the stored row takes the new judgement,
+  // the way the walk writes one, and keeps what it knew about itself: when
+  // it was played, where it came from, the rating and the clocks.
+  const earlier = storedReviewOf(parsed, Review.side);
+  const game = earlier ?? {
+    at: Date.now(),
     white: parsed.headers.White ?? '?',
     black: parsed.headers.Black ?? '?',
     result: parsed.headers.Result ?? '*',
     side: Review.side,
-    // NULL when fewer than `minJudged` of his moves were judged — never a
-    // 100% that an empty sample would earn.
-    accuracy: result.accuracy,
     plies: parsed.plies.length,
-    mistakes: result.mistakes,
     // KEPT so the game can be walked again later. Without it a review is a
     // one-way door: anything a future version of this page wants to work out
     // about the game is lost, which is exactly what happened to the tactics.
     pgn: text,
-    tactics: result.tactics.length,
-    meanLoss: result.meanLoss,
-    depth,
-    // WHO JUDGED IT. A stronger judge finds more wrong with the same game, so
-    // this figure can only be set beside others judged the same way.
-    judge: judgeName,
-    // WHAT BUDGET THIS FIGURE CAME OUT OF, stored because the estimate is
-    // calibrated against it. A game reviewed before the reviewer counted
-    // positions has no `nodes` and was measured under a clock — which means
-    // whatever the machine managed that day — so it cannot be set beside these
-    // ones without saying so — see the note the Progress screen adds when the
-    // set it is averaging has any of them in it.
-    nodes: budget.nodes,
-    // WHAT IT TOOK TO WORK ALL THAT OUT, kept so the game reopens without it
-    // being worked out again. A review is minutes of searching; before this
-    // the only thing that survived it was the list of mistakes, so every one
-    // of the games below was a dead row you could read and not open.
-    //
-    // The curve is the evaluation from White's side after every move, and the
-    // marks are what the reviewer called each one, a character apiece. See
-    // judgedFromStore() for why those two are enough and what they leave out.
-    curve: result.whiteCp,
-    marks: marksOf(result.judged),
-    counted: result.counted,
-    estimate: result.meanLoss === null ? null : estimateRating(result.meanLoss, depth, judgeName),
-  });
+  };
+  const before = game.mistakes ?? [];
+  writeJudgement(game, result, { depth, nodes: budget.nodes, judge: judgeName });
+  if (!earlier) App.reviews.games.push(game);
+  // Its drills follow the new judgement, as they do on the walk.
+  if (earlier) await rejudgeDrillsAndSave(game, before);
   await Store.set('reviews', App.reviews);
   // The book is built from stored games, and one was just stored.
   refreshBook();
 
-  const filed = await addTactics(result.tactics, { source: 'review', label, at, against: 'elsewhere' });
+  const filed = await addTactics(result.tactics, { source: 'review', label, at: game.at, against: 'elsewhere' });
 
-  notes.unshift(`Done: ${result.mistakes.length} ${result.mistakes.length === 1 ? 'mistake' : 'mistakes'} found in your ${result.counted} moves.`);
+  notes.unshift(`Done: ${result.mistakes.length} ${result.mistakes.length === 1 ? 'mistake' : 'mistakes'} found in your ${result.counted} moves.`
+    + (earlier ? ` This game was already stored, so this review replaced the earlier one${judgeName === 'app' ? '' : ` with ${judgeWords(judgeName)}'s`} rather than counting it twice.` : ''));
   if (result.accuracy === null) {
     notes.push(`Too few of your moves to estimate from: ${result.counted} judged, ${result.minJudged} needed for an accuracy or a strength figure.`);
   }
@@ -869,6 +939,8 @@ function renderReviewResult() {
 
   // The estimate, with what it is and is not, every time. A number on its
   // own would be read as a rating; it is a comparison with the app's ladder.
+  // Worked out afresh, as estimateOf() does for Progress and the list, so a
+  // reopened game says what they say about it.
   const est = Review.result.meanLoss === null ? null : estimateRating(Review.result.meanLoss, Review.result.depth, judgeName);
   if (est) {
     const panel = el('div', 'panel');
@@ -976,7 +1048,7 @@ function renderReviewResult() {
     add.disabled = true;
     // The confirmation lands NEXT TO THE BUTTON. It used to go to the status
     // line at the top of the page, which on a phone was two screens away.
-    const added = await addMistakesToDrills(mistakes);
+    const added = await addMistakesToDrills(mistakes, { judge: judgeNamed(Review.result?.judge).name });
     // A BARE NUMBER IS NOT AN ANSWER. This printed "7" next to the button and
     // left you to work out what seven meant.
     said.textContent = added === 0
@@ -1214,7 +1286,7 @@ function arrowsFor(playedUci, bestUci) {
  *
  * Deduplicated by position, so the same mistake in four games is one drill.
  */
-async function addMistakesToDrills(mistakes, { worstOnly = false } = {}) {
+async function addMistakesToDrills(mistakes, { worstOnly = false, judge = 'app' } = {}) {
   let added = 0;
   for (const m of mistakes) {
     if (!m.best) continue;
@@ -1230,6 +1302,9 @@ async function addMistakesToDrills(mistakes, { worstOnly = false } = {}) {
       severity: m.severity,
       label: m.label,
       loss: m.loss,
+      // Whose answer this is, so the drill can say so — and so it can be
+      // told apart from one a stronger judge has since given.
+      judge: m.judge ?? judge,
       card: SRS.fresh(),
     });
     added++;
@@ -1241,6 +1316,58 @@ async function addMistakesToDrills(mistakes, { worstOnly = false } = {}) {
   // "0Those are already in your drills. new positions added". A function that
   // changes data should hand back what it did, and let each screen say it.
   return added;
+}
+
+/**
+ * A game judged again brings its drills with it.
+ *
+ * A drill keeps the answer it was made with, and the answer came from
+ * whichever judge found the mistake. So when a game is judged again — by a
+ * stronger judge, or at another setting — the drills made from its old
+ * judgement would go on asking for the old judge's move: a drill made by this
+ * app's engine asking for a move that Stockfish, now judging the same game,
+ * thinks is worse than the one played.
+ *
+ * Each drill that came from this game's old judgement — the same position and
+ * the same move played in it — follows the new one: where the new judge also
+ * calls it a mistake, the drill takes the new judge's answer and keeps its
+ * place in the schedule; where it does not, the drill goes, unless another
+ * stored game still calls the same move there a mistake. Drills that came from
+ * anywhere else are not touched.
+ *
+ * Returns what it did, and saves nothing — see rejudgeDrillsAndSave().
+ */
+function rejudgeDrills(game, before) {
+  const key = (fen, uci) => `${fen}|${uci}`;
+  const was = new Set((before ?? []).filter((m) => m.fen).map((m) => key(m.fen, m.uci)));
+  if (!was.size) return { changed: 0, removed: 0 };
+  const now = new Map((game.mistakes ?? []).filter((m) => m.fen && m.best).map((m) => [key(m.fen, m.uci), m]));
+  const elsewhere = new Set();
+  for (const g of App.reviews.games) {
+    if (g === game) continue;
+    for (const m of g.mistakes ?? []) if (m.fen) elsewhere.add(key(m.fen, m.uci));
+  }
+  let changed = 0, removed = 0;
+  App.drills.items = App.drills.items.filter((d) => {
+    const k = key(d.fen, d.playedUci);
+    if (!was.has(k)) return true;
+    const m = now.get(k);
+    if (m) {
+      if (d.best?.uci !== m.best.uci) changed++;
+      Object.assign(d, { best: m.best, severity: m.severity, label: m.label, loss: m.loss, judge: judgeOf(game) });
+      return true;
+    }
+    if (elsewhere.has(k)) return true;
+    removed++;
+    return false;
+  });
+  return { changed, removed };
+}
+
+async function rejudgeDrillsAndSave(game, before) {
+  const done = rejudgeDrills(game, before);
+  if (done.changed || done.removed) await Store.set('drills', App.drills);
+  return done;
 }
 
 // ── drills ─────────────────────────────────────────────────────────────────
@@ -1263,7 +1390,7 @@ function drillsOwed() {
       if (m.severity === 'inaccuracy') continue;
       if (have.has(m.fen) || seen.has(m.fen)) continue;
       seen.add(m.fen);
-      owed.push(m);
+      owed.push({ ...m, judge: judgeOf(game) });
     }
   }
   return owed;
@@ -1341,9 +1468,12 @@ async function onDrillMove({ move, san }) {
   Drill.view.setFen(Drill.current.fen, { arrows });
   $('drillLegend').hidden = false;
 
+  // Named when it was not this app's engine: "Stockfish wanted Nf3" is a
+  // different claim from "the engine wanted Nf3".
+  const who = judgeOf(Drill.current) === 'app' ? 'the engine' : judgeWords(judgeOf(Drill.current));
   $('drillAnswer').textContent = correct
-    ? `Yes — ${Drill.current.best.san} is what the engine wanted.`
-    : `Not quite. The engine wanted ${Drill.current.best.san}; you played ${san}.`;
+    ? `Yes — ${Drill.current.best.san} is what ${who} wanted.`
+    : `Not quite. ${who.replace(/^./, (c) => c.toUpperCase())} wanted ${Drill.current.best.san}; you played ${san}.`;
   $('drillNext').hidden = false;
   $('drillExplore').hidden = false;
   $('drillExplore').onclick = () => openPractice(Drill.current.fen, { arrows });
@@ -1446,7 +1576,7 @@ const PROGRESS_MEASURES = {
     label: 'Strength estimate',
     note: 'What each game’s average loss per move resembles against this app’s own levels. The level numbers are targets rather than measured ratings, and above the calibration ceiling it can only say "or above".',
     better: 'up',
-    value: (game) => (Number.isFinite(game.estimate?.elo) ? game.estimate.elo : null),
+    value: (game) => { const est = estimateOf(game); return Number.isFinite(est?.elo) ? est.elo : null; },
     format: (v) => String(Math.round(v)),
     noun: 'a strength estimate',
     caveat: 'Both halves are your own games at whatever setting and by whichever judge you reviewed them with, so a change of either shows up here as a change in you.',
@@ -1593,19 +1723,40 @@ function renderPersonalEstimate(meanLoss, { heading = 'What your own games say',
  */
 const timeTroubleMemo = { key: null, value: null };
 function timeTroubleFor(games) {
-  // THE KEY HAS TO NOTICE A GAME BEING WALKED. Counting the games and looking
-  // at the first and last dates does not: walking one changes nothing about
-  // the length of the list or its ends, so the panel went on showing the
-  // answer from before the walk. What changes is how many of them carry a
-  // judgement and how long those judgements are, so that is what is counted.
-  let walked = 0, plies = 0;
-  for (const g of games) if (typeof g?.marks === 'string') { walked++; plies += g.marks.length; }
-  const key = `${games.length}|${walked}|${plies}|${games[0]?.at ?? 0}|${games[games.length - 1]?.at ?? 0}|${Progress.timeClass}`;
+  // THE KEY HAS TO NOTICE A GAME BEING WALKED — AND BEING JUDGED AGAIN.
+  // Counting the games and looking at the first and last dates does not:
+  // walking one changes nothing about the length of the list or its ends, so
+  // the panel went on showing the answer from before the walk. Counting the
+  // games that carry a judgement and how long those are was the next fix, and
+  // it missed a game judged again: the same games, the same lengths, another
+  // judge's numbers — and the panel kept the old judge's until a reload. So
+  // the key is now read from what the answer is actually made of, every game's
+  // own judgement, folded into one number.
+  let h = 2166136261;
+  const fold = (text) => {
+    for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
+  };
+  for (const g of games) {
+    fold(`${g?.at}|${g?.side}|${g?.plies}|${g?.pgn?.length}|${judgeOf(g)}|${g?.nodes}|${g?.meanLoss}|${g?.marks ?? '-'}|`);
+    if (Array.isArray(g?.curve)) fold(g.curve.join(','));
+  }
+  const key = `${games.length}|${h >>> 0}|${Progress.timeClass}`;
   if (timeTroubleMemo.key !== key) {
     timeTroubleMemo.key = key;
     timeTroubleMemo.value = timeTrouble(games);
   }
   return timeTroubleMemo.value;
+}
+
+/** Why games were left out of the time panel, said by reason. */
+function leftOutWords(found) {
+  const why = found.why;
+  if (!why) return 'no clock in the moves, or not yet reviewed';
+  const parts = [];
+  if (why.unreviewed) parts.push(`${why.unreviewed} not yet reviewed`);
+  if (why.noRecord) parts.push(`${why.noRecord} reviewed before the move by move record was kept (“Analyse your games” on Play puts it back)`);
+  if (why.noClock) parts.push(`${why.noClock} with no clock in the moves`);
+  return listOf(parts);
 }
 
 /** A row of bars, one per bucket, with what each cost. */
@@ -1617,13 +1768,13 @@ function renderTimeTrouble(games) {
     if (!found.skipped) return null;
     const panel = el('div', 'panel');
     panel.appendChild(el('h3', null, 'Where your time goes'));
-    panel.appendChild(el('p', 'note', `Nothing to show yet. This needs games that carry a clock on every move — which the ones imported from Chess.com do — AND that have been reviewed, and none of your ${found.skipped} stored ${found.skipped === 1 ? 'game has' : 'games have'} both yet. Import, then review some of them, and this fills in.`));
+    panel.appendChild(el('p', 'note', `Nothing to show yet. This needs games that carry a clock on every move — which the ones imported from Chess.com do — AND that have been reviewed, and none of your ${found.skipped} stored ${found.skipped === 1 ? 'game has' : 'games have'} both yet. Import, then review some of them, and this fills in.${found.why?.noRecord ? ` ${found.why.noRecord} of them ${found.why.noRecord === 1 ? 'was' : 'were'} reviewed before the move by move record was kept, which this needs; “Analyse your games” on Play puts it back.` : ''}`));
     return panel;
   }
 
   const panel = el('div', 'panel');
   panel.appendChild(el('h3', null, 'Where your time goes'));
-  panel.appendChild(el('p', 'note', `${found.moves} of your moves across ${found.used} ${found.used === 1 ? 'game' : 'games'}, grouped by how long you spent on them. The bar is what the average move in that group cost you.${found.skipped ? ` ${found.skipped} other ${found.skipped === 1 ? 'game was' : 'games were'} left out: no clock in the moves, or not yet reviewed.` : ''}`));
+  panel.appendChild(el('p', 'note', `${found.moves} of your moves across ${found.used} ${found.used === 1 ? 'game' : 'games'}, grouped by how long you spent on them. The bar is what the average move in that group cost you.${found.skipped ? ` ${found.skipped} other ${found.skipped === 1 ? 'game was' : 'games were'} left out: ${leftOutWords(found)}.` : ''}`));
 
   const worst = Math.max(...found.spent.map((r) => r.meanLoss ?? 0), ...found.left.map((r) => r.meanLoss ?? 0), 1);
   const bars = (rows, title) => {
@@ -2003,7 +2154,7 @@ function renderProgress() {
   // collapse or one lucky game does not drag it — and the band it points at.
   // `Number.isFinite`, not truthiness: an estimate pinned at the floor is
   // elo 0, and a truthy test dropped exactly the worst games from the median.
-  const rated = games.filter((g) => Number.isFinite(g.estimate?.elo)).slice(-8);
+  const rated = games.map((g) => ({ g, est: estimateOf(g) })).filter((r) => Number.isFinite(r.est?.elo)).slice(-8);
   if (rated.length) {
     // HOW MANY OF THESE WERE MEASURED BY A CLOCK. The reviewer used to be
     // given milliseconds rather than a number of positions, so what it got
@@ -2013,19 +2164,19 @@ function renderProgress() {
     // partly out of them has a wobble in it that the new ones do not, and a
     // screen that averaged the two without a word would be presenting the
     // machine's variation as yours.
-    const byClock = rated.filter((g) => !Number.isFinite(g.nodes)).length;
-    const elos = rated.map((g) => g.estimate.elo).sort((a, b) => a - b);
+    const byClock = rated.filter((r) => !Number.isFinite(r.g.nodes)).length;
+    const elos = rated.map((r) => r.est.elo).sort((a, b) => a - b);
     const median = elos[Math.floor(elos.length / 2)];
     const measured = measuredBands();
     const step = measuredStep(measured);
     const measuredIndex = Math.max(0, measured.findIndex((b, i) => median < (measured[i + 1] ?? Infinity)));
     const play = nearestPlayableBand(median);
     const spread = elos.length > 1 ? `${elos[0]}–${elos[elos.length - 1]}` : String(median);
-    const atCeiling = rated.filter((g) => g.estimate.ceilingHit).length;
+    const atCeiling = rated.filter((r) => r.est.ceilingHit).length;
     // AND THE SAME AT THE OTHER END. A median of 0 is not a strength, it is the
     // bottom of the measured scale, and printing it bare was the same fault the
     // per-game rows had.
-    const atFloor = rated.filter((g) => g.estimate.floorHit).length;
+    const atFloor = rated.filter((r) => r.est.floorHit).length;
     const floorUnder = measured[0] + step;
     const middle = atCeiling > rated.length / 2 ? `${median} or above`
       : (atFloor > rated.length / 2 ? `under ${floorUnder}` : String(median));
@@ -2039,7 +2190,7 @@ function renderProgress() {
         <div><span class="k">Middle of your last ${rated.length}</span><span class="v">${middle}</span></div>
         <div><span class="k">Played like level</span><span class="v">${esc(measuredBandLabel(measuredIndex, measured))}</span></div>
       </div>
-      ${atFloor > rated.length / 2 && Number.isFinite(rated[rated.length - 1].estimate?.floorLoss) ? `<p class="note"><strong>The scale has run out below you, which is not the same as a low number.</strong> ${atFloor} of these ${rated.length} games lost more per move than the weakest opponent this app has ever measured — about ${(rated[rated.length - 1].estimate.floorLoss / 100).toFixed(2)} points a move. No weaker level has been measured, so there is nothing to compare them against and the figure cannot separate them. Mistakes a game, above, is the measure that still works here.</p>` : ''}
+      ${atFloor > rated.length / 2 && Number.isFinite(rated[rated.length - 1].est?.floorLoss) ? `<p class="note"><strong>The scale has run out below you, which is not the same as a low number.</strong> ${atFloor} of these ${rated.length} games lost more per move than the weakest opponent this app has ever measured — about ${(rated[rated.length - 1].est.floorLoss / 100).toFixed(2)} points a move. No weaker level has been measured, so there is nothing to compare them against and the figure cannot separate them. Mistakes a game, above, is the measure that still works here.</p>` : ''}
       <p class="note">The middle value of the per-game estimates from your last ${rated.length} reviewed ${rated.length === 1 ? 'game' : 'games'} (they ranged ${range}). Each one compares your average loss per move with this app's own levels, whose numbers are targets rather than measured ratings — so this says which level your recent games resemble, and nothing about your rating anywhere else. The level named is one the calibration actually played, measured at ${step}-point steps${atFloor > rated.length / 2 ? '' : `; the button below picks the nearest level available, ${esc(play.label)}`}.</p>
       ${byClock ? `<p class="note">${byClock === rated.length ? 'All' : `${byClock}`} of these ${rated.length} ${byClock === 1 ? 'was' : 'were'} reviewed before the reviewer was given a fixed amount of work to do, when it was given a fixed amount of time instead — so what it managed depended on the device and the moment, and the same game reviewed twice could come out up to 220 points apart. Review ${byClock === 1 ? 'it' : 'them'} again and every figure here rests on the same measurement.</p>` : ''}`;
     // NO BAND BUTTON OFF A FLOORED ESTIMATE. The nearest rung to an estimate
@@ -2142,7 +2293,7 @@ function renderProgress() {
     row.type = 'button';
     const when = new Date(g.at).toLocaleDateString();
     row.innerHTML = `<span class="record-band">${esc(g.white)} vs ${esc(g.black)}</span>
-      <span class="record-score">${esc(when)} · ${(g.mistakes ?? []).length} found · ${Number.isFinite(g.accuracy) ? `${g.accuracy}%` : 'too short to score'}${estimateWords(g.estimate, { short: true }) ? ` · looked like ${estimateWords(g.estimate, { short: true })}` : ''}${judgeOf(g) !== 'app' ? ` · judged by ${esc(judgeWords(judgeOf(g)))}` : ''}</span>`;
+      <span class="record-score">${esc(when)} · ${(g.mistakes ?? []).length} found · ${Number.isFinite(g.accuracy) ? `${g.accuracy}%` : 'too short to score'}${estimateWords(estimateOf(g), { short: true }) ? ` · looked like ${estimateWords(estimateOf(g), { short: true })}` : ''}${judgeOf(g) !== 'app' ? ` · judged by ${esc(judgeWords(judgeOf(g)))}` : ''}</span>`;
     row.addEventListener('click', () => openStoredReview(g));
     list.appendChild(row);
   }

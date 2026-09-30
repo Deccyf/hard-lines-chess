@@ -128,20 +128,61 @@ function chessComGame(game, username) {
  */
 const BACKFILL = ['myRating', 'theirRating', 'timeControl', 'timeClass', 'url', 'rated'];
 
+/**
+ * A game you pasted into Review, recognised by its moves when it arrives from
+ * Chess.com.
+ *
+ * A pasted game has no link to Chess.com and the time it was REVIEWED rather
+ * than played, so neither key above can find it, and the import stored it a
+ * second time: two rows for one game, both walked, both counted on every chart
+ * on Progress. The moves are what the two have in common — the same side, the
+ * same start, the same moves — so the pasted rows are indexed by their first
+ * dozen moves, and only a game that starts the same way is read to the end.
+ * With nothing pasted, nothing is read at all.
+ */
+const PASTED_OPENING = 12;
+function pastedIndex(existing) {
+  const index = new Map();
+  for (const row of existing) {
+    if (row?.url || !row?.pgn) continue;
+    try {
+      const head = parsePgn(row.pgn, { maxPlies: PASTED_OPENING });
+      const key = `${row.side}|${head.startFen ?? ''}|${head.plies.map((p) => p.uci).join(' ')}`;
+      index.set(key, [...(index.get(key) ?? []), row]);
+    } catch { /* unreadable: nothing to match it by */ }
+  }
+  return index;
+}
+function pastedMatch(index, row) {
+  if (!index.size) return null;
+  try {
+    const head = parsePgn(row.pgn, { maxPlies: PASTED_OPENING });
+    const candidates = index.get(`${row.side}|${head.startFen ?? ''}|${head.plies.map((p) => p.uci).join(' ')}`);
+    if (!candidates) return null;
+    const moves = (text) => parsePgn(text).plies.map((p) => p.uci).join(' ');
+    const mine = moves(row.pgn);
+    return candidates.find((c) => moves(c.pgn) === mine) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function chessComMonth(games, username, existing = []) {
   const seen = new Map();
   for (const row of existing) {
     if (row?.url) seen.set(row.url, row);
     if (row?.at) seen.set(`${row.at}|${row.side}`, row);
   }
+  const pasted = pastedIndex(existing);
 
   const rows = [];
-  let unusable = 0, duplicate = 0, updated = 0;
+  let unusable = 0, duplicate = 0, updated = 0, joined = 0;
   for (const raw of games ?? []) {
     const row = chessComGame(raw, username);
     if (!row) { unusable++; continue; }
     const key = row.url ?? `${row.at}|${row.side}`;
-    const already = seen.get(key) ?? seen.get(`${row.at}|${row.side}`);
+    const byMoves = seen.get(key) || seen.get(`${row.at}|${row.side}`) ? null : pastedMatch(pasted, row);
+    const already = seen.get(key) ?? seen.get(`${row.at}|${row.side}`) ?? byMoves;
     if (already) {
       duplicate++;
       let filled = false;
@@ -152,6 +193,17 @@ function chessComMonth(games, username, existing = []) {
           filled = true;
         }
       }
+      if (byMoves) {
+        // It IS the Chess.com game now, and it takes the Chess.com copy's
+        // movetext when the pasted one had no clocks in it: the same moves, so
+        // nothing the review worked out moves out of line, and the clocks are
+        // what "Where your time goes" reads.
+        already.source ??= 'chess.com';
+        if (!/%clk/.test(already.pgn) && /%clk/.test(row.pgn)) already.pgn = row.pgn;
+        seen.set(key, already);
+        joined++;
+        continue;
+      }
       if (filled) updated++;
       continue;
     }
@@ -160,7 +212,7 @@ function chessComMonth(games, username, existing = []) {
     rows.push(row);
   }
   rows.sort((a, b) => b.at - a.at);
-  return { rows, unusable, duplicate, updated, found: (games ?? []).length };
+  return { rows, unusable, duplicate, updated, joined, found: (games ?? []).length };
 }
 
 /**
@@ -171,7 +223,7 @@ function chessComMonth(games, username, existing = []) {
  * how the first version of this told somebody their brand-new install already
  * had three of their games.
  */
-function importSummary({ found = 0, added = 0, duplicate = 0, unusable = 0, updated = 0, months = 0 }) {
+function importSummary({ found = 0, added = 0, duplicate = 0, unusable = 0, updated = 0, joined = 0, months = 0 }) {
   const month = (n) => `${n} ${n === 1 ? 'month' : 'months'}`;
   if (!found) return `No games at all in the ${month(months)} looked at.`;
 
@@ -183,6 +235,7 @@ function importSummary({ found = 0, added = 0, duplicate = 0, unusable = 0, upda
   // rating on it" are different outcomes and only one of them is worth
   // running the import again for.
   if (updated) parts.push(`${updated} of those gained the rating and time control this app did not used to keep.`);
+  if (joined) parts.push(`${joined} of those you had already reviewed by pasting ${joined === 1 ? 'it' : 'them'} in, so ${joined === 1 ? 'it was' : 'they were'} joined to ${joined === 1 ? 'that review' : 'those reviews'} rather than stored twice, and now ${joined === 1 ? 'carries' : 'carry'} the Chess.com rating and clocks.`);
   if (unusable) parts.push(`${unusable} skipped: not standard chess, no moves, or not your game.`);
   return parts.join(' ');
 }
