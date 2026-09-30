@@ -12,7 +12,9 @@
 // incomparable.
 //
 // This drives the whole path: what the queue offers, what it leaves alone,
-// that a game already measured by work is NOT redone, that every game ends up
+// that a game already measured by work, with its move by move record, is NOT
+// redone — while one measured by work before that record was kept is walked
+// again at its own setting, to put the record back — that every game ends up
 // recording the budget that measured it, and that pressing the button again
 // afterwards says so rather than walking everything a second time.
 const { launch, serve, DIST, gotoSection } = require('./browser.cjs');
@@ -41,24 +43,38 @@ const { launch, serve, DIST, gotoSection } = require('./browser.cjs');
       // Measured under the old clock: figures, but no record of the work.
       g.reviewed = true; g.accuracy = 90; g.meanLoss = 30; g.depth = 7;
       g.estimate = estimateRating(30, 7);
-      if (kind === 'measured') g.nodes = 25000;   // already on a work budget
+      if (kind === 'measured') {
+        // Already on a work budget, with the record a walk keeps now.
+        g.nodes = 25000;
+        g.curve = Array.from({ length: 34 }, () => 0);
+        g.marks = '.'.repeat(33);
+      }
+      if (kind === 'bare') {
+        // On a work budget — at Normal — but walked before the record was kept.
+        g.nodes = 80000; g.depth = 9;
+        g.estimate = estimateRating(30, 9);
+      }
       return g;
     };
     App.reviews.games = [
       ...Array.from({ length: 3 }, (_, i) => mk(i, 'fresh')),
       ...Array.from({ length: 4 }, (_, i) => mk(10 + i, 'stale')),
       ...Array.from({ length: 2 }, (_, i) => mk(20 + i, 'measured')),
+      ...Array.from({ length: 2 }, (_, i) => mk(30 + i, 'bare')),
     ];
   });
   await gotoSection(page, 'review');
   await page.evaluate(() => { renderImport(); });
   await page.waitForTimeout(300);
 
-  const q = await page.evaluate(() => { const { fresh, stale } = walkQueue(); return { fresh: fresh.length, stale: stale.length, total: unwalkedGames().length }; });
+  const q = await page.evaluate(() => { const { fresh, stale, bare } = walkQueue(); return { fresh: fresh.length, stale: stale.length, bare: bare.length, total: unwalkedGames().length }; });
   check('never analysed, offered', q.fresh, 3);
   check('measured by the clock, offered', q.stale, 4);
-  check('measured by work, left alone', q.total, 7);
-  say('the note before pressing', await page.textContent('#walkNote'));
+  check('measured by work without the record, offered', q.bare, 2);
+  check('measured by work with it, left alone', q.total, 9);
+  const before = await page.textContent('#walkNote');
+  say('the note before pressing', before);
+  check('and it says why the last two are there', /2 were analysed before the move by move record was kept/.test(before), true);
   say('the button', await page.textContent('#walkRun'));
 
   // Run it at the quickest setting and let it finish.
@@ -72,11 +88,17 @@ const { launch, serve, DIST, gotoSection } = require('./browser.cjs');
     allHaveNodes: App.reviews.games.every((g) => Number.isFinite(g.nodes)),
     nodesUsed: [...new Set(App.reviews.games.map((g) => g.nodes))].sort((a, b) => a - b),
     allMeasured: App.reviews.games.every((g) => Number.isFinite(g.meanLoss)),
+    bare: App.reviews.games.filter((g) => g.at >= 1700000000000 + 30 * 86400000)
+      .map((g) => `${g.depth}/${g.nodes}/${Array.isArray(g.curve)}/${typeof g.marks}`),
+    measured: App.reviews.games.filter((g) => g.at >= 1700000000000 + 20 * 86400000 && g.at < 1700000000000 + 30 * 86400000)
+      .map((g) => g.marks),
   }));
   check('nothing left to do', after.left, 0);
   check('every game records its budget', after.allHaveNodes, true);
   check('every game has figures', after.allMeasured, true);
   say('budgets now on record', after.nodesUsed.join(', '));
+  check('the two without a record were walked at Normal, their own setting', after.bare.join(' '), '9/80000/true/string 9/80000/true/string');
+  check('and the two with one were not touched', after.measured.join(' '), `${'.'.repeat(33)} ${'.'.repeat(33)}`);
 
   // Pressing again must be a no-op that says so, not a second pass.
   await page.click('#walkRun');
