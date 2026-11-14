@@ -22,8 +22,8 @@ const load = (files) => files.map((f) => readFileSync(new URL(`../${f}`, import.
 const src = load(['src/engine/bundle.js', 'src/engine/bands.js', 'src/motifs.js', 'src/notation.js',
   'src/pgn.js', 'src/famous.js', 'src/rating-fit.js', 'src/review.js']);
 const api = new Function('window', src + `; return { Board, Engine, toSan, moveToUci, parsePgn, reviewGame,
-  estimateRating, BANDS, FAMOUS_GAMES, RATING_FIT, TACTIC_NODES };`)({});
-const { Board, Engine, moveToUci, parsePgn, reviewGame, estimateRating, BANDS, FAMOUS_GAMES, RATING_FIT } = api;
+  estimateRating, calibrationWords, BANDS, FAMOUS_GAMES, RATING_FIT, TACTIC_NODES };`)({});
+const { Board, Engine, moveToUci, parsePgn, reviewGame, estimateRating, calibrationWords, BANDS, FAMOUS_GAMES, RATING_FIT } = api;
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => { if (cond) { pass++; } else { fail++; console.log('  FAIL', name, extra); } };
@@ -166,6 +166,63 @@ if (RATING_FIT === null) {
       ok(`depth ${depth}: the app reviews at the ${nodes} positions the fit was measured at`,
         budgets[depth] === nodes, `the app uses ${budgets[depth]}`);
     }
+  }
+}
+
+// ── 5. what the page says the estimate rests on is the measurement ─────────
+//
+// The Play screen says how the estimate was measured: how many levels, how
+// many games, how many analyses, how well the line fits and where it stops.
+// That was typed into the page once and stayed there through two
+// re-measurements. It is made from the fit now, and this holds it to the file
+// the measurement wrote — counted here from its rows, not read back from the
+// same summary the sentence is made from.
+{
+  const NAMES = { 7: 'Quick', 9: 'Normal', 12: 'Deep' };
+  const made = (extra) => ({ measured: '2026-03-09', games: 4, bands: [0, 300, 600], fits: { 7: { r2: 0.8 }, 9: { r2: 0.8049 } }, ceilings: { 7: 900, 9: 900 }, ...extra });
+  const tail = '; above that every level looks the same to the analyser, so the estimate stops there and says "or above".';
+  ok('every setting stopping at one level is said once',
+    calibrationWords(made(), NAMES) === 'The strength estimate on an analysed game comes from a second measurement (9 March 2026): 3 levels from 0 to 600 each played 4 games against themselves, and every game was analysed at each of the 2 depths — 24 analyses. Average loss per move falls with the level closely enough to fit a line through the logarithm (R² 0.80) up to about 900' + tail,
+    calibrationWords(made(), NAMES));
+  ok('settings stopping at different levels are each said, lowest first',
+    calibrationWords(made({ fits: { 7: { r2: 0.781 }, 9: { r2: 0.75 }, 12: { r2: 0.737 } }, ceilings: { 7: 1200, 9: 1200, 12: 1500 } }), NAMES)
+      .includes('(R² 0.74 to 0.78) up to about 1200 at Quick and Normal, and 1500 at Deep' + tail),
+    calibrationWords(made({ fits: { 7: { r2: 0.781 }, 9: { r2: 0.75 }, 12: { r2: 0.737 } }, ceilings: { 7: 1200, 9: 1200, 12: 1500 } }), NAMES));
+  ok('three different stops are a list',
+    calibrationWords(made({ fits: { 7: { r2: 0.5 }, 9: { r2: 0.6 }, 12: { r2: 0.7 } }, ceilings: { 7: 1500, 9: 900, 12: 1200 } }), NAMES)
+      .includes('up to about 900 at Normal, 1200 at Deep, and 1500 at Quick;'));
+  ok('settings that stop together are named shallowest first',
+    calibrationWords(made({ fits: { 7: { r2: 0.5 }, 9: { r2: 0.6 }, 12: { r2: 0.7 } }, ceilings: { 7: 1500, 9: 900, 12: 900 } }), NAMES)
+      .includes('up to about 900 at Normal and Deep, and 1500 at Quick;'));
+  ok('a setting with no name is said by its depth', calibrationWords(made({ ceilings: { 7: 600, 9: 900 } })).includes('up to about 600 at depth 7, and 900 at depth 9;'));
+  ok('one game a level is one game', calibrationWords(made({ games: 1 }), NAMES).includes('each played 1 game against themselves'));
+  ok('a date that is not one is left out', calibrationWords(made({ measured: 'recently' }), NAMES).includes('a second measurement: 3 levels'));
+  ok('with no measurement it says there is none', [calibrationWords(null), calibrationWords({}), calibrationWords({ fits: {}, bands: [] })]
+    .every((t) => t.startsWith('This copy of the app was built without the measurement')));
+
+  if (RATING_FIT !== null) {
+    const cal = JSON.parse(readFileSync(new URL('../tools/rating-calibration.json', import.meta.url), 'utf8'));
+    const said = calibrationWords(RATING_FIT, NAMES);
+    const levels = [...new Set(cal.rows.map((r) => r.elo))].sort((a, b) => a - b);
+    const depths = [...new Set(cal.rows.map((r) => r.depth))];
+    const gamesPlayed = new Set(cal.rows.map((r) => `${r.elo}/${r.game}`)).size;
+    ok('the page says how many levels played, from which to which',
+      said.includes(`: ${levels.length} levels from ${levels[0]} to ${levels[levels.length - 1]} each played`), said);
+    ok('how many games each played, counted from the games themselves',
+      said.includes(`each played ${gamesPlayed / levels.length} games against themselves`), said);
+    // Every analysis gives a row for each side.
+    ok('how many analyses that came to, counted from the rows', said.includes(`at each of the ${depths.length} depths — ${cal.rows.length / 2} analyses.`), said);
+    const r2 = Object.values(cal.fits).map((f) => f.r2.toFixed(2)).sort();
+    ok('how well the line fits, at its worst and best', said.includes(`(R² ${r2[0] === r2[r2.length - 1] ? r2[0] : `${r2[0]} to ${r2[r2.length - 1]}`})`), said);
+    for (const [depth, ceiling] of Object.entries(cal.ceilings)) {
+      const alone = new Set(Object.values(cal.ceilings)).size === 1;
+      const others = Object.entries(cal.ceilings).filter(([, c]) => c !== ceiling).map(([d]) => NAMES[d]);
+      const clause = alone ? said : (new RegExp(`${ceiling} at ([^;]*?)(?:, and \\d|, \\d|;)`).exec(said)?.[1] ?? '');
+      ok(`where the estimate stops at ${NAMES[depth]}`,
+        alone ? said.includes(`up to about ${ceiling};`) : clause.includes(NAMES[depth]) && others.every((n) => !clause.includes(n)), said);
+    }
+    const [y, m, d] = cal.measured.split('-').map(Number);
+    ok('and when it was measured', said.includes(` (${d} ${new Date(y, m - 1, d).toLocaleDateString('en-GB', { month: 'long' })} ${y}): `), said);
   }
 }
 

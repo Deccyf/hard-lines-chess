@@ -777,6 +777,54 @@ function estimateWords(estimate, { short = false } = {}) {
   return short ? String(estimate.elo) : `about ${estimate.elo}`;
 }
 
+/**
+ * What the strength estimate rests on, said from the measurement itself.
+ *
+ * THIS WAS A PARAGRAPH TYPED INTO THE PAGE, and it went on describing the
+ * first measurement — two games a level, "96 analyses", "up to about 1200" —
+ * through two re-measurements that had made every figure in it wrong. The
+ * figures are all in the fit the build hands over, so the sentence is made
+ * from them: a new measurement is a new sentence without anybody having to
+ * remember that there was one.
+ *
+ * `settingNames` gives the depths their names on the screen (7 is "Quick").
+ */
+function calibrationWords(fit, settingNames = {}) {
+  if (!fit?.fits || !Array.isArray(fit.bands) || !fit.bands.length) {
+    return 'This copy of the app was built without the measurement of what each level loses a move, so an analysed game is given no strength estimate.';
+  }
+  const depths = Object.keys(fit.fits).sort((a, b) => a - b);
+  const levels = fit.bands.length;
+  const games = fit.games;
+  const r2 = depths.map((d) => fit.fits[d].r2.toFixed(2));
+  const low = r2.reduce((a, b) => (Number(b) < Number(a) ? b : a));
+  const high = r2.reduce((a, b) => (Number(b) > Number(a) ? b : a));
+
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const [year, month, day] = String(fit.measured ?? '').split('-').map(Number);
+  const date = year && month >= 1 && month <= 12 && day ? ` (${day} ${MONTHS[month - 1]} ${year})` : '';
+
+  // WHERE IT STOPS, setting by setting — said once when they all stop at the
+  // same level, which they did until the measurement was doubled.
+  const stops = new Map();
+  for (const depth of depths) {
+    const ceiling = fit.ceilings?.[depth];
+    if (!stops.has(ceiling)) stops.set(ceiling, []);
+    stops.get(ceiling).push(settingNames[depth] ?? `depth ${depth}`);
+  }
+  const and = (xs) => (xs.length < 2 ? xs[0] : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+  const each = [...stops.entries()].sort((a, b) => a[0] - b[0]).map(([ceiling, names]) => `${ceiling} at ${and(names)}`);
+  const upTo = stops.size === 1
+    ? `up to about ${[...stops.keys()][0]}`
+    : `up to about ${each.slice(0, -1).join(', ')}, and ${each[each.length - 1]}`;
+
+  return `The strength estimate on an analysed game comes from a second measurement${date}: `
+    + `${levels} levels from ${fit.bands[0]} to ${fit.bands[levels - 1]} each played ${games} ${games === 1 ? 'game' : 'games'} against themselves, `
+    + `and every game was analysed at each of the ${depths.length} depths — ${levels * games * depths.length} analyses. `
+    + `Average loss per move falls with the level closely enough to fit a line through the logarithm (R² ${low === high ? low : `${low} to ${high}`}) ${upTo}; `
+    + 'above that every level looks the same to the analyser, so the estimate stops there and says "or above".';
+}
+
 /** The lower bounds of the bands the calibration played, ascending. */
 function measuredBands() {
   const own = typeof RATING_FIT !== 'undefined' && Array.isArray(RATING_FIT?.bands) && RATING_FIT.bands.length ? RATING_FIT.bands : null;
@@ -812,9 +860,9 @@ function nearestPlayableBand(elo) {
 // own opponents played against each other. That is a real measurement and it
 // has two problems that no amount of care in the code can fix.
 //
-//   ITS LADDER IS FOUR NUMBERS A RUNG. Two games, two sides, at each of eight
-//   bands — and above 1200 the rungs are not in order, because the difference
-//   between them is smaller than the noise in four games.
+//   ITS LADDER IS SIXTEEN NUMBERS A RUNG. Eight games, two sides, at each of
+//   eight bands — and towards the top the rungs are not in order, because the
+//   difference between them is smaller than the noise in eight games.
 //
 //   AND IT IS NOT ABOUT YOU. It answers "which of this app's bots does this
 //   game resemble", which is a fact about the bots.

@@ -102,6 +102,20 @@
   you reached it and went wrong, what you played, what the reviewer wanted —
   and the board, one tap away, with both moves drawn.
 
+### A steadier strength estimate
+- **Measured on twice the games.** The line a game's "looked like" figure is
+  read off was fitted to four games a level and is now fitted to eight, for
+  each of the three judges. A game's figure moves by up to fifty points at
+  the ends of the scale and less in the middle; the line itself is about a
+  fifth steadier; and at the Deep setting this app's engine now tells levels
+  apart up to 1500 rather than 1200. One game is still one game: how far a
+  single game can sit from the line is as it was.
+- **The Play screen describes the measurement that was made.** "About the
+  levels" said how the estimate was measured in a paragraph typed in once,
+  which was still describing the first measurement — two games a level, 96
+  analyses. It is written from the measurement now, so it cannot fall behind
+  again.
+
 ### Analysis that does not do the work twice
 - **Several engines at once.** A review's searches do not depend on each
   other, so they are shared out among as many engines as the device has cores

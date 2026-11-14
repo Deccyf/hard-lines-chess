@@ -137,6 +137,8 @@ async function boot() {
 
   // Play
   renderBandPicker();
+  // What the estimate rests on, in the measurement's own figures.
+  $('levelsMeasured').textContent = calibrationWords(typeof RATING_FIT === 'undefined' ? null : RATING_FIT, SETTING_NAMES);
   // A band is an opponent, and an opponent is chosen before the game, not
   // during it: the select used to change the engine's strength mid-game and
   // file the result under whichever band it showed at the end. It now starts

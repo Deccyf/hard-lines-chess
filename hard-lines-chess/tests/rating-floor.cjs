@@ -114,6 +114,21 @@ const { launch, serve, DIST, gotoSection } = require('./browser.cjs');
   check('and does get a level to play',
     await page.$$eval('#progressOut button', (b) => b.map((x) => x.textContent).some((t) => /^Play level /.test(t))), true);
 
+  // ── and the Play screen says how all this was measured, from the measurement ──
+  //
+  // A paragraph typed into the page once described a measurement two
+  // re-measurements out of date. It is made from the fit the page was built
+  // with; here it is held to the file that fit was built from.
+  const cal = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '..', 'tools', 'rating-calibration.json'), 'utf8'));
+  const levels = [...new Set(cal.rows.map((r) => r.elo))].sort((a, b) => a - b);
+  const about = await page.$eval('#levelsMeasured', (e) => e.textContent);
+  say('how it was measured', about.slice(0, 150));
+  check('the Play screen says how many levels played how many games each',
+    about.includes(`${levels.length} levels from ${levels[0]} to ${levels[levels.length - 1]} each played ${cal.games} games against themselves`), true);
+  check('and how many analyses that was, counted from the measurement\'s own rows', about.includes(`— ${cal.rows.length / 2} analyses.`), true);
+  check('with the settings called what the screen calls them', /at (Quick|Normal|Deep)|up to about \d+;/.test(about), true);
+  check('and nothing is left of the old paragraph', about.includes('96 analyses') || about.includes('two games'), false);
+
   console.log(errors.length ? 'ERRORS ' + errors.join(' | ') : 'no page errors');
   if (errors.length) failures.push('page errors');
   srv.stop();

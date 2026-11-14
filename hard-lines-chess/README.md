@@ -263,7 +263,8 @@ game, Progress says when the games in view were judged by more than one, the
 comparison with your own rated games only ever uses games judged the same way,
 and the walk offers to judge again any game judged by someone else. Each judge
 has its own strength-estimate calibration, measured on the same games (see
-below): Stockfish's reaches level 1800 where this app's engine stops at 1200,
+below): Stockfish's reaches level 1800 where this app's engine stops at 1200
+— 1500 at the Deep setting —
 and Reckless's reaches as far but fits more loosely. A judge without a
 calibration gives no estimate rather than another judge's.
 
@@ -711,7 +712,8 @@ way.
   climbs (level 800 beat level 0 six of six; 1600 scored 5½/6 against 800) but
   neighbouring levels were not separated.
 - **The per-game strength estimate** is calibrated once for each judge: eight
-  levels played themselves, and every game was reviewed at each of the three
+  levels played themselves eight games each, and every game was reviewed at
+  each of the three
   settings by this app's engine, by Stockfish and by Reckless (the same games
   for all three), with a log-linear fit of mean centipawn loss against level
   for each judge. Above some level a judge cannot tell levels apart, so the
@@ -722,20 +724,38 @@ way.
 
   | judge | ceiling: Quick / Normal / Deep | fit (R²): Quick / Normal / Deep |
   |---|---|---|
-  | this app's engine | 1200 / 1200 / 1200 | 0.81 / 0.82 / 0.83 |
-  | Stockfish | 1800 / 1800 / 1800 | 0.76 / 0.75 / 0.76 |
-  | Reckless | 1500 / 1800 / 2100 | 0.53 / 0.60 / 0.54 |
+  | this app's engine | 1200 / 1200 / 1500 | 0.78 / 0.75 / 0.74 |
+  | Stockfish | 1800 / 1800 / 1800 | 0.71 / 0.70 / 0.69 |
+  | Reckless | 1500 / 1800 / 2100 | 0.47 / 0.49 / 0.46 |
 
-  Reckless counts smaller losses than Stockfish on the same games (39
-  centipawns a move against 55, on average, at Normal) and its losses barely
+  Reckless counts smaller losses than Stockfish on the same games (38
+  centipawns a move against 56, on average, at Normal) and its losses barely
   move between levels 600 and 1200, so its fit is the loosest of the three,
-  and the page says so. It puts the games in much the same order as Stockfish
-  does: rank correlation with level −0.86 against Stockfish's −0.88 at Normal.
+  and the page says so. It puts the games in a similar order to Stockfish:
+  rank correlation with level −0.78 against Stockfish's −0.85 at Normal.
+
+  It was four games a level until 1.6, and is eight. What twice the games
+  bought is a steadier line, not a tighter one: the line each estimate is read
+  off moved by up to fifty points at the ends of the scale and ten or twenty
+  in the middle, its own uncertainty at mid-scale came down by about a fifth
+  (33 points to 25 for this app's engine at Quick; 51 to 41 for Stockfish),
+  and at Deep this app's engine can now tell levels apart up to 1500 where
+  four games stopped it at 1200. R² went down, not up, and that is the honest
+  direction: it measures how far single games scatter round the line — about
+  two hundred points for this app's engine — and more games show more of a
+  scatter that was always there. One game is still one game.
+
+  The Play screen's own account of all this ("About the levels") is written
+  from the fit the page was built with — `calibrationWords()` in
+  `src/review.js` — rather than typed in. It was typed in once, and went on
+  describing the first measurement through two re-measurements.
+
   The top of the ladder is thin for every judge: level 2100 plays the same
-  game every time and 1800 only two, so the ceilings up there rest on very few
-  games. The whole calibration is a handful of samples a level, which is why
-  the estimate from your own rated games sits beside it and is the better
-  answer whenever there is enough of your own history to give it. The budgets
+  game every time and 1800 only three different ones in eight, so the
+  ceilings up there rest on very few games. Even at eight games a level the
+  calibration is a small sample, which is why the estimate from your own
+  rated games sits beside it and is the better answer whenever there is
+  enough of your own history to give it. The budgets
   it was measured under are written into `tools/rating-calibration.json`, and
   `tests/repeatable.test.mjs` holds the app's own review settings to them: a
   fit maps a loss onto a rating, and a loss measured under a different amount
