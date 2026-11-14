@@ -119,7 +119,7 @@ async function boot() {
   // what a legal move is.
   Play.view = makeBoardView($('playBoard'), { onMove: onPlayerMove });
   Openings.view = makeBoardView($('openingBoard'), { interactive: false });
-  Review.view = makeBoardView($('reviewBoard'), { interactive: false });
+  Review.view = makeBoardView($('reviewBoard'), { interactive: false, onMove: onReviewTry });
   Review.bar = makeEvalBar($('reviewEval'));
   Drill.view = makeBoardView($('drillBoard'), { interactive: false });
   Puzzles.view = makeBoardView($('puzzleBoard'), { interactive: false });
@@ -207,6 +207,19 @@ async function boot() {
   $('practiceLoad').addEventListener('click', loadPracticeFen);
   $('practicePlay').addEventListener('click', playFromPractice);
   $('practiceAuto').addEventListener('change', (e) => { Practice.auto = e.target.checked; if (Practice.auto) suggestPractice(); });
+  $('practiceEngine').addEventListener('change', (e) => {
+    App.prefs.boardEngine = e.target.value === 'stockfish' ? 'stockfish' : 'app';
+    savePrefs();
+    renderPracticeEngine();
+    // Lines on the board are the other engine's: they go, and come back as this one's if it is analysing as it goes.
+    Practice.generation++;
+    $('practiceLines').innerHTML = '';
+    $('practiceVerdict').textContent = '';
+    Practice.view.arrows = Practice.view.arrows.filter((a) => a.kind === 'threat');
+    Practice.view.redrawArrows();
+    if (Practice.auto) suggestPractice();
+  });
+  renderPracticeEngine();
   $('practiceThreats').addEventListener('change', (e) => { Practice.threats = e.target.checked; showThreat(); });
   $('practiceHanging').addEventListener('change', (e) => {
     Practice.hanging = e.target.checked;
@@ -233,6 +246,10 @@ async function boot() {
 
   // Review
   $('reviewRun').addEventListener('click', runReview);
+  $('reviewPrev').addEventListener('click', () => stepReview(-1));
+  $('reviewNext').addEventListener('click', () => stepReview(1));
+  $('reviewNextMistake').addEventListener('click', nextReviewMistake);
+  $('reviewTry').addEventListener('click', toggleReviewTry);
   // ONE JUDGE, TWO PLACES TO PICK IT. The choice on Review and the choice on
   // the walk are the same preference: a history reviewed one game at a time by
   // one judge and walked by another would chart the change of judge as a
@@ -334,7 +351,7 @@ async function boot() {
   // (Whose games to ask Chess.com about is not a setting to reset: it is kept.)
   $('settingReset').addEventListener('click', () => {
     App.prefs = { ...DEFAULT_PREFS, chessComUser: App.prefs.chessComUser ?? '', chessComChecked: App.prefs.chessComChecked ?? 0 };
-    savePrefs(); renderSettings(); renderJudgeChoice(); renderImport(); renderCatchUp();
+    savePrefs(); renderSettings(); renderJudgeChoice(); renderImport(); renderCatchUp(); renderPracticeEngine();
     $('walkDepth').value = String(App.prefs.walkDepth);
   });
 
@@ -377,6 +394,16 @@ async function boot() {
   (async () => {
     try { App.downloads = await window.claude?.use?.('downloads') ?? null; } catch { App.downloads = null; }
   })();
+
+  // The arrow keys step through a review, when one is on the board and the
+  // keys are not wanted for typing.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    if ($('section-review').hidden || $('reviewBoardWrap').hidden || !Review.shown) return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName ?? '') || e.altKey || e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    stepReview(e.key === 'ArrowLeft' ? -1 : 1);
+  });
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;

@@ -377,6 +377,29 @@ app and the pretend app the browser test drives to the same names for every
 way across between them, since each half is otherwise tested against its own
 idea of the other.
 
+## A review, on the board
+
+A review opens on the board rather than under two lists: at the first of your
+mistakes, with the move played in red, the move wanted in green and the reason
+under them. Back and Next (and the arrow keys) step through the game; Next
+mistake goes to the next of yours, in the order they were made, and round
+again.
+
+"Try it yourself" takes the answer off the board and asks for a better move.
+What is tried is judged by the judge that judged the game, at the same amount
+of work, against where the game stood before the move, through the same
+`costOf()` the review used — so "that works too" (under half a point, the
+reviewer's own threshold) and "that loses 1.2 points" mean what the review's
+figures mean. `tests/review-board-drive.cjs` holds that to the one case with a
+known answer: the move that was played, judged as a try, must come back with
+exactly the loss the review gave it — for this app's engine, for Stockfish,
+and for a game opened again from the store.
+
+The analysis board's three lines can be Stockfish's as well as this app's
+engine's; both are searched in a worker, and
+`tests/analysis-engine-drive.cjs` holds this app's engine's lines to the ones
+a search on the page gives.
+
 ## Catching up
 
 Importing used to be asked for every time: open Game review, type the name
@@ -477,7 +500,7 @@ npm test               # 24 node suites: perft, motifs, the move explainer, Reck
                        # the Android app's file handling (needs a Java compiler),
                        # evaluation symmetry, the fast paths against the long
                        # way round, repeatability, interface vocabulary
-npm run test:browser   # 52 Playwright drivers against dist/
+npm run test:browser   # 54 Playwright drivers against dist/
 npm run verify:openings
 ```
 

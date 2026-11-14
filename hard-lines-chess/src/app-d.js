@@ -187,40 +187,94 @@ function afterPracticeChange() {
   else if (Practice.threats) showThreat();
 }
 
+/** Whose lines the board shows: this app's engine, or Stockfish. */
+function practiceEngine() {
+  return App.prefs.boardEngine === 'stockfish' ? 'stockfish' : 'app';
+}
+
+/** The choice, and under it what the choice means here — including that Stockfish cannot run, where it cannot. */
+async function renderPracticeEngine() {
+  const name = practiceEngine();
+  $('practiceEngine').value = name;
+  const mine = ++renderPracticeEngine.asked;
+  const { text, usable } = name === 'stockfish'
+    ? await judgeNote('stockfish')
+    : { text: "This app's own engine: quick, but it misses deeper ideas.", usable: true };
+  if (mine !== renderPracticeEngine.asked) return;
+  // The judge's own line, less what is only true of judging a game.
+  $('practiceEngineNote').textContent = text.replace(/ — the same game scores a lower accuracy\./, '.')
+    .replace(/ Its reviews have no strength estimate.*$/, '').replace('It judges in', 'It runs in');
+  $('practiceEngineNote').className = usable ? 'note judge-note' : 'note judge-note bad-note';
+}
+renderPracticeEngine.asked = 0;
+
 /**
  * The engine's top three, with scores, as arrows and as lines. The first is
  * green — the meaning green has everywhere here — the others are drawn as
  * the user's own colour, because they are a suggestion rather than a verdict.
+ *
+ * WHOSE THREE is a choice: this app's own engine, or Stockfish, which sees a
+ * great deal further for the same number of positions. Either way the search
+ * is done in a worker, so the board can be looked at while it thinks; this
+ * app's engine used to search here on the page and hold it still for the
+ * length of the search. Where Stockfish cannot run — a copy opened from a
+ * file — the lines are this app's engine's, and the line under them says so.
  */
-function suggestPractice() {
+async function suggestPractice() {
   if (Practice.busy) return;
   const board = Practice.view.board;
   if (board.outcome()) { $('practiceVerdict').textContent = 'The game is over in this position.'; return; }
   const generation = ++Practice.generation;
   const budget = THINK[App.prefs.think] ?? THINK.normal;
+  const wanted = practiceEngine();
   Practice.busy = true;
   Practice.view.locked = true;
   $('practiceSuggest').disabled = true;
-  $('practiceVerdict').textContent = `Thinking — up to ${budget.nodes.toLocaleString('en-GB')} positions…`;
+  $('practiceVerdict').textContent = `${wanted === 'stockfish' ? 'Stockfish is thinking' : 'Thinking'} — up to ${budget.nodes.toLocaleString('en-GB')} positions…`;
 
-  requestAnimationFrame(() => setTimeout(() => {
-    let result;
-    try {
-      App.engine.reset();
-      result = App.engine.search(new Board(board.fen()), { nodes: budget.nodes, maxDepth: budget.depth, lines: 3 });
-    } finally {
-      Practice.busy = false;
-      Practice.view.locked = false;
-      $('practiceSuggest').disabled = false;
+  const at = new Board(board.fen());
+  let result = null;
+  let by = wanted;
+  let instead = null;       // why it is not Stockfish's, when Stockfish was asked for
+  try {
+    // A frame first, so that the line above is on the screen before any work is.
+    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+    if (wanted === 'stockfish') {
+      try {
+        // Told the game, as it is everywhere else, so that it can see a repetition coming.
+        result = await askJudge(JUDGES.stockfish, Practice.startFen, Practice.moves.map((m) => m.uci), at, { nodes: budget.nodes, lines: 3 });
+        if (!result.move) result = null;
+      } catch (e) {
+        instead = e?.message ?? String(e);
+      }
+      if (!result) by = 'app';
     }
-    if (generation !== Practice.generation) return;
-    Practice.lastLines = result;
-    renderPracticeLines(result, board);
-    if (Practice.threats) showThreat();
-  }, 0));
+    if (!result) {
+      if (await ownEngineLanes()) result = await ownEngineSearch(at, { nodes: budget.nodes, maxDepth: budget.depth, lines: 3 });
+      else {
+        App.engine.reset();
+        result = App.engine.search(at, { nodes: budget.nodes, maxDepth: budget.depth, lines: 3 });
+      }
+    }
+  } catch (e) {
+    result = null;
+    instead = instead ?? e?.message ?? String(e);
+  } finally {
+    Practice.busy = false;
+    Practice.view.locked = false;
+    $('practiceSuggest').disabled = false;
+  }
+  if (generation !== Practice.generation) return;
+  if (!result?.lines?.length) {
+    $('practiceVerdict').textContent = `No lines could be worked out here${instead ? ` (${instead})` : ''}.`;
+    return;
+  }
+  Practice.lastLines = result;
+  renderPracticeLines(result, board, { by, instead });
+  if (Practice.threats) showThreat();
 }
 
-function renderPracticeLines(result, board) {
+function renderPracticeLines(result, board, { by = 'app', instead = null } = {}) {
   const box = $('practiceLines');
   box.innerHTML = '';
   const mover = board.turn;
@@ -251,9 +305,11 @@ function renderPracticeLines(result, board) {
   // Moves, not plies. A ply is half a move and is engine vocabulary; nobody
   // playing chess counts in them.
   const depthNote = result.depth ? ` (looked about ${Math.max(1, Math.round(result.depth / 2))} moves ahead)` : '';
-  $('practiceVerdict').textContent = Math.abs(best.score) > 29000
+  const whose = by === 'stockfish' ? 'Stockfish’s' : 'its';
+  $('practiceVerdict').textContent = (Math.abs(best.score) > 29000
     ? `${bestSan} — a forced mate${depthNote}.`
-    : `${bestSan} is its choice. Scores are from White's side, in points${depthNote}.`;
+    : `${bestSan} is ${whose} choice. Scores are from White's side, in points${depthNote}.`)
+    + (instead ? ` These are this app's engine's lines: Stockfish could not be used here. ${instead}` : '');
 }
 
 /**

@@ -197,6 +197,7 @@ function judgedFromStore(parsed, curve, marks, side) {
       // reopened game called its own mating move "the engine's own move",
       // which is true and is not what anybody wants told about a mate.
       mates: /#\s*$/.test(ply.san),
+      whiteCpBefore: curve[i],
       whiteCpAfter: curve[i + 1],
       mine: ply.colour === side,
     });
@@ -500,6 +501,9 @@ async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress =
       label: cost.label,
       cls: played ? 'best' : (cost.kind !== 'material' ? cost.kind : (severity ?? 'good')),
       mates,
+      // Where the game stood before the move as well as after it: another
+      // move tried in its place is judged against the same starting point.
+      whiteCpBefore: whiteCp[i],
       whiteCpAfter: whiteCp[i + 1],
       mine: ply.colour === side,
     });

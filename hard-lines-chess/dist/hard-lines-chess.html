@@ -872,6 +872,13 @@
       <div>
         <div class="panel">
           <h2>Engine</h2>
+          <label class="field"><span>Whose lines</span>
+            <select id="practiceEngine" class="judge-select">
+              <option value="app">This app's engine</option>
+              <option value="stockfish">Stockfish</option>
+            </select>
+          </label>
+          <p class="note judge-note" id="practiceEngineNote"></p>
           <div class="toggles">
             <label class="toggle"><input type="checkbox" id="practiceAuto"><span>Analyse after every move<small>The top three lines and the evaluation bar, at the thinking time set in Settings.</small></span></label>
             <label class="toggle"><input type="checkbox" id="practiceThreats"><span>Show threats<small>What the other side would play if it were their move, in blue.</small></span></label>
@@ -1140,10 +1147,8 @@
       <div class="progress" id="reviewBar" hidden><span id="reviewFill"></span></div>
     </div>
 
-    <div id="reviewOut" hidden></div>
-
     <div class="panel" id="reviewBoardWrap" hidden>
-      <h3>Position</h3>
+      <h3 id="reviewBoardTitle">Position</h3>
       <div class="board-with-bar">
         <div id="reviewEval" aria-label="Evaluation after the move"></div>
         <div class="board-host"><div id="reviewBoard"></div></div>
@@ -1152,14 +1157,23 @@
         <span><i class="k-played"></i> played</span>
         <span><i class="k-best"></i> best move</span>
       </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="reviewPrev" type="button" aria-label="The move before">◀ Back</button>
+        <button class="btn" id="reviewNext" type="button" aria-label="The move after">Next ▶</button>
+        <button class="btn primary" id="reviewNextMistake" type="button">Next mistake</button>
+      </div>
       <p class="note" id="reviewBoardNote"></p>
       <p class="note" id="reviewBoardEval"></p>
       <p class="idea" id="reviewBoardWhy" hidden></p>
+      <p class="note" id="reviewTryNote" hidden></p>
       <div class="row" style="margin-top:10px">
+        <button class="btn" id="reviewTry" type="button" hidden>Try it yourself</button>
         <button class="btn" id="reviewExplore" type="button">Open on the analysis board</button>
         <button class="btn primary" id="reviewAskWhy" type="button" hidden>Ask the coach</button>
       </div>
     </div>
+
+    <div id="reviewOut" hidden></div>
   </section>
 
   <!-- PUZZLES -->
@@ -7893,6 +7907,7 @@ function judgedFromStore(parsed, curve, marks, side) {
       // reopened game called its own mating move "the engine's own move",
       // which is true and is not what anybody wants told about a mate.
       mates: /#\s*$/.test(ply.san),
+      whiteCpBefore: curve[i],
       whiteCpAfter: curve[i + 1],
       mine: ply.colour === side,
     });
@@ -8196,6 +8211,9 @@ async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress =
       label: cost.label,
       cls: played ? 'best' : (cost.kind !== 'material' ? cost.kind : (severity ?? 'good')),
       mates,
+      // Where the game stood before the move as well as after it: another
+      // move tried in its place is judged against the same starting point.
+      whiteCpBefore: whiteCp[i],
       whiteCpAfter: whiteCp[i + 1],
       mine: ply.colour === side,
     });
@@ -12835,6 +12853,7 @@ const DEFAULT_PREFS = {
   think: 'normal',       // fast | normal | deep — the practice board's budget
   judge: 'app',          // app | stockfish | reckless — who judges a reviewed game
   walkDepth: 7,          // 7 | 9 | 12 — the setting games are analysed at, picked on the walk
+  boardEngine: 'app',    // app | stockfish — whose lines the analysis board shows
   // Catching up — see catchUp() in src/app-p.js.
   chessComUser: '',      // the name the last import was for
   catchUp: true,         // bring in new games when the app is opened
@@ -14016,6 +14035,9 @@ const Review = {
   bar: null,
   index: 0,
   running: false,
+  shown: null,        // the judged move on the board
+  trying: null,       // the mistake being tried again, while it is
+  checking: false,    // a tried move is with the judge
 };
 
 /**
@@ -14371,6 +14393,8 @@ async function runReview() {
   if (passedOver) notes.push(passedOver);
   status.textContent = notes.join(' ');
   renderReviewResult();
+  // The review is on the board now, and the board is what to look at.
+  if (!$('reviewBoardWrap').hidden) $('reviewBoardWrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 /**
@@ -14624,6 +14648,7 @@ function renderReviewResult() {
 
   if (!mistakes.length) {
     box.appendChild(el('p', 'note', 'Nothing crossed the threshold. At this search depth that means no move of yours lost half a point or more.'));
+    openReviewBoard();
     return;
   }
 
@@ -14663,6 +14688,194 @@ function renderReviewResult() {
   row.appendChild(said);
   panel.appendChild(row);
   box.appendChild(panel);
+  openReviewBoard();
+}
+
+// ── the review, on the board ───────────────────────────────────────────────
+//
+// A REVIEW USED TO BE A PAGE TO READ: an accuracy, a chart, a list of every
+// move and a list of mistakes, with the board at the bottom and empty until
+// one of them was tapped. But a mistake is a thing that happened on a board,
+// and reading "12. Qh5 lost 2.3 points, the engine wanted Nf3" is not looking
+// at it.
+//
+// So the board comes first, and opens on the first mistake: the move played
+// in red, the move wanted in green, and why. Back and Next step through the
+// game a move at a time; Next mistake goes to the next of yours.
+//
+// AND THE ANSWER CAN BE KEPT BACK. "Try it yourself" takes the arrows away
+// and asks for a better move than the one played. What is tried is judged by
+// the judge that judged the game, at the same amount of work, against the
+// same starting point — so "that works too" and "that loses a point" mean
+// what the review's own figures mean, and the move that was played, tried
+// again, comes back with exactly the loss the review gave it.
+
+/** Your mistakes that have a place in the move list, in the order they were made. */
+function reviewMistakes() {
+  const judged = Review.result?.judged ?? [];
+  return (Review.result?.mistakes ?? [])
+    .map((m) => judged.find((j) => j.ply === m.ply))
+    .filter(Boolean)
+    .sort((a, b) => a.ply - b.ply);
+}
+
+/** Put the board up at the first thing worth looking at: the first mistake, or failing one the first move. */
+function openReviewBoard() {
+  const judged = Review.result?.judged ?? [];
+  if (!judged.length) {
+    // A game stored before the move-by-move record was kept has its mistakes
+    // and nothing else: the first of those, without the stepping.
+    const first = Review.result?.mistakes?.[0];
+    if (first) showMistake(first); else $('reviewBoardWrap').hidden = true;
+    renderReviewSteps(null);
+    return;
+  }
+  showJudged(reviewMistakes()[0] ?? judged[0], { scroll: false, fill: 'later' });
+}
+
+/** The title and the buttons under the board, for the move on it. */
+function renderReviewSteps(j) {
+  const judged = Review.result?.judged ?? [];
+  const at = j ? judged.indexOf(j) : -1;
+  const mine = reviewMistakes();
+  const n = j ? mine.indexOf(j) : -1;
+  $('reviewBoardTitle').textContent = n >= 0 ? `Mistake ${n + 1} of ${mine.length}` : 'Position';
+  $('reviewPrev').hidden = at < 0;
+  $('reviewNext').hidden = at < 0;
+  $('reviewPrev').disabled = at <= 0;
+  $('reviewNext').disabled = at >= judged.length - 1;
+  // Nothing to go on to when there are none, or when the one shown is the only one.
+  $('reviewNextMistake').hidden = mine.length === 0 || (mine.length === 1 && n === 0);
+  $('reviewTry').hidden = !(n >= 0 && j.best);
+  $('reviewTry').textContent = Review.trying ? 'Show the answer' : 'Try it yourself';
+}
+
+function stepReview(by) {
+  const judged = Review.result?.judged ?? [];
+  const at = judged.indexOf(Review.shown);
+  const to = judged[at + by];
+  if (at >= 0 && to) showJudged(to, { scroll: false, fill: 'later' });
+}
+
+/** On to the next of your mistakes after the move on the board — and round to the first after the last. */
+function nextReviewMistake() {
+  const mine = reviewMistakes();
+  if (!mine.length) return;
+  const from = Review.shown?.ply ?? 0;
+  showJudged(mine.find((j) => j.ply > from) ?? mine[0], { scroll: false, fill: 'later' });
+}
+
+function reviewTrySay(text, kind = 'note') {
+  const box = $('reviewTryNote');
+  box.textContent = text;
+  box.className = kind;
+  box.hidden = !text;
+}
+
+/** Take the answer away and ask for a better move — or, asked again, put it back. */
+function toggleReviewTry() {
+  const j = Review.shown;
+  if (Review.trying) { showJudged(j, { scroll: false }); return; }
+  if (!j?.best || Review.checking) return;
+  Review.trying = j;
+  Review.view.interactive = true;
+  Review.view.setFen(j.fen, { arrows: [] });
+  $('reviewBoardNote').textContent = `You played ${moveLabel(j)}. Find a better move for ${j.colour === 'white' ? 'White' : 'Black'}.`;
+  $('reviewBoardEval').textContent = '';
+  $('reviewBoardWhy').hidden = true;
+  reviewTrySay('');
+  renderReviewSteps(j);
+}
+
+/**
+ * What a move tried in place of a mistake is worth, by the review's own
+ * measure: { loss, kind, good }, or null when it could not be judged.
+ *
+ * THE SAME JUDGE, THE SAME WORK, THE SAME STARTING POINT as the review used
+ * for the move that was played: the position after the tried move is
+ * searched, and what it leaves is set against where the game stood before
+ * the move, through the same costOf(). A move is "good" when it would not
+ * have been listed — under half a point, the reviewer's own threshold.
+ */
+async function judgeReviewTry(j, move, uci) {
+  if (!Number.isFinite(j.whiteCpBefore)) return null;
+  const name = judgeNamed(Review.result.judge).name;
+  const depth = Review.result.depth ?? 9;
+  const nodes = Review.result.nodes ?? (REVIEW_BUDGET[depth] ?? REVIEW_BUDGET[9]).nodes;
+  const after = new Board(j.fen);
+  after.make(move);
+  const outcome = after.outcome();
+
+  let theirs;       // what the position is worth to the side now to move: the opponent
+  if (outcome) theirs = scoreFinished(outcome);
+  else if (name === 'app') {
+    if (await ownEngineLanes()) theirs = (await ownEngineSearch(after, { nodes, maxDepth: depth })).score;
+    else {
+      App.engine.reset();
+      theirs = App.engine.search(after, { nodes, maxDepth: depth }).score;
+    }
+  } else {
+    if (name === 'reckless' && !Reckless.worker && (await recklessStatus().catch(() => ({}))).state !== 'ready') return null;
+    const start = new Board(Review.parsed.startFen ?? undefined).fen();
+    const moves = [...Review.parsed.plies.slice(0, j.ply - 1).map((p) => p.uci), uci];
+    theirs = (await askJudge(judgeNamed(name), start, moves, after, { nodes })).score;
+  }
+
+  const before = j.colour === 'white' ? j.whiteCpBefore : -j.whiteCpBefore;
+  const cost = costOf(before, -theirs);
+  return { loss: cost.loss, kind: cost.kind, good: cost.kind === 'material' && severityFor(cost.loss ?? 0) === null };
+}
+
+/** A move made on the board while the answer is kept back. */
+async function onReviewTry({ move, san, uci }) {
+  const j = Review.trying;
+  if (!j || Review.checking) return;
+  const name = judgeNamed(Review.result.judge).name;
+  const judge = name === 'app' ? 'the engine' : judgeWords(name);
+  const tried = (kind) => {
+    Review.view.selected = -1;
+    Review.view.arrows = [{ from: moveFrom(move), to: moveTo(move), kind }];
+    Review.view.draw();
+  };
+
+  if (uci === j.best.uci) {
+    showJudged(j, { scroll: false });
+    reviewTrySay(`Yes — ${san} is what ${judge} wanted.`, 'note good-note');
+    return;
+  }
+  if (uci === j.uci) {
+    tried('played');
+    reviewTrySay(`${san} is what you played. Look for something else.`);
+    return;
+  }
+
+  Review.checking = true;
+  Review.view.locked = true;
+  tried('user');
+  reviewTrySay(`Checking ${san}…`);
+  let verdict = null;
+  try {
+    verdict = await judgeReviewTry(j, move, uci);
+  } catch {
+    verdict = null;
+  } finally {
+    Review.checking = false;
+    Review.view.locked = false;
+  }
+  if (Review.trying !== j) return;        // the board has moved on meanwhile
+
+  if (!verdict) {
+    reviewTrySay(`${san} could not be checked here. Try another move, or show the answer.`);
+  } else if (verdict.good) {
+    showJudged(j, { scroll: false });
+    reviewTrySay(`${san} works too: ${judge} makes it about as good as its own ${j.best.san}.`, 'note good-note');
+  } else if (verdict.kind === 'allowed_mate') {
+    reviewTrySay(`${san} lets them force mate. Try again.`, 'note bad-note');
+  } else if (verdict.kind === 'missed_mate') {
+    reviewTrySay(`There is a forced mate here, and ${san} lets it go. Try again.`, 'note bad-note');
+  } else {
+    reviewTrySay(`${san} loses about ${(verdict.loss / 100).toFixed(1)} points against ${judge}’s move. Try again.`, 'note bad-note');
+  }
 }
 
 /**
@@ -14712,7 +14925,7 @@ function openStoredReview(game) {
   show('review');
   $('reviewStatus').textContent = '';
   renderReviewResult();
-  $('reviewOut').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $('reviewBoardWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 /**
@@ -14738,6 +14951,32 @@ function fillBestMove(j, depth) {
   } catch {
     j.noBest = true;
     return false;
+  }
+}
+
+/**
+ * The same, asked of this app's engine in a worker rather than searched for
+ * here. Stepping through a reopened game asks for a best move at every stop,
+ * and on the page each one held the screen still for the length of a search.
+ * Where no worker can be started it is searched for here after all.
+ */
+async function fillBestMoveLater(j, depth) {
+  if (j.best || j.noBest || j.asking) return false;
+  if (!(await ownEngineLanes())) return fillBestMove(j, depth);
+  j.asking = true;
+  try {
+    const at = new Board(j.fen);
+    if (at.outcome()) { j.noBest = true; return false; }
+    const budget = REVIEW_BUDGET[depth] ?? REVIEW_BUDGET[9];
+    const found = await ownEngineSearch(at, { nodes: budget.nodes, maxDepth: depth });
+    if (!found?.move) { j.noBest = true; return false; }
+    j.best = { uci: moveToUci(found.move), san: toSan(new Board(j.fen), found.move) };
+    return true;
+  } catch {
+    j.noBest = true;
+    return false;
+  } finally {
+    j.asking = false;
   }
 }
 
@@ -14789,22 +15028,26 @@ function describeJudged(j) {
   return `${moveLabel(j)} — ${j.cls}: lost ${(j.loss / 100).toFixed(1)} points. ${Judge} wanted ${j.best?.san ?? 'something else'}.`;
 }
 
-function showJudged(j) {
+function showJudged(j, { scroll = true, fill = 'now' } = {}) {
   // A reopened game has no engine move stored for this position; it is worked
   // out now, before anything is drawn, so the arrow and the sentence under the
-  // board agree with each other.
+  // board agree with each other — when a move was tapped. Stepping through
+  // the game asks a worker instead (`fill: 'later'`), as a judge in a worker
+  // is always asked: drawn now without it, and again when the answer comes,
+  // if this move is still the one on the board by then and its answer is not
+  // being kept back.
   if (Review.result?.stored) {
     const name = judgeNamed(Review.result.judge).name;
-    if (name === 'app') fillBestMove(j, Review.result.depth);
-    else {
-      // Drawn now without it, and again when the judge answers — if this move
-      // is still the one on the board by then.
-      fillBestMoveFrom(name, j).then((found) => {
-        if (found && Review.shown === j) showJudged(j);
-      });
-    }
+    const again = (found) => { if (found && Review.shown === j && !Review.trying) showJudged(j, { scroll: false }); };
+    if (name !== 'app') fillBestMoveFrom(name, j).then(again);
+    else if (fill === 'later') fillBestMoveLater(j, Review.result.depth).then(again);
+    else fillBestMove(j, Review.result.depth);
   }
   Review.shown = j;
+  // Whatever was being tried, this is the answer.
+  Review.trying = null;
+  reviewTrySay('');
+  renderReviewSteps(j);
   $('reviewBoardWrap').hidden = false;
   Review.view.orientation = Review.side === 'white' ? WHITE : BLACK;
   Review.view.interactive = false;
@@ -14827,7 +15070,7 @@ function showJudged(j) {
     j.cls === 'best'
       ? `Why is ${j.san} the best move here?`
       : `Why is ${j.best.san} better than my ${j.san}?`, { arrows });
-  $('reviewBoardWrap').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (scroll) $('reviewBoardWrap').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 /**
@@ -14848,6 +15091,14 @@ function showReviewBar(whiteCp) {
 function showMistake(m) {
   const j = Review.result.judged.find((x) => x.ply === m.ply);
   if (j) { showJudged(j); return; }
+  // A game with no move-by-move record: the mistake on its own, and nothing to step through.
+  Review.shown = null;
+  Review.trying = null;
+  reviewTrySay('');
+  renderReviewSteps(null);
+  Review.view.interactive = false;
+  $('reviewBoardWhy').hidden = true;
+  $('reviewBoardEval').textContent = '';
   $('reviewBoardWrap').hidden = false;
   Review.view.orientation = m.side === 'white' ? WHITE : BLACK;
   Review.view.interactive = false;
@@ -16111,40 +16362,94 @@ function afterPracticeChange() {
   else if (Practice.threats) showThreat();
 }
 
+/** Whose lines the board shows: this app's engine, or Stockfish. */
+function practiceEngine() {
+  return App.prefs.boardEngine === 'stockfish' ? 'stockfish' : 'app';
+}
+
+/** The choice, and under it what the choice means here — including that Stockfish cannot run, where it cannot. */
+async function renderPracticeEngine() {
+  const name = practiceEngine();
+  $('practiceEngine').value = name;
+  const mine = ++renderPracticeEngine.asked;
+  const { text, usable } = name === 'stockfish'
+    ? await judgeNote('stockfish')
+    : { text: "This app's own engine: quick, but it misses deeper ideas.", usable: true };
+  if (mine !== renderPracticeEngine.asked) return;
+  // The judge's own line, less what is only true of judging a game.
+  $('practiceEngineNote').textContent = text.replace(/ — the same game scores a lower accuracy\./, '.')
+    .replace(/ Its reviews have no strength estimate.*$/, '').replace('It judges in', 'It runs in');
+  $('practiceEngineNote').className = usable ? 'note judge-note' : 'note judge-note bad-note';
+}
+renderPracticeEngine.asked = 0;
+
 /**
  * The engine's top three, with scores, as arrows and as lines. The first is
  * green — the meaning green has everywhere here — the others are drawn as
  * the user's own colour, because they are a suggestion rather than a verdict.
+ *
+ * WHOSE THREE is a choice: this app's own engine, or Stockfish, which sees a
+ * great deal further for the same number of positions. Either way the search
+ * is done in a worker, so the board can be looked at while it thinks; this
+ * app's engine used to search here on the page and hold it still for the
+ * length of the search. Where Stockfish cannot run — a copy opened from a
+ * file — the lines are this app's engine's, and the line under them says so.
  */
-function suggestPractice() {
+async function suggestPractice() {
   if (Practice.busy) return;
   const board = Practice.view.board;
   if (board.outcome()) { $('practiceVerdict').textContent = 'The game is over in this position.'; return; }
   const generation = ++Practice.generation;
   const budget = THINK[App.prefs.think] ?? THINK.normal;
+  const wanted = practiceEngine();
   Practice.busy = true;
   Practice.view.locked = true;
   $('practiceSuggest').disabled = true;
-  $('practiceVerdict').textContent = `Thinking — up to ${budget.nodes.toLocaleString('en-GB')} positions…`;
+  $('practiceVerdict').textContent = `${wanted === 'stockfish' ? 'Stockfish is thinking' : 'Thinking'} — up to ${budget.nodes.toLocaleString('en-GB')} positions…`;
 
-  requestAnimationFrame(() => setTimeout(() => {
-    let result;
-    try {
-      App.engine.reset();
-      result = App.engine.search(new Board(board.fen()), { nodes: budget.nodes, maxDepth: budget.depth, lines: 3 });
-    } finally {
-      Practice.busy = false;
-      Practice.view.locked = false;
-      $('practiceSuggest').disabled = false;
+  const at = new Board(board.fen());
+  let result = null;
+  let by = wanted;
+  let instead = null;       // why it is not Stockfish's, when Stockfish was asked for
+  try {
+    // A frame first, so that the line above is on the screen before any work is.
+    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+    if (wanted === 'stockfish') {
+      try {
+        // Told the game, as it is everywhere else, so that it can see a repetition coming.
+        result = await askJudge(JUDGES.stockfish, Practice.startFen, Practice.moves.map((m) => m.uci), at, { nodes: budget.nodes, lines: 3 });
+        if (!result.move) result = null;
+      } catch (e) {
+        instead = e?.message ?? String(e);
+      }
+      if (!result) by = 'app';
     }
-    if (generation !== Practice.generation) return;
-    Practice.lastLines = result;
-    renderPracticeLines(result, board);
-    if (Practice.threats) showThreat();
-  }, 0));
+    if (!result) {
+      if (await ownEngineLanes()) result = await ownEngineSearch(at, { nodes: budget.nodes, maxDepth: budget.depth, lines: 3 });
+      else {
+        App.engine.reset();
+        result = App.engine.search(at, { nodes: budget.nodes, maxDepth: budget.depth, lines: 3 });
+      }
+    }
+  } catch (e) {
+    result = null;
+    instead = instead ?? e?.message ?? String(e);
+  } finally {
+    Practice.busy = false;
+    Practice.view.locked = false;
+    $('practiceSuggest').disabled = false;
+  }
+  if (generation !== Practice.generation) return;
+  if (!result?.lines?.length) {
+    $('practiceVerdict').textContent = `No lines could be worked out here${instead ? ` (${instead})` : ''}.`;
+    return;
+  }
+  Practice.lastLines = result;
+  renderPracticeLines(result, board, { by, instead });
+  if (Practice.threats) showThreat();
 }
 
-function renderPracticeLines(result, board) {
+function renderPracticeLines(result, board, { by = 'app', instead = null } = {}) {
   const box = $('practiceLines');
   box.innerHTML = '';
   const mover = board.turn;
@@ -16175,9 +16480,11 @@ function renderPracticeLines(result, board) {
   // Moves, not plies. A ply is half a move and is engine vocabulary; nobody
   // playing chess counts in them.
   const depthNote = result.depth ? ` (looked about ${Math.max(1, Math.round(result.depth / 2))} moves ahead)` : '';
-  $('practiceVerdict').textContent = Math.abs(best.score) > 29000
+  const whose = by === 'stockfish' ? 'Stockfish’s' : 'its';
+  $('practiceVerdict').textContent = (Math.abs(best.score) > 29000
     ? `${bestSan} — a forced mate${depthNote}.`
-    : `${bestSan} is its choice. Scores are from White's side, in points${depthNote}.`;
+    : `${bestSan} is ${whose} choice. Scores are from White's side, in points${depthNote}.`)
+    + (instead ? ` These are this app's engine's lines: Stockfish could not be used here. ${instead}` : '');
 }
 
 /**
@@ -21681,7 +21988,7 @@ async function boot() {
   // what a legal move is.
   Play.view = makeBoardView($('playBoard'), { onMove: onPlayerMove });
   Openings.view = makeBoardView($('openingBoard'), { interactive: false });
-  Review.view = makeBoardView($('reviewBoard'), { interactive: false });
+  Review.view = makeBoardView($('reviewBoard'), { interactive: false, onMove: onReviewTry });
   Review.bar = makeEvalBar($('reviewEval'));
   Drill.view = makeBoardView($('drillBoard'), { interactive: false });
   Puzzles.view = makeBoardView($('puzzleBoard'), { interactive: false });
@@ -21769,6 +22076,19 @@ async function boot() {
   $('practiceLoad').addEventListener('click', loadPracticeFen);
   $('practicePlay').addEventListener('click', playFromPractice);
   $('practiceAuto').addEventListener('change', (e) => { Practice.auto = e.target.checked; if (Practice.auto) suggestPractice(); });
+  $('practiceEngine').addEventListener('change', (e) => {
+    App.prefs.boardEngine = e.target.value === 'stockfish' ? 'stockfish' : 'app';
+    savePrefs();
+    renderPracticeEngine();
+    // Lines on the board are the other engine's: they go, and come back as this one's if it is analysing as it goes.
+    Practice.generation++;
+    $('practiceLines').innerHTML = '';
+    $('practiceVerdict').textContent = '';
+    Practice.view.arrows = Practice.view.arrows.filter((a) => a.kind === 'threat');
+    Practice.view.redrawArrows();
+    if (Practice.auto) suggestPractice();
+  });
+  renderPracticeEngine();
   $('practiceThreats').addEventListener('change', (e) => { Practice.threats = e.target.checked; showThreat(); });
   $('practiceHanging').addEventListener('change', (e) => {
     Practice.hanging = e.target.checked;
@@ -21795,6 +22115,10 @@ async function boot() {
 
   // Review
   $('reviewRun').addEventListener('click', runReview);
+  $('reviewPrev').addEventListener('click', () => stepReview(-1));
+  $('reviewNext').addEventListener('click', () => stepReview(1));
+  $('reviewNextMistake').addEventListener('click', nextReviewMistake);
+  $('reviewTry').addEventListener('click', toggleReviewTry);
   // ONE JUDGE, TWO PLACES TO PICK IT. The choice on Review and the choice on
   // the walk are the same preference: a history reviewed one game at a time by
   // one judge and walked by another would chart the change of judge as a
@@ -21896,7 +22220,7 @@ async function boot() {
   // (Whose games to ask Chess.com about is not a setting to reset: it is kept.)
   $('settingReset').addEventListener('click', () => {
     App.prefs = { ...DEFAULT_PREFS, chessComUser: App.prefs.chessComUser ?? '', chessComChecked: App.prefs.chessComChecked ?? 0 };
-    savePrefs(); renderSettings(); renderJudgeChoice(); renderImport(); renderCatchUp();
+    savePrefs(); renderSettings(); renderJudgeChoice(); renderImport(); renderCatchUp(); renderPracticeEngine();
     $('walkDepth').value = String(App.prefs.walkDepth);
   });
 
@@ -21939,6 +22263,16 @@ async function boot() {
   (async () => {
     try { App.downloads = await window.claude?.use?.('downloads') ?? null; } catch { App.downloads = null; }
   })();
+
+  // The arrow keys step through a review, when one is on the board and the
+  // keys are not wanted for typing.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    if ($('section-review').hidden || $('reviewBoardWrap').hidden || !Review.shown) return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName ?? '') || e.altKey || e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    stepReview(e.key === 'ArrowLeft' ? -1 : 1);
+  });
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;

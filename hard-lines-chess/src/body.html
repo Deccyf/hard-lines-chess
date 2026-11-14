@@ -170,6 +170,13 @@
       <div>
         <div class="panel">
           <h2>Engine</h2>
+          <label class="field"><span>Whose lines</span>
+            <select id="practiceEngine" class="judge-select">
+              <option value="app">This app's engine</option>
+              <option value="stockfish">Stockfish</option>
+            </select>
+          </label>
+          <p class="note judge-note" id="practiceEngineNote"></p>
           <div class="toggles">
             <label class="toggle"><input type="checkbox" id="practiceAuto"><span>Analyse after every move<small>The top three lines and the evaluation bar, at the thinking time set in Settings.</small></span></label>
             <label class="toggle"><input type="checkbox" id="practiceThreats"><span>Show threats<small>What the other side would play if it were their move, in blue.</small></span></label>
@@ -438,10 +445,8 @@
       <div class="progress" id="reviewBar" hidden><span id="reviewFill"></span></div>
     </div>
 
-    <div id="reviewOut" hidden></div>
-
     <div class="panel" id="reviewBoardWrap" hidden>
-      <h3>Position</h3>
+      <h3 id="reviewBoardTitle">Position</h3>
       <div class="board-with-bar">
         <div id="reviewEval" aria-label="Evaluation after the move"></div>
         <div class="board-host"><div id="reviewBoard"></div></div>
@@ -450,14 +455,23 @@
         <span><i class="k-played"></i> played</span>
         <span><i class="k-best"></i> best move</span>
       </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="reviewPrev" type="button" aria-label="The move before">◀ Back</button>
+        <button class="btn" id="reviewNext" type="button" aria-label="The move after">Next ▶</button>
+        <button class="btn primary" id="reviewNextMistake" type="button">Next mistake</button>
+      </div>
       <p class="note" id="reviewBoardNote"></p>
       <p class="note" id="reviewBoardEval"></p>
       <p class="idea" id="reviewBoardWhy" hidden></p>
+      <p class="note" id="reviewTryNote" hidden></p>
       <div class="row" style="margin-top:10px">
+        <button class="btn" id="reviewTry" type="button" hidden>Try it yourself</button>
         <button class="btn" id="reviewExplore" type="button">Open on the analysis board</button>
         <button class="btn primary" id="reviewAskWhy" type="button" hidden>Ask the coach</button>
       </div>
     </div>
+
+    <div id="reviewOut" hidden></div>
   </section>
 
   <!-- PUZZLES -->

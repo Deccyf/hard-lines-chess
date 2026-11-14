@@ -39,6 +39,22 @@
   open; a backup can still be saved from a session that cannot; and the next
   save that works writes everything that was owed.
 
+### A review you look at, not one you read
+- **The board comes first.** A review used to be an accuracy, a chart and two
+  lists, with the board at the bottom and empty until something was tapped.
+  It opens on the board now, at your first mistake: the move you played in
+  red, the move that was wanted in green, and why. Back and Next step through
+  the game a move at a time — the arrow keys too — and Next mistake goes to
+  the next of yours.
+- **Try it yourself.** On any of your mistakes the answer can be taken off the
+  board and a better move looked for. What you try is judged by the judge
+  that judged the game, at the same amount of work: the move wanted is told
+  so, a move about as good is told that it works too, and a worse one is told
+  what it loses and can be tried again.
+- **Stockfish on the analysis board.** Its three lines were this app's own
+  engine's; they can now be Stockfish's, which sees a great deal further.
+  Either way the search no longer holds the board still while it runs.
+
 ### New games arrive by themselves
 - **The app remembers your Chess.com name** from the first import, and when it
   is opened it asks Chess.com for anything newer than the newest game already

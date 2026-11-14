@@ -419,6 +419,9 @@ const Review = {
   bar: null,
   index: 0,
   running: false,
+  shown: null,        // the judged move on the board
+  trying: null,       // the mistake being tried again, while it is
+  checking: false,    // a tried move is with the judge
 };
 
 /**
@@ -774,6 +777,8 @@ async function runReview() {
   if (passedOver) notes.push(passedOver);
   status.textContent = notes.join(' ');
   renderReviewResult();
+  // The review is on the board now, and the board is what to look at.
+  if (!$('reviewBoardWrap').hidden) $('reviewBoardWrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 /**
@@ -1027,6 +1032,7 @@ function renderReviewResult() {
 
   if (!mistakes.length) {
     box.appendChild(el('p', 'note', 'Nothing crossed the threshold. At this search depth that means no move of yours lost half a point or more.'));
+    openReviewBoard();
     return;
   }
 
@@ -1066,6 +1072,194 @@ function renderReviewResult() {
   row.appendChild(said);
   panel.appendChild(row);
   box.appendChild(panel);
+  openReviewBoard();
+}
+
+// ── the review, on the board ───────────────────────────────────────────────
+//
+// A REVIEW USED TO BE A PAGE TO READ: an accuracy, a chart, a list of every
+// move and a list of mistakes, with the board at the bottom and empty until
+// one of them was tapped. But a mistake is a thing that happened on a board,
+// and reading "12. Qh5 lost 2.3 points, the engine wanted Nf3" is not looking
+// at it.
+//
+// So the board comes first, and opens on the first mistake: the move played
+// in red, the move wanted in green, and why. Back and Next step through the
+// game a move at a time; Next mistake goes to the next of yours.
+//
+// AND THE ANSWER CAN BE KEPT BACK. "Try it yourself" takes the arrows away
+// and asks for a better move than the one played. What is tried is judged by
+// the judge that judged the game, at the same amount of work, against the
+// same starting point — so "that works too" and "that loses a point" mean
+// what the review's own figures mean, and the move that was played, tried
+// again, comes back with exactly the loss the review gave it.
+
+/** Your mistakes that have a place in the move list, in the order they were made. */
+function reviewMistakes() {
+  const judged = Review.result?.judged ?? [];
+  return (Review.result?.mistakes ?? [])
+    .map((m) => judged.find((j) => j.ply === m.ply))
+    .filter(Boolean)
+    .sort((a, b) => a.ply - b.ply);
+}
+
+/** Put the board up at the first thing worth looking at: the first mistake, or failing one the first move. */
+function openReviewBoard() {
+  const judged = Review.result?.judged ?? [];
+  if (!judged.length) {
+    // A game stored before the move-by-move record was kept has its mistakes
+    // and nothing else: the first of those, without the stepping.
+    const first = Review.result?.mistakes?.[0];
+    if (first) showMistake(first); else $('reviewBoardWrap').hidden = true;
+    renderReviewSteps(null);
+    return;
+  }
+  showJudged(reviewMistakes()[0] ?? judged[0], { scroll: false, fill: 'later' });
+}
+
+/** The title and the buttons under the board, for the move on it. */
+function renderReviewSteps(j) {
+  const judged = Review.result?.judged ?? [];
+  const at = j ? judged.indexOf(j) : -1;
+  const mine = reviewMistakes();
+  const n = j ? mine.indexOf(j) : -1;
+  $('reviewBoardTitle').textContent = n >= 0 ? `Mistake ${n + 1} of ${mine.length}` : 'Position';
+  $('reviewPrev').hidden = at < 0;
+  $('reviewNext').hidden = at < 0;
+  $('reviewPrev').disabled = at <= 0;
+  $('reviewNext').disabled = at >= judged.length - 1;
+  // Nothing to go on to when there are none, or when the one shown is the only one.
+  $('reviewNextMistake').hidden = mine.length === 0 || (mine.length === 1 && n === 0);
+  $('reviewTry').hidden = !(n >= 0 && j.best);
+  $('reviewTry').textContent = Review.trying ? 'Show the answer' : 'Try it yourself';
+}
+
+function stepReview(by) {
+  const judged = Review.result?.judged ?? [];
+  const at = judged.indexOf(Review.shown);
+  const to = judged[at + by];
+  if (at >= 0 && to) showJudged(to, { scroll: false, fill: 'later' });
+}
+
+/** On to the next of your mistakes after the move on the board — and round to the first after the last. */
+function nextReviewMistake() {
+  const mine = reviewMistakes();
+  if (!mine.length) return;
+  const from = Review.shown?.ply ?? 0;
+  showJudged(mine.find((j) => j.ply > from) ?? mine[0], { scroll: false, fill: 'later' });
+}
+
+function reviewTrySay(text, kind = 'note') {
+  const box = $('reviewTryNote');
+  box.textContent = text;
+  box.className = kind;
+  box.hidden = !text;
+}
+
+/** Take the answer away and ask for a better move — or, asked again, put it back. */
+function toggleReviewTry() {
+  const j = Review.shown;
+  if (Review.trying) { showJudged(j, { scroll: false }); return; }
+  if (!j?.best || Review.checking) return;
+  Review.trying = j;
+  Review.view.interactive = true;
+  Review.view.setFen(j.fen, { arrows: [] });
+  $('reviewBoardNote').textContent = `You played ${moveLabel(j)}. Find a better move for ${j.colour === 'white' ? 'White' : 'Black'}.`;
+  $('reviewBoardEval').textContent = '';
+  $('reviewBoardWhy').hidden = true;
+  reviewTrySay('');
+  renderReviewSteps(j);
+}
+
+/**
+ * What a move tried in place of a mistake is worth, by the review's own
+ * measure: { loss, kind, good }, or null when it could not be judged.
+ *
+ * THE SAME JUDGE, THE SAME WORK, THE SAME STARTING POINT as the review used
+ * for the move that was played: the position after the tried move is
+ * searched, and what it leaves is set against where the game stood before
+ * the move, through the same costOf(). A move is "good" when it would not
+ * have been listed — under half a point, the reviewer's own threshold.
+ */
+async function judgeReviewTry(j, move, uci) {
+  if (!Number.isFinite(j.whiteCpBefore)) return null;
+  const name = judgeNamed(Review.result.judge).name;
+  const depth = Review.result.depth ?? 9;
+  const nodes = Review.result.nodes ?? (REVIEW_BUDGET[depth] ?? REVIEW_BUDGET[9]).nodes;
+  const after = new Board(j.fen);
+  after.make(move);
+  const outcome = after.outcome();
+
+  let theirs;       // what the position is worth to the side now to move: the opponent
+  if (outcome) theirs = scoreFinished(outcome);
+  else if (name === 'app') {
+    if (await ownEngineLanes()) theirs = (await ownEngineSearch(after, { nodes, maxDepth: depth })).score;
+    else {
+      App.engine.reset();
+      theirs = App.engine.search(after, { nodes, maxDepth: depth }).score;
+    }
+  } else {
+    if (name === 'reckless' && !Reckless.worker && (await recklessStatus().catch(() => ({}))).state !== 'ready') return null;
+    const start = new Board(Review.parsed.startFen ?? undefined).fen();
+    const moves = [...Review.parsed.plies.slice(0, j.ply - 1).map((p) => p.uci), uci];
+    theirs = (await askJudge(judgeNamed(name), start, moves, after, { nodes })).score;
+  }
+
+  const before = j.colour === 'white' ? j.whiteCpBefore : -j.whiteCpBefore;
+  const cost = costOf(before, -theirs);
+  return { loss: cost.loss, kind: cost.kind, good: cost.kind === 'material' && severityFor(cost.loss ?? 0) === null };
+}
+
+/** A move made on the board while the answer is kept back. */
+async function onReviewTry({ move, san, uci }) {
+  const j = Review.trying;
+  if (!j || Review.checking) return;
+  const name = judgeNamed(Review.result.judge).name;
+  const judge = name === 'app' ? 'the engine' : judgeWords(name);
+  const tried = (kind) => {
+    Review.view.selected = -1;
+    Review.view.arrows = [{ from: moveFrom(move), to: moveTo(move), kind }];
+    Review.view.draw();
+  };
+
+  if (uci === j.best.uci) {
+    showJudged(j, { scroll: false });
+    reviewTrySay(`Yes — ${san} is what ${judge} wanted.`, 'note good-note');
+    return;
+  }
+  if (uci === j.uci) {
+    tried('played');
+    reviewTrySay(`${san} is what you played. Look for something else.`);
+    return;
+  }
+
+  Review.checking = true;
+  Review.view.locked = true;
+  tried('user');
+  reviewTrySay(`Checking ${san}…`);
+  let verdict = null;
+  try {
+    verdict = await judgeReviewTry(j, move, uci);
+  } catch {
+    verdict = null;
+  } finally {
+    Review.checking = false;
+    Review.view.locked = false;
+  }
+  if (Review.trying !== j) return;        // the board has moved on meanwhile
+
+  if (!verdict) {
+    reviewTrySay(`${san} could not be checked here. Try another move, or show the answer.`);
+  } else if (verdict.good) {
+    showJudged(j, { scroll: false });
+    reviewTrySay(`${san} works too: ${judge} makes it about as good as its own ${j.best.san}.`, 'note good-note');
+  } else if (verdict.kind === 'allowed_mate') {
+    reviewTrySay(`${san} lets them force mate. Try again.`, 'note bad-note');
+  } else if (verdict.kind === 'missed_mate') {
+    reviewTrySay(`There is a forced mate here, and ${san} lets it go. Try again.`, 'note bad-note');
+  } else {
+    reviewTrySay(`${san} loses about ${(verdict.loss / 100).toFixed(1)} points against ${judge}’s move. Try again.`, 'note bad-note');
+  }
 }
 
 /**
@@ -1115,7 +1309,7 @@ function openStoredReview(game) {
   show('review');
   $('reviewStatus').textContent = '';
   renderReviewResult();
-  $('reviewOut').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $('reviewBoardWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 /**
@@ -1141,6 +1335,32 @@ function fillBestMove(j, depth) {
   } catch {
     j.noBest = true;
     return false;
+  }
+}
+
+/**
+ * The same, asked of this app's engine in a worker rather than searched for
+ * here. Stepping through a reopened game asks for a best move at every stop,
+ * and on the page each one held the screen still for the length of a search.
+ * Where no worker can be started it is searched for here after all.
+ */
+async function fillBestMoveLater(j, depth) {
+  if (j.best || j.noBest || j.asking) return false;
+  if (!(await ownEngineLanes())) return fillBestMove(j, depth);
+  j.asking = true;
+  try {
+    const at = new Board(j.fen);
+    if (at.outcome()) { j.noBest = true; return false; }
+    const budget = REVIEW_BUDGET[depth] ?? REVIEW_BUDGET[9];
+    const found = await ownEngineSearch(at, { nodes: budget.nodes, maxDepth: depth });
+    if (!found?.move) { j.noBest = true; return false; }
+    j.best = { uci: moveToUci(found.move), san: toSan(new Board(j.fen), found.move) };
+    return true;
+  } catch {
+    j.noBest = true;
+    return false;
+  } finally {
+    j.asking = false;
   }
 }
 
@@ -1192,22 +1412,26 @@ function describeJudged(j) {
   return `${moveLabel(j)} — ${j.cls}: lost ${(j.loss / 100).toFixed(1)} points. ${Judge} wanted ${j.best?.san ?? 'something else'}.`;
 }
 
-function showJudged(j) {
+function showJudged(j, { scroll = true, fill = 'now' } = {}) {
   // A reopened game has no engine move stored for this position; it is worked
   // out now, before anything is drawn, so the arrow and the sentence under the
-  // board agree with each other.
+  // board agree with each other — when a move was tapped. Stepping through
+  // the game asks a worker instead (`fill: 'later'`), as a judge in a worker
+  // is always asked: drawn now without it, and again when the answer comes,
+  // if this move is still the one on the board by then and its answer is not
+  // being kept back.
   if (Review.result?.stored) {
     const name = judgeNamed(Review.result.judge).name;
-    if (name === 'app') fillBestMove(j, Review.result.depth);
-    else {
-      // Drawn now without it, and again when the judge answers — if this move
-      // is still the one on the board by then.
-      fillBestMoveFrom(name, j).then((found) => {
-        if (found && Review.shown === j) showJudged(j);
-      });
-    }
+    const again = (found) => { if (found && Review.shown === j && !Review.trying) showJudged(j, { scroll: false }); };
+    if (name !== 'app') fillBestMoveFrom(name, j).then(again);
+    else if (fill === 'later') fillBestMoveLater(j, Review.result.depth).then(again);
+    else fillBestMove(j, Review.result.depth);
   }
   Review.shown = j;
+  // Whatever was being tried, this is the answer.
+  Review.trying = null;
+  reviewTrySay('');
+  renderReviewSteps(j);
   $('reviewBoardWrap').hidden = false;
   Review.view.orientation = Review.side === 'white' ? WHITE : BLACK;
   Review.view.interactive = false;
@@ -1230,7 +1454,7 @@ function showJudged(j) {
     j.cls === 'best'
       ? `Why is ${j.san} the best move here?`
       : `Why is ${j.best.san} better than my ${j.san}?`, { arrows });
-  $('reviewBoardWrap').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (scroll) $('reviewBoardWrap').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 /**
@@ -1251,6 +1475,14 @@ function showReviewBar(whiteCp) {
 function showMistake(m) {
   const j = Review.result.judged.find((x) => x.ply === m.ply);
   if (j) { showJudged(j); return; }
+  // A game with no move-by-move record: the mistake on its own, and nothing to step through.
+  Review.shown = null;
+  Review.trying = null;
+  reviewTrySay('');
+  renderReviewSteps(null);
+  Review.view.interactive = false;
+  $('reviewBoardWhy').hidden = true;
+  $('reviewBoardEval').textContent = '';
   $('reviewBoardWrap').hidden = false;
   Review.view.orientation = m.side === 'white' ? WHITE : BLACK;
   Review.view.interactive = false;

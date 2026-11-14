@@ -121,16 +121,28 @@ const PLIES = 33;
   check('and is described as one', /checkmate/.test(mate.said), true);
 
   // ── the engine's move is filled in when you ask for it ───────────────────
-  const before = await page.evaluate(() => Review.result.judged.filter((j) => j.best).length);
-  check('a reopened game stores no engine moves', before, 0);
-  await page.click('#reviewMoves .mv:nth-of-type(6)');
+  //
+  // A stored game carries no engine move for any of its plies. The review
+  // opens on the board now, at the first mistake, so that one move has been
+  // asked for by the time anything is tapped — and it is the only one.
+  await page.waitForFunction(() => Review.shown && (Review.shown.best || Review.shown.noBest), null, { timeout: 30000 });
+  const before = await page.evaluate(() => ({
+    filled: Review.result.judged.filter((j) => j.best).map((j) => j.ply).join(' '),
+    shown: String(Review.shown.ply),
+    stored: App.reviews.games.some((g) => 'judged' in g),
+  }));
+  check('a reopened game has an engine move only for the move on the board', before.filled, before.shown);
+  check('and none is kept with the stored game', before.stored, false);
+  // Another move, tapped.
+  const other = before.shown === '6' ? 7 : 6;
+  await page.click(`#reviewMoves .mv[data-ply="${other}"]`);
   await page.waitForTimeout(1200);
   const after = await page.evaluate(() => ({
     filled: Review.result.judged.filter((j) => j.best).length,
     note: document.getElementById('reviewBoardNote').textContent,
     shown: !document.getElementById('reviewBoardWrap').hidden,
   }));
-  check('tapping one works it out', after.filled, 1);
+  check('tapping one works it out', after.filled, 2);
   check('the board comes up', after.shown, true);
   say('and it says', after.note);
   check('without falling back to "something else"', /something else/.test(after.note), false);

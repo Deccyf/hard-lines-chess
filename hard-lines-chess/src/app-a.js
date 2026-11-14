@@ -60,6 +60,7 @@ const DEFAULT_PREFS = {
   think: 'normal',       // fast | normal | deep — the practice board's budget
   judge: 'app',          // app | stockfish | reckless — who judges a reviewed game
   walkDepth: 7,          // 7 | 9 | 12 — the setting games are analysed at, picked on the walk
+  boardEngine: 'app',    // app | stockfish — whose lines the analysis board shows
   // Catching up — see catchUp() in src/app-p.js.
   chessComUser: '',      // the name the last import was for
   catchUp: true,         // bring in new games when the app is opened
