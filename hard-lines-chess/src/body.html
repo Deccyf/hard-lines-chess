@@ -528,6 +528,57 @@
     <div class="panel" id="puzzleList"></div>
   </section>
 
+  <!-- WEAK SPOTS -->
+  <section id="section-weak" hidden>
+    <div class="panel" id="weakSetup">
+      <h2>Puzzles for your weak spots</h2>
+      <p class="note" style="margin:0 0 10px">From the Lichess puzzle database, ten at a time: most of them of the kinds
+        your own games go wrong in, all of them at your level.</p>
+      <div id="weakHead" hidden></div>
+      <div id="weakAims"></div>
+      <p class="note" id="weakNote"></p>
+      <div class="row">
+        <button class="btn primary" id="weakStart" type="button" hidden>Start ten</button>
+      </div>
+      <details class="more">
+        <summary>How these are chosen</summary>
+        <p class="note">Every mistake found in your games is replayed on the board and named where it can be: a fork you
+          allowed, a piece you left loose. Those names are counted over your latest analysed games, and about seven of
+          every ten puzzles are of the kinds that come up most. A puzzle you solve first time is not asked again. One you
+          miss comes back the next day, and once more about a week after that.
+          <strong>Not the same as Puzzles:</strong> those are moments out of your own games. These are other people's
+          games, chosen because they hold the same patterns. The puzzles and their ratings are from the Lichess puzzle
+          database, which is in the public domain.</p>
+      </details>
+    </div>
+
+    <div id="weakBoardWrap" hidden>
+      <div class="layout">
+        <div>
+          <div id="weakBoard"></div>
+          <div class="legend" id="weakLegend" hidden>
+            <span><i class="k-best"></i> the move</span>
+          </div>
+        </div>
+        <div>
+          <div class="panel">
+            <h3>Find the move</h3>
+            <p class="prompt" id="weakPrompt"></p>
+            <p class="note" id="weakWhere"></p>
+            <p class="idea" id="weakAnswer"></p>
+            <div class="row">
+              <button class="btn primary" id="weakNext" type="button" hidden>Next</button>
+              <button class="btn" id="weakShow" type="button" hidden>Show the answer</button>
+              <button class="btn" id="weakExplore" type="button" hidden>Open on the analysis board</button>
+              <button class="btn" id="weakAskWhy" type="button" hidden>Ask the coach</button>
+            </div>
+            <div class="row" style="margin-top:14px"><button class="btn" id="weakStop" type="button" hidden>Stop this ten</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- TIMED PUZZLES -->
   <section id="section-storm" hidden>
     <p class="lede" id="stormLede">Three minutes. One position after another.</p>

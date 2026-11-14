@@ -1237,6 +1237,57 @@
     <div class="panel" id="puzzleList"></div>
   </section>
 
+  <!-- WEAK SPOTS -->
+  <section id="section-weak" hidden>
+    <div class="panel" id="weakSetup">
+      <h2>Puzzles for your weak spots</h2>
+      <p class="note" style="margin:0 0 10px">From the Lichess puzzle database, ten at a time: most of them of the kinds
+        your own games go wrong in, all of them at your level.</p>
+      <div id="weakHead" hidden></div>
+      <div id="weakAims"></div>
+      <p class="note" id="weakNote"></p>
+      <div class="row">
+        <button class="btn primary" id="weakStart" type="button" hidden>Start ten</button>
+      </div>
+      <details class="more">
+        <summary>How these are chosen</summary>
+        <p class="note">Every mistake found in your games is replayed on the board and named where it can be: a fork you
+          allowed, a piece you left loose. Those names are counted over your latest analysed games, and about seven of
+          every ten puzzles are of the kinds that come up most. A puzzle you solve first time is not asked again. One you
+          miss comes back the next day, and once more about a week after that.
+          <strong>Not the same as Puzzles:</strong> those are moments out of your own games. These are other people's
+          games, chosen because they hold the same patterns. The puzzles and their ratings are from the Lichess puzzle
+          database, which is in the public domain.</p>
+      </details>
+    </div>
+
+    <div id="weakBoardWrap" hidden>
+      <div class="layout">
+        <div>
+          <div id="weakBoard"></div>
+          <div class="legend" id="weakLegend" hidden>
+            <span><i class="k-best"></i> the move</span>
+          </div>
+        </div>
+        <div>
+          <div class="panel">
+            <h3>Find the move</h3>
+            <p class="prompt" id="weakPrompt"></p>
+            <p class="note" id="weakWhere"></p>
+            <p class="idea" id="weakAnswer"></p>
+            <div class="row">
+              <button class="btn primary" id="weakNext" type="button" hidden>Next</button>
+              <button class="btn" id="weakShow" type="button" hidden>Show the answer</button>
+              <button class="btn" id="weakExplore" type="button" hidden>Open on the analysis board</button>
+              <button class="btn" id="weakAskWhy" type="button" hidden>Ask the coach</button>
+            </div>
+            <div class="row" style="margin-top:14px"><button class="btn" id="weakStop" type="button" hidden>Stop this ten</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- TIMED PUZZLES -->
   <section id="section-storm" hidden>
     <p class="lede" id="stormLede">Three minutes. One position after another.</p>
@@ -5610,7 +5661,7 @@ const STORE_VERSION = 2;
  * the move between stores cannot each forget a different one —
  * tests/store.test.mjs holds every Store.get and Store.set in the source to it.
  */
-const STORE_AREAS = ['prefs', 'openings', 'drills', 'history', 'reviews', 'puzzles', 'teaching', 'endgames', 'vision', 'storm'];
+const STORE_AREAS = ['prefs', 'openings', 'drills', 'history', 'reviews', 'puzzles', 'teaching', 'endgames', 'vision', 'storm', 'weakspots'];
 
 /** Where the copy on this device is kept, and how long opening it may take. */
 const LOCAL_DB = { name: 'hardlines', table: 'state', openMs: 8000 };
@@ -7508,6 +7559,439 @@ const MOTIFS = (function () {
  */
 function classifyMistake(input) {
   return MOTIFS.classify(input || {});
+}
+
+
+// ── puzzles aimed at what goes wrong in your games ─────────────────────────
+//
+// The Puzzles screen asks about moments out of your own games, and there are
+// only as many of those as you have played. This is the other half: a pack of
+// puzzles from the Lichess puzzle database — released into the public domain,
+// each one rated by how thousands of people did on it — and a rule for which
+// of them you are given.
+//
+// THE RULE IS YOUR OWN GAMES. Every mistake the reviewer finds is replayed on
+// the board and named when it can be (src/motifs.js): you allowed a fork, you
+// left a piece loose, you walked into a pin. Those names are counted over your
+// latest analysed games, and most of each set of puzzles is of the kinds that
+// come up most. The rest is a mix, so the set is not a single idea ten times.
+//
+// TWO VOCABULARIES, KEPT APART. A mistake's name says what was done TO you; a
+// puzzle's theme says what the solver DOES. "Allowing a fork" is trained by
+// puzzles where a fork wins — the same pattern seen from the side that plays
+// it — and the screen says both halves rather than one label for the two.
+// WEAK_AIMS is the whole of the crossing between them.
+//
+// AND THE LEVEL IS YOURS. Each puzzle has a rating; you have a level on the
+// same scale, moved after every new puzzle by how surprising the result was.
+// Puzzles are picked a little under it, so that about two in three are solved:
+// hard enough to need looking at, not so hard that a set is ten misses.
+//
+// THE PACK CAN BE MISSING. It is a file beside the page, described by a small
+// one beside that. A copy of the page opened from a file has neither, and
+// then there is no Weak spots screen at all rather than one that cannot work.
+//
+// Nothing in this file touches the page: it is the choosing and the judging,
+// so that tests/weak-spots.test.mjs can hold it to its rules without a browser.
+
+/** The two files beside the page: what the pack is, and the pack. */
+const WEAK_PACK_ABOUT = 'puzzle-pack.json';
+const WEAK_PACK_FILE = 'puzzle-pack.txt';
+
+/** One letter a theme, in the order the pack's own first lines give. */
+const WEAK_THEME_CODES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+
+/**
+ * A mistake's name → the puzzle themes that show the same pattern from the
+ * side that plays it. A name that is not here has no puzzle of its own:
+ * `lostMaterial` is, by its own definition, a loss with no trick behind it.
+ */
+const WEAK_AIMS = {
+  hangingPiece: ['hangingPiece'],
+  fork: ['fork'],
+  pin: ['pin'],
+  skewer: ['skewer'],
+  discoveredAttack: ['discoveredAttack'],
+  backRankMate: ['backRankMate'],
+  trappedPiece: ['trappedPiece'],
+  exposedKing: ['exposedKing'],
+  mateIn1: ['mateIn1'],
+  mateIn2: ['mateIn2'],
+  mateIn3: ['mateIn3'],
+  missedMate: ['mateIn1', 'mateIn2', 'mateIn3'],
+};
+
+/**
+ * What a puzzle theme is called, from the solver's side. `many` heads a list
+ * and names an aim ("aimed at forks"); `one` says what a single puzzle was.
+ * A theme with no entry here is never shown: the pack carries a few that only
+ * describe how long the answer is or how the game was going.
+ */
+const PUZZLE_THEME_WORDS = {
+  hangingPiece: { many: 'loose pieces', one: 'a piece left loose' },
+  fork: { many: 'forks', one: 'a fork' },
+  pin: { many: 'pins', one: 'a pin' },
+  skewer: { many: 'skewers', one: 'a skewer' },
+  discoveredAttack: { many: 'discovered attacks', one: 'a discovered attack' },
+  backRankMate: { many: 'back-rank mates', one: 'a back-rank mate' },
+  trappedPiece: { many: 'trapped pieces', one: 'a trapped piece' },
+  exposedKing: { many: 'exposed kings', one: 'an exposed king' },
+  mateIn1: { many: 'mates in one', one: 'mate in one' },
+  mateIn2: { many: 'mates in two', one: 'mate in two' },
+  mateIn3: { many: 'mates in three', one: 'mate in three' },
+  mateIn4: { many: 'mates in four', one: 'mate in four' },
+  doubleCheck: { many: 'double checks', one: 'a double check' },
+  sacrifice: { many: 'sacrifices', one: 'a sacrifice' },
+  capturingDefender: { many: 'removing the defender', one: 'removing the defender' },
+  deflection: { many: 'pulling a defender away', one: 'pulling a defender away' },
+  attraction: { many: 'luring a piece', one: 'luring a piece onto a bad square' },
+  interference: { many: 'blocking a defender', one: 'blocking a defender' },
+  clearance: { many: 'clearing a line', one: 'clearing a line' },
+  intermezzo: { many: 'in-between moves', one: 'an in-between move' },
+  quietMove: { many: 'quiet moves', one: 'a quiet move' },
+  defensiveMove: { many: 'defensive moves', one: 'a defensive move' },
+  xRayAttack: { many: 'attacks through a piece', one: 'an attack through a piece' },
+  zugzwang: { many: 'zugzwang', one: 'zugzwang' },
+  advancedPawn: { many: 'advanced pawns', one: 'an advanced pawn' },
+  promotion: { many: 'promotions', one: 'a promotion' },
+  underPromotion: { many: 'underpromotions', one: 'an underpromotion' },
+  enPassant: { many: 'en passant', one: 'en passant' },
+  smotheredMate: { many: 'smothered mates', one: 'a smothered mate' },
+  kingsideAttack: { many: 'kingside attacks', one: 'an attack on the kingside' },
+  queensideAttack: { many: 'queenside attacks', one: 'an attack on the queenside' },
+  attackingF2F7: { many: 'attacks on f2 and f7', one: 'an attack on f2 or f7' },
+};
+
+/** How many of the latest analysed games the aim is taken from. */
+const WEAK_SPAN_GAMES = 50;
+/** How many puzzles make a set. */
+const WEAK_SET_SIZE = 10;
+/** Of a set, the share aimed at your own mistakes when there are any to aim at. */
+const WEAK_AIMED_SHARE = 0.7;
+/** No more than this many aims in one set, so that it has a subject. */
+const WEAK_AIMS_IN_A_SET = 4;
+/** At most this many of a set are ones missed before and now due again. */
+const WEAK_REPEATS_IN_A_SET = 3;
+/** How far under your level the middle of the pick sits, and how far either side it ranges. */
+const WEAK_EASIER = 100;
+const WEAK_SPREAD = 125;
+/** An aimed puzzle further than this from the level wanted is not offered; a mixed one takes its place. */
+const WEAK_REACH = 300;
+/** Where a level starts, and the limits it is kept inside. */
+const WEAK_LEVEL_START = 1000;
+const WEAK_LEVEL_MIN = 300;
+const WEAK_LEVEL_MAX = 3000;
+/** How many results are kept for the figures by theme. */
+const WEAK_LOG_KEEP = 1000;
+
+/** The stored area as it starts, and with anything an older copy lacks filled in. */
+function weakSpotsData(stored) {
+  const src = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+  return {
+    ...src,
+    level: Number.isFinite(src.level) ? Math.min(WEAK_LEVEL_MAX, Math.max(WEAK_LEVEL_MIN, src.level)) : WEAK_LEVEL_START,
+    counted: Number.isFinite(src.counted) && src.counted > 0 ? Math.floor(src.counted) : 0,
+    done: Array.isArray(src.done) ? src.done.filter((id) => typeof id === 'string') : [],
+    again: Array.isArray(src.again) ? src.again.filter((a) => a && a.puzzle && typeof a.puzzle.id === 'string') : [],
+    log: Array.isArray(src.log) ? src.log.filter((r) => r && typeof r === 'object') : [],
+  };
+}
+
+// ── the pack ───────────────────────────────────────────────────────────────
+
+/**
+ * Read a pack: its themes, its rows, and where every theme's puzzles are.
+ *
+ * The file is lines. The ones that start with "#" say what it is, and one of
+ * them lists the themes in the order their letters stand for. Every other
+ * line is a puzzle, tab-separated: its Lichess id, its rating, a letter for
+ * each theme, the position, and the moves — the first is the move that was
+ * just played against the solver, exactly as the database has it.
+ *
+ * ROWS ARE IN ORDER OF RATING, and this refuses a pack that is not: finding
+ * the puzzles nearest a level is a search through that order, and on a pack
+ * out of order it would quietly return the wrong ones.
+ *
+ * Rows are kept as the text they came as and read only when one is wanted.
+ */
+function parsePuzzlePack(text) {
+  const rows = [];
+  let themes = null;
+  for (const line of String(text ?? '').split('\n')) {
+    if (!line) continue;
+    if (line[0] === '#') {
+      if (line.startsWith('# themes ')) themes = line.slice(9).trim().split(/\s+/).filter(Boolean);
+      continue;
+    }
+    rows.push(line);
+  }
+  if (!themes || !themes.length) throw new Error('The puzzle pack does not say what its themes are.');
+  if (themes.length > WEAK_THEME_CODES.length) throw new Error('The puzzle pack names more themes than it has letters for.');
+  if (!rows.length) throw new Error('The puzzle pack has no puzzles in it.');
+
+  const rating = new Uint16Array(rows.length);
+  const byTheme = new Map(themes.map((name) => [name, []]));
+  let last = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const a = row.indexOf('\t');
+    const b = row.indexOf('\t', a + 1);
+    const c = row.indexOf('\t', b + 1);
+    const rated = Number(row.slice(a + 1, b));
+    if (a < 1 || b < 0 || c < 0 || !Number.isInteger(rated) || rated < 1 || rated > 65535) {
+      throw new Error(`The puzzle pack cannot be read at its puzzle number ${i + 1}.`);
+    }
+    if (rated < last) throw new Error('The puzzle pack is not in order of rating.');
+    last = rated;
+    rating[i] = rated;
+    for (let k = b + 1; k < c; k++) {
+      const name = themes[WEAK_THEME_CODES.indexOf(row[k])];
+      if (name === undefined) throw new Error(`The puzzle pack cannot be read at its puzzle number ${i + 1}.`);
+      byTheme.get(name).push(i);
+    }
+  }
+  return { rows, themes, rating, byTheme, count: rows.length, where: null };
+}
+
+/** The id a row starts with. */
+const packRowId = (row) => row.slice(0, row.indexOf('\t'));
+
+/** One row, read: { id, rating, themes, fen, moves }, or null when it is not a row. */
+function readPackRow(row, themes) {
+  const parts = String(row ?? '').split('\t');
+  if (parts.length !== 5) return null;
+  const [id, rated, codes, fen, moves] = parts;
+  const rating = Number(rated);
+  const line = moves.split(' ').filter(Boolean);
+  if (!id || !Number.isInteger(rating) || line.length < 2) return null;
+  const names = [];
+  for (const code of codes) {
+    const name = themes?.[WEAK_THEME_CODES.indexOf(code)];
+    if (name) names.push(name);
+  }
+  return { id, rating, themes: names, fen, moves: line, row };
+}
+
+/** Where a puzzle with this id is in the pack, or -1. The index is built the first time it is asked for. */
+function packIndexOf(pack, id) {
+  if (!pack.where) {
+    pack.where = new Map();
+    for (let i = 0; i < pack.rows.length; i++) pack.where.set(packRowId(pack.rows[i]), i);
+  }
+  return pack.where.get(id) ?? -1;
+}
+
+/**
+ * The puzzle nearest a rating that has not been taken, or -1.
+ *
+ * `theme` narrows it to one theme's puzzles; without one it is any puzzle.
+ * The search starts where the rating sits in the pack's order and walks
+ * outwards, down and up, taking whichever side is nearer each time — so what
+ * comes back is the nearest one left, not merely one inside a window, and a
+ * level where the pack is thin is served from the nearest place it is not.
+ * `reach` is how far that may go before the answer is "none".
+ */
+function pickPackPuzzle(pack, { theme = null, around, taken, reach = Infinity }) {
+  const list = theme ? pack.byTheme.get(theme) : null;
+  if (theme && (!list || !list.length)) return -1;
+  const size = list ? list.length : pack.count;
+  const at = (k) => (list ? list[k] : k);
+
+  let lo = 0, hi = size;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (pack.rating[at(mid)] < around) lo = mid + 1; else hi = mid;
+  }
+  let down = lo - 1, up = lo;
+  while (down >= 0 || up < size) {
+    const below = down >= 0 ? around - pack.rating[at(down)] : Infinity;
+    const above = up < size ? pack.rating[at(up)] - around : Infinity;
+    if (Math.min(below, above) > reach) return -1;
+    const i = above <= below ? at(up++) : at(down--);
+    if (!taken.has(packRowId(pack.rows[i]))) return i;
+  }
+  return -1;
+}
+
+// ── what to aim at ─────────────────────────────────────────────────────────
+
+/**
+ * What the latest analysed games say goes wrong, as puzzle themes to aim at.
+ *
+ * Every theme a mistake was given is counted, the way the Progress page
+ * counts them, so the two pages cannot give one game two different tallies.
+ * A mistake name that crosses to several puzzle themes shares its count out
+ * among them. What comes back is most-frequent first:
+ *
+ *   games     how many analysed games were looked at
+ *   mistakes  how many mistakes they held
+ *   named     how many of those had a name at all
+ *   aims      [{ theme, weight, from: [{ mistake, count }] }]
+ */
+function weakSpotAims(games, span = WEAK_SPAN_GAMES) {
+  const latest = (games ?? [])
+    .filter((g) => g && g.reviewed !== false && Array.isArray(g.mistakes))
+    .sort((a, b) => (a.at ?? 0) - (b.at ?? 0))
+    .slice(-span);
+  const counts = {};
+  let mistakes = 0, named = 0;
+  for (const game of latest) {
+    for (const m of game.mistakes) {
+      mistakes++;
+      if (!Array.isArray(m?.themes) || !m.themes.length) continue;
+      named++;
+      for (const name of m.themes) counts[name] = (counts[name] ?? 0) + 1;
+    }
+  }
+  const aims = new Map();
+  for (const [mistake, count] of Object.entries(counts)) {
+    const themes = WEAK_AIMS[mistake];
+    if (!themes) continue;
+    for (const theme of themes) {
+      if (!aims.has(theme)) aims.set(theme, { theme, weight: 0, from: [] });
+      const aim = aims.get(theme);
+      aim.weight += count / themes.length;
+      aim.from.push({ mistake, count });
+    }
+  }
+  const list = [...aims.values()].sort((a, b) => b.weight - a.weight || a.theme.localeCompare(b.theme));
+  for (const aim of list) aim.from.sort((a, b) => b.count - a.count || a.mistake.localeCompare(b.mistake));
+  return { games: latest.length, mistakes, named, aims: list };
+}
+
+/**
+ * Lay out one set: which slot is aimed at what, and which are mixed.
+ *
+ * `repeats` is how many puzzles missed before are due again; they take mixed
+ * places first. Of what is left, WEAK_AIMED_SHARE goes to the leading aims in
+ * proportion to how often each came up — every one of them gets at least one
+ * place while there are places — and the rest is mixed. The order is then
+ * shuffled, so a set does not open with its four forks in a row.
+ *
+ * @returns {Array<{ kind: 'again' } | { kind: 'aimed', theme: string } | { kind: 'mixed' }>}
+ */
+function planWeakSet(aims, { size = WEAK_SET_SIZE, repeats = 0, rng = Math.random } = {}) {
+  const again = Math.max(0, Math.min(repeats, WEAK_REPEATS_IN_A_SET, size));
+  const fresh = size - again;
+  const leading = (aims ?? []).filter((a) => a.weight > 0).slice(0, WEAK_AIMS_IN_A_SET);
+  const aimed = leading.length ? Math.min(fresh, Math.round(size * WEAK_AIMED_SHARE)) : 0;
+
+  // Largest remainder: whole places first, then the leftovers to whoever was
+  // rounded down the furthest.
+  const total = leading.reduce((sum, a) => sum + a.weight, 0);
+  const shares = leading.map((a) => ({ theme: a.theme, exact: (a.weight / total) * aimed, places: 0 }));
+  for (const s of shares) s.places = Math.floor(s.exact);
+  let left = aimed - shares.reduce((sum, s) => sum + s.places, 0);
+  for (const s of [...shares].sort((a, b) => (b.exact - b.places) - (a.exact - a.places))) {
+    if (left <= 0) break;
+    s.places++;
+    left--;
+  }
+  // Nobody among the leading aims is left with none while another has two.
+  for (const s of shares) {
+    if (s.places > 0) continue;
+    const richest = shares.reduce((best, x) => (x.places > best.places ? x : best), shares[0]);
+    if (richest.places > 1) { richest.places--; s.places++; }
+  }
+
+  const slots = [];
+  for (let i = 0; i < again; i++) slots.push({ kind: 'again' });
+  for (const s of shares) for (let i = 0; i < s.places; i++) slots.push({ kind: 'aimed', theme: s.theme });
+  while (slots.length < size) slots.push({ kind: 'mixed' });
+  for (let i = slots.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [slots[i], slots[j]] = [slots[j], slots[i]];
+  }
+  return slots;
+}
+
+/** The rating to look near for a level: a little under it, and not the same spot every time. */
+function weakTargetRating(level, rng = Math.random) {
+  return Math.round(level - WEAK_EASIER + (rng() * 2 - 1) * WEAK_SPREAD);
+}
+
+/**
+ * The level after one more new puzzle.
+ *
+ * The ordinary rating sum: what was expected of this level against this
+ * puzzle, and a step towards what happened. The step is large for the first
+ * few puzzles, while the level is a guess, and settles after thirty.
+ */
+function nextWeakLevel(level, counted, rating, solved) {
+  const expected = 1 / (1 + 10 ** ((rating - level) / 400));
+  const step = counted < 10 ? 64 : (counted < 30 ? 40 : 24);
+  const next = Math.round(level + step * ((solved ? 1 : 0) - expected));
+  return Math.min(WEAK_LEVEL_MAX, Math.max(WEAK_LEVEL_MIN, next));
+}
+
+// ── one puzzle, on a board ─────────────────────────────────────────────────
+
+/**
+ * Set a puzzle up to be solved, or null when its moves cannot be played.
+ *
+ * The database gives the position BEFORE the move that set the puzzle up, and
+ * that move first. So the solver's position is one move in, the move that was
+ * "just played" is known rather than guessed, and every later move is written
+ * out here once: `line` holds the solver's moves and the replies in between,
+ * each with the position it is played from.
+ */
+function openPackPuzzle(puzzle) {
+  let board;
+  try { board = new Board(puzzle.fen); } catch { return null; }
+  const before = puzzle.fen;
+  const first = moveFromUci(board, puzzle.moves[0]);
+  if (!first) return null;
+  const theirSan = toSan(board, first);
+  board.make(first);
+  const start = board.fen();
+  const side = board.turn === WHITE ? 'white' : 'black';
+  const moveNumber = board.fullmove;
+  const line = [];
+  for (let i = 1; i < puzzle.moves.length; i++) {
+    const move = moveFromUci(board, puzzle.moves[i]);
+    if (!move) return null;
+    line.push({ uci: puzzle.moves[i], san: toSan(board, move), fen: board.fen(), mine: i % 2 === 1 });
+    board.make(move);
+  }
+  if (!line.length || !line[line.length - 1].mine) return null;
+  return {
+    ...puzzle, before, theirUci: puzzle.moves[0], theirSan, start, side, moveNumber, line,
+    yours: line.filter((step) => step.mine).length,
+  };
+}
+
+/**
+ * Is this the move the puzzle wants, at this step of its line?
+ *
+ * The move in the line is. So is any move that is checkmate on the spot: a
+ * mate is a mate, and the database's own rule is that a second way to give
+ * it counts — it records one line, not every one.
+ */
+function packMoveIsRight(step, uci) {
+  if (uci === step.uci) return true;
+  const board = new Board(step.fen);
+  const move = moveFromUci(board, uci);
+  if (!move) return false;
+  board.make(move);
+  return board.inCheck() && !hasLegalReply(board);
+}
+
+/** A puzzle's line as it would be written down, from the solver's first move. */
+function packLineText(opened) {
+  const board = new Board(opened.start);
+  const out = [];
+  for (const step of opened.line) {
+    const white = board.turn === WHITE;
+    if (white) out.push(`${board.fullmove}. ${step.san}`);
+    else out.push(out.length ? step.san : `${board.fullmove}... ${step.san}`);
+    board.make(moveFromUci(board, step.uci));
+  }
+  return out.join(' ');
+}
+
+/** What a puzzle was, in the solver's words: the themes there are words for, in the pack's order. */
+function packThemeWords(themes) {
+  return (themes ?? []).map((t) => PUZZLE_THEME_WORDS[t]?.one).filter(Boolean);
 }
 
 
@@ -12808,6 +13292,7 @@ const App = {
   history: null,
   reviews: null,
   puzzles: null,
+  weak: null,
   teaching: null,
   prefs: null,
   downloads: null,
@@ -12894,7 +13379,7 @@ function applyPrefs() {
 }
 
 function allViews() {
-  return [Play.view, Openings.view, Review.view, Drill.view, Practice.view, Puzzles.view];
+  return [Play.view, Openings.view, Review.view, Drill.view, Practice.view, Puzzles.view, Weak.view];
 }
 
 async function savePrefs() {
@@ -12917,6 +13402,7 @@ const SECTIONS = [
   ['openings', 'Openings'],
   ['review', 'Game review'],
   ['puzzles', 'Puzzles'],
+  ['weak', 'Weak spots'],
   ['storm', 'Timed'],
   ['endgames', 'Endgames'],
   ['watch', 'Watch'],
@@ -12950,7 +13436,7 @@ const GROUPS = [
   { id: 'today', label: 'Today', sections: ['today'] },
   { id: 'play', label: 'Play', sections: ['play', 'board', 'review'] },
   { id: 'learn', label: 'Learn', sections: ['notation', 'openings', 'endgames', 'drills', 'vision'] },
-  { id: 'train', label: 'Train', sections: ['puzzles', 'storm'] },
+  { id: 'train', label: 'Train', sections: ['puzzles', 'weak', 'storm'] },
   { id: 'watch', label: 'Watch', sections: ['watch'] },
   { id: 'you', label: 'Profile', sections: ['progress', 'settings'] },
 ];
@@ -12983,6 +13469,7 @@ function show(section) {
   if (section === 'openings') renderOpenings();
   if (section === 'drills') renderDrills();
   if (section === 'puzzles') renderPuzzles();
+  if (section === 'weak') renderWeak();
   if (section === 'progress') renderProgress();
   if (section === 'board') renderPractice();
   if (section === 'settings') renderSettings();
@@ -13068,6 +13555,24 @@ function renderToday() {
       note: 'Your own mistakes, offered again once they have had time to fade.',
       action: 'Drill',
       go: () => { show('drills'); startDrill(); },
+    });
+  }
+
+  // OFFERED ONLY WHERE THERE IS A PACK TO CHOOSE FROM, and once a day: a row
+  // that came back the moment a set was finished would be a list that can
+  // never be cleared.
+  if (Weak.about && !weakSetDoneToday()) {
+    const aims = weakAimsNow().aims;
+    const again = weakDueAgain().length;
+    rows.push({
+      kind: 'Weak spots',
+      title: aims.length ? `Ten puzzles aimed at ${weakAimsPhrase(aims)}` : 'Ten puzzles at your level',
+      note: (aims.length
+        ? 'From the Lichess puzzle database, chosen for what your own games go wrong in.'
+        : 'From the Lichess puzzle database. Analyse some of your games and they will be aimed at what goes wrong in them.')
+        + (again ? ` ${again} you missed before ${again === 1 ? 'is' : 'are'} due again.` : ''),
+      action: 'Solve',
+      go: () => { show('weak'); startWeakSet(); },
     });
   }
 
@@ -21191,6 +21696,553 @@ function stopWalk() {
 }
 
 
+// ── weak spots: the screen ─────────────────────────────────────────────────
+//
+// src/weak-spots.js does the choosing and the judging. This is the page's
+// side: finding the pack, saying what the puzzles are aimed at and why, and
+// taking a set of ten across a board.
+//
+// A SET, NOT A STREAM. Ten puzzles, laid out before the first one: so many
+// aimed at each thing your games show, the rest a mix, and up to three you
+// missed before and are due to meet again. A set has an end, and what it says
+// at the end — seven of ten, and where your level went — is the reason to
+// start one.
+//
+// A MISS IS NOT THE END OF THE PUZZLE. The first wrong move counts it as
+// missed, and it will be back tomorrow; but the position stays, and finding
+// the move on a second look is worth more than being shown it. The answer is
+// there to be asked for.
+//
+// THE PACK CAN BE MISSING, and then this screen says why in a sentence rather
+// than offering a button that does nothing: a copy of the page opened from a
+// file has no pack beside it, and a build made without one has none at all.
+
+const Weak = {
+  view: null,
+  about: undefined,   // what puzzle-pack.json says; null when there is no pack here
+  why: null,          // and then why not: 'file' | 'missing' | 'unreachable'
+  finding: null,      // the promise every caller shares while that is found out
+  pack: null,
+  loading: null,
+  failed: null,       // why the pack itself would not load
+  set: null,          // { slots, at, results, from } while a set is going
+  current: null,      // the puzzle on the board
+  turn: 0,            // which puzzle a late timer belongs to
+  rng: Math.random,
+};
+
+/** How long their move is left to be seen before the board answers to you. */
+const WEAK_REPLY_MS = 450;
+
+/** What you did, for each name a mistake can have, to follow "you" and be followed by how often. */
+const WEAK_MISTAKE_WORDS = {
+  hangingPiece: 'left a piece loose',
+  fork: 'allowed a fork',
+  pin: 'got pinned',
+  skewer: 'got skewered',
+  discoveredAttack: 'walked into a discovery',
+  backRankMate: 'were caught on the back rank',
+  trappedPiece: 'let a piece get trapped',
+  exposedKing: 'opened up your own king',
+  mateIn1: 'allowed mate in one',
+  mateIn2: 'allowed mate in two',
+  mateIn3: 'allowed mate in three',
+  missedMate: 'missed a forced mate',
+};
+
+const weakTimes = (n) => (n === 1 ? 'once' : (n === 2 ? 'twice' : `${n} times`));
+const weakCapital = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/**
+ * Find out whether there is a pack beside this page, once. Resolves with what
+ * its description says, or null — and Weak.why then says which kind of null.
+ */
+function findPuzzlePack() {
+  Weak.finding ??= (async () => {
+    if (location.protocol === 'file:') { Weak.about = null; Weak.why = 'file'; return null; }
+    let response;
+    try {
+      response = await fetch(new URL(WEAK_PACK_ABOUT, location.href).href);
+    } catch {
+      // No answer at all. Asked again the next time somebody looks, because
+      // "no connection a moment ago" is not "no pack".
+      Weak.about = null; Weak.why = 'unreachable'; Weak.finding = null;
+      return null;
+    }
+    let about = null;
+    if (response.ok) { try { about = await response.json(); } catch { about = null; } }
+    if (!about || about.format !== 1 || !(about.count > 0)) { Weak.about = null; Weak.why = 'missing'; return null; }
+    Weak.about = about;
+    Weak.why = null;
+    return about;
+  })();
+  return Weak.finding;
+}
+
+/** Why there are no puzzles here, in a sentence. */
+function weakMissingWords() {
+  if (Weak.why === 'file') {
+    return 'This copy of the app was opened from a file, and the puzzles are a separate file it cannot read from there. They are in the installed app and in the web version.';
+  }
+  if (Weak.why === 'unreachable' && !IN_ANDROID_APP) {
+    return 'The puzzles could not be fetched just now. They are kept on the device once they have been fetched; open this screen again with a connection.';
+  }
+  return 'This build of the app was made without the puzzle pack, so there is nothing to choose from here.';
+}
+
+/** Fetch and read the pack, once. Rejects with a sentence for the screen. */
+function loadPuzzlePack() {
+  Weak.loading ??= (async () => {
+    const about = await findPuzzlePack();
+    if (!about) throw new Error(weakMissingWords());
+    let text;
+    try {
+      const response = await fetch(new URL(WEAK_PACK_FILE, location.href).href);
+      if (!response.ok) throw new Error('not there');
+      text = await response.text();
+    } catch {
+      throw new Error('The puzzles could not be fetched just now. Open this screen again with a connection.');
+    }
+    const pack = parsePuzzlePack(text);
+    // The two files are made together and must arrive together. A page that
+    // has one from before an update and the other from after it would be
+    // choosing from a pack it has been told the wrong things about.
+    if (pack.count !== about.count) {
+      throw new Error('The puzzles on this device are not the ones their description is for. Close the app completely and open it again.');
+    }
+    Weak.pack = pack;
+    Weak.failed = null;
+    return pack;
+  })().catch((error) => {
+    Weak.loading = null;
+    Weak.failed = error.message;
+    throw error;
+  });
+  return Weak.loading;
+}
+
+/** What the latest analysed games say to aim at. */
+function weakAimsNow() {
+  return weakSpotAims(App.reviews.games);
+}
+
+/** The aims as a short phrase: "forks and loose pieces", "forks, pins and skewers". */
+function weakAimsPhrase(aims, most = 3) {
+  const names = aims.slice(0, most).map((a) => PUZZLE_THEME_WORDS[a.theme]?.many ?? a.theme);
+  if (!names.length) return '';
+  return names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+/** Whether a set has been finished since midnight. */
+function weakSetDoneToday() {
+  const midnight = new Date();
+  midnight.setHours(0, 0, 0, 0);
+  return (App.weak?.lastSet ?? 0) >= midnight.getTime();
+}
+
+/** The missed puzzles that are due to be met again, longest overdue first. */
+function weakDueAgain() {
+  return App.weak.again.filter((a) => SRS.isDue(a.card)).sort((a, b) => (a.card?.due ?? 0) - (b.card?.due ?? 0));
+}
+
+// ── the screen before and after a set ──────────────────────────────────────
+
+function renderWeak() {
+  if (Weak.current) return;
+
+  const note = $('weakNote');
+  const start = $('weakStart');
+  $('weakBoardWrap').hidden = true;
+  $('weakStop').hidden = true;
+  $('weakSetup').hidden = false;
+
+  // Whether there is a pack at all is found out first, and the screen draws
+  // itself again when the answer is in.
+  if (Weak.about === undefined) {
+    start.hidden = true;
+    note.textContent = 'Looking for the puzzles…';
+    findPuzzlePack().then(() => {
+      // Whatever came back, the question has been answered once: a lookup
+      // that settled nothing is "none", not a reason to ask again at once.
+      if (Weak.about === undefined) { Weak.about = null; Weak.why = Weak.why ?? 'missing'; }
+      if (App.section === 'weak') renderWeak();
+    });
+    $('weakHead').hidden = true;
+    $('weakAims').innerHTML = '';
+    return;
+  }
+  if (!Weak.about) {
+    start.hidden = true;
+    note.textContent = weakMissingWords();
+    $('weakHead').hidden = true;
+    $('weakAims').innerHTML = '';
+    // Asked again next time when it was only that nothing answered.
+    if (Weak.why === 'unreachable') Weak.about = undefined;
+    return;
+  }
+
+  renderWeakHead();
+  renderWeakAims();
+
+  start.hidden = false;
+  start.textContent = weakSetDoneToday() ? 'Another ten' : 'Start ten';
+  if (Weak.failed && !Weak.loading) {
+    note.textContent = Weak.failed;
+  } else if (!Weak.set?.summary) {
+    const due = weakDueAgain().length;
+    note.textContent = `${Weak.about.count.toLocaleString('en-GB')} puzzles to choose from.`
+      + (due ? ` ${due} you missed before ${due === 1 ? 'is' : 'are'} due again, and ${due === 1 ? 'comes' : 'come'} first.` : '');
+  } else {
+    note.textContent = Weak.set.summary;
+  }
+  // Fetched while the screen is being read, so that Start does not wait.
+  if (!Weak.pack && !Weak.loading && !Weak.failed) loadPuzzlePack().catch(() => { if (App.section === 'weak' && !Weak.current) renderWeak(); });
+}
+
+function renderWeakHead() {
+  const head = $('weakHead');
+  const fresh = App.weak.log.filter((r) => r.k !== 'again');
+  const solved = fresh.filter((r) => r.ok).length;
+  head.hidden = false;
+  head.innerHTML = `<div class="readout">
+      <div><span class="k">Your level on these</span><span class="v">${App.weak.level}</span></div>
+      <div><span class="k">Solved first time</span><span class="v">${fresh.length ? `${solved}/${fresh.length}` : '—'}</span></div>
+    </div>
+    <p class="note">${App.weak.counted
+    ? 'Every puzzle has a rating, from how thousands of people did on it. Your level is on the same scale: it goes up when you solve one and down when you miss, further when the result was a surprise.'
+    : 'Every puzzle has a rating, from how thousands of people did on it. Your level starts at 1000 and finds its place over the first ten or so.'}
+    It is a level on these puzzles, and says nothing about a rating anywhere else.</p>`;
+}
+
+function renderWeakAims() {
+  const box = $('weakAims');
+  box.innerHTML = '';
+  const found = weakAimsNow();
+  box.appendChild(el('h3', null, 'What they are aimed at'));
+
+  if (!found.games) {
+    box.appendChild(el('p', 'note', 'None of your games has been analysed yet, so these are a mix of everything. Analyse some, and most of each ten will be aimed at what goes wrong in them.'));
+    return;
+  }
+  const span = `your last ${found.games === 1 ? 'analysed game' : `${found.games} analysed games`}`;
+  if (!found.aims.length) {
+    box.appendChild(el('p', 'note', found.mistakes
+      ? `The ${found.mistakes === 1 ? 'one mistake' : `${found.mistakes} mistakes`} in ${span} ${found.mistakes === 1 ? 'has' : 'have'} no pattern behind ${found.mistakes === 1 ? 'it' : 'them'} that a puzzle can be aimed at, so these are a mix of everything.`
+      : `No mistakes were found in ${span}, so these are a mix of everything.`));
+    return;
+  }
+
+  box.appendChild(el('p', 'note', `Counted over ${span}. A puzzle is solved from the side that plays the trick; seeing it from there is how you come to see it coming.`));
+  const list = el('div', 'record');
+  const inSet = found.aims.slice(0, WEAK_AIMS_IN_A_SET);
+  for (const aim of inSet) {
+    const row = el('div', 'record-row');
+    const why = aim.from.map((f) => `you ${WEAK_MISTAKE_WORDS[f.mistake] ?? f.mistake} ${weakTimes(f.count)}`).join(', and ');
+    const mine = App.weak.log.filter((r) => r.a === aim.theme && r.k === 'aimed');
+    const sofar = mine.length ? ` · ${mine.filter((r) => r.ok).length} of ${mine.length} solved so far` : '';
+    row.innerHTML = `<span class="record-band">${esc(weakCapital(PUZZLE_THEME_WORDS[aim.theme]?.many ?? aim.theme))}</span>
+      <span class="record-score">${esc(why)}${esc(sofar)}</span>`;
+    list.appendChild(row);
+  }
+  box.appendChild(list);
+  const more = found.aims.length - inSet.length;
+  box.appendChild(el('p', 'note', `About seven of every ten are of ${inSet.length === 1 ? 'this kind' : 'these kinds, in that proportion'}; the rest are a mix.`
+    + (more > 0 ? ` ${more === 1 ? 'One other pattern' : `${more} other patterns`} came up less often and ${more === 1 ? 'is' : 'are'} left to the mix.` : '')));
+}
+
+// ── a set ──────────────────────────────────────────────────────────────────
+
+async function startWeakSet({ size = WEAK_SET_SIZE } = {}) {
+  if (Weak.current) return;
+  const note = $('weakNote');
+  $('weakStart').hidden = true;
+  if (!Weak.pack) {
+    note.textContent = 'Fetching the puzzles…';
+    try { await loadPuzzlePack(); } catch { renderWeak(); return; }
+    // The screen may have been left while that was happening.
+    if (App.section !== 'weak' || Weak.current) return;
+  }
+  const aims = weakAimsNow().aims;
+  Weak.set = {
+    slots: planWeakSet(aims, { size, repeats: weakDueAgain().length, rng: Weak.rng }),
+    at: 0,
+    results: [],
+    from: App.weak.level,
+    served: new Set(),
+    summary: '',
+  };
+  nextWeakPuzzle();
+}
+
+/** Everything that must not be offered as a new puzzle. */
+function weakTaken() {
+  const taken = new Set(App.weak.done);
+  for (const a of App.weak.again) taken.add(a.puzzle.id);
+  for (const id of Weak.set?.served ?? []) taken.add(id);
+  return taken;
+}
+
+/**
+ * The puzzle for one slot of the set: what the slot asked for where the pack
+ * has it, and the nearest thing otherwise. `kind` says what was actually
+ * given, which is what the screen and the record are told.
+ */
+function weakPuzzleFor(slot) {
+  if (slot.kind === 'again') {
+    const entry = weakDueAgain().find((a) => !Weak.set.served.has(a.puzzle.id));
+    if (entry) {
+      const opened = openPackPuzzle(entry.puzzle);
+      if (opened) return { opened, kind: 'again', aim: entry.aim ?? null, entry };
+      // A stored puzzle that can no longer be set up is finished with.
+      App.weak.again = App.weak.again.filter((a) => a !== entry);
+    }
+  }
+  const pack = Weak.pack;
+  const taken = weakTaken();
+  for (let tries = 0; tries < 8; tries++) {
+    const around = weakTargetRating(App.weak.level, Weak.rng);
+    let kind = 'mixed', aim = null, index = -1;
+    if (slot.kind === 'aimed') {
+      index = pickPackPuzzle(pack, { theme: slot.theme, around, taken, reach: WEAK_REACH });
+      if (index >= 0) { kind = 'aimed'; aim = slot.theme; }
+    }
+    if (index < 0) index = pickPackPuzzle(pack, { around, taken });
+    if (index < 0) return null;
+    const puzzle = readPackRow(pack.rows[index], pack.themes);
+    const opened = puzzle ? openPackPuzzle(puzzle) : null;
+    if (opened) return { opened, kind, aim, entry: null };
+    // A row that will not set up is passed over for good, and another is found.
+    const id = packRowId(pack.rows[index]);
+    taken.add(id);
+    App.weak.done.push(id);
+  }
+  return null;
+}
+
+function nextWeakPuzzle() {
+  const set = Weak.set;
+  if (!set || set.at >= set.slots.length) { endWeakSet(); return; }
+  const given = weakPuzzleFor(set.slots[set.at]);
+  if (!given) { endWeakSet({ ranOut: true }); return; }
+
+  const { opened } = given;
+  set.served.add(opened.id);
+  const turn = ++Weak.turn;
+  Weak.current = { ...given, step: 0, missed: false, shown: false, over: false };
+
+  $('weakSetup').hidden = true;
+  $('weakBoardWrap').hidden = false;
+  $('weakStop').hidden = false;
+  $('weakLegend').hidden = true;
+  $('weakNext').hidden = true;
+  $('weakShow').hidden = true;
+  $('weakExplore').hidden = true;
+  $('weakAskWhy').hidden = true;
+  $('weakAnswer').textContent = '';
+
+  const Side = opened.side === 'white' ? 'White' : 'Black';
+  const what = given.kind === 'again' ? 'one you missed before'
+    : (given.kind === 'aimed' ? `aimed at ${PUZZLE_THEME_WORDS[given.aim]?.many ?? given.aim}` : 'one of the mix');
+  $('weakWhere').textContent = `Puzzle ${set.at + 1} of ${set.slots.length} · ${what}.`;
+  $('weakPrompt').textContent = `They have just played ${opened.theirSan}. Find the best move for ${Side}.`;
+
+  // THE MOVE THAT SET IT UP IS PLAYED IN FRONT OF YOU, from the position
+  // before it: what the other side has just done is half of any puzzle, and a
+  // position that simply appears has nothing to say about it.
+  Weak.view.orientation = opened.side === 'white' ? WHITE : BLACK;
+  Weak.view.interactive = false;
+  Weak.view.onMove = onWeakMove;
+  Weak.view.setFen(opened.before);
+  setTimeout(() => {
+    if (Weak.turn !== turn || !Weak.current) return;
+    weakTheirMove(opened.theirUci);
+    $('weakShow').hidden = false;
+  }, WEAK_REPLY_MS);
+}
+
+/**
+ * Play the other side's move on the board, and hand the board over.
+ *
+ * IN THAT ORDER OF WORDS AND THE OPPOSITE ORDER OF CALLS: a board works out
+ * which moves it will accept when it is drawn, and only if it is taking moves
+ * at the time — so it is told it is yours first, and the move that follows
+ * draws it with your moves in hand.
+ */
+function weakTheirMove(uci) {
+  Weak.view.interactive = true;
+  const move = moveFromUci(Weak.view.board, uci);
+  if (!move || !Weak.view.apply(move)) Weak.view.refresh();
+}
+
+function onWeakMove({ move, san, uci }) {
+  const cur = Weak.current;
+  if (!cur || cur.over || !Weak.view.interactive) return;
+  const step = cur.opened.line[cur.step];
+
+  if (!packMoveIsRight(step, uci)) {
+    // The first wrong move is the miss. Nothing was played on the board, so
+    // the position is still there for another look.
+    cur.missed = true;
+    Weak.view.draw();
+    $('weakAnswer').textContent = `Not ${san}. Have another look, or ask for the answer — either way this one counts as missed.`;
+    return;
+  }
+
+  Weak.view.apply(move);
+  const last = cur.step === cur.opened.line.length - 1;
+  if (last) { finishWeakPuzzle(); return; }
+
+  // Their reply, after a moment in which the move just played can be seen.
+  const reply = cur.opened.line[cur.step + 1];
+  cur.step += 2;
+  Weak.view.interactive = false;
+  $('weakAnswer').textContent = '';
+  $('weakPrompt').textContent = `Yes, ${san}. They answer ${reply.san}. And now?`;
+  const turn = Weak.turn;
+  setTimeout(() => {
+    if (Weak.turn !== turn || !Weak.current || Weak.current.over) return;
+    weakTheirMove(reply.uci);
+  }, WEAK_REPLY_MS);
+}
+
+/** Put the answer on the board. Asking for it is a miss. */
+function showWeakAnswer() {
+  const cur = Weak.current;
+  if (!cur || cur.over) return;
+  cur.missed = true;
+  cur.shown = true;
+  finishWeakPuzzle();
+}
+
+async function finishWeakPuzzle() {
+  const cur = Weak.current;
+  if (!cur || cur.over) return;
+  cur.over = true;
+  Weak.turn++;
+  Weak.view.interactive = false;
+  $('weakShow').hidden = true;
+
+  const { opened } = cur;
+  const solved = !cur.missed;
+  const step = opened.line[Math.min(cur.step, opened.line.length - 1)];
+  const arrows = cur.shown ? arrowsFor(null, step.uci) : [];
+  if (cur.shown) {
+    Weak.view.setFen(step.fen, { arrows });
+    $('weakLegend').hidden = false;
+  }
+
+  // ── the record ──────────────────────────────────────────────────────────
+  const data = App.weak;
+  const before = data.level;
+  if (cur.kind === 'again') {
+    // Met again: on to the next interval, or back to tomorrow. Solved twice
+    // running — a day later, then six days after that — and it is finished.
+    cur.entry.card = SRS.review(cur.entry.card, solved);
+    if (solved && cur.entry.card.interval > 6) {
+      data.again = data.again.filter((a) => a !== cur.entry);
+      if (!data.done.includes(opened.id)) data.done.push(opened.id);
+    }
+  } else {
+    data.level = nextWeakLevel(data.level, data.counted, opened.rating, solved);
+    data.counted += 1;
+    if (solved) {
+      data.done.push(opened.id);
+    } else {
+      data.again.push({
+        puzzle: { id: opened.id, rating: opened.rating, themes: opened.themes, fen: opened.fen, moves: opened.moves },
+        aim: cur.aim,
+        card: SRS.review(SRS.fresh(), false),
+      });
+    }
+  }
+  data.log.push({ t: Date.now(), id: opened.id, ok: solved, r: opened.rating, k: cur.kind, a: cur.aim });
+  if (data.log.length > WEAK_LOG_KEEP) data.log = data.log.slice(-WEAK_LOG_KEEP);
+  Weak.set.results.push({ ok: solved, kind: cur.kind, aim: cur.aim });
+
+  // ── what the screen says ────────────────────────────────────────────────
+  const words = packThemeWords(opened.themes);
+  const was = words.length ? ` It was ${words.length === 1 ? words[0] : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`}.` : '';
+  const line = opened.line.length > 1 ? ` The line runs ${packLineText(opened)}.` : '';
+  const back = cur.kind === 'again'
+    ? (solved ? (cur.entry.card.interval > 6 ? ' That is twice running, so it is finished with.' : ' It comes back once more, in about a week.') : ' It comes back tomorrow.')
+    : (solved ? '' : ' It comes back tomorrow.');
+  const level = cur.kind === 'again' ? '' : ` Rated ${opened.rating}; your level ${data.level === before ? `stays at ${before}` : `goes from ${before} to ${data.level}`}.`;
+  const head = solved ? 'Solved.'
+    : (cur.shown ? `The move is ${step.san}.` : 'Found — on a second look, so it counts as missed.');
+  $('weakAnswer').textContent = `${head}${cur.shown ? line : ''}${was}${level}${back}`;
+  $('weakPrompt').textContent = solved ? 'That is the one.' : (cur.shown ? 'Here is the answer.' : 'That is the one.');
+
+  const lastOfSet = Weak.set.at >= Weak.set.slots.length - 1;
+  $('weakNext').hidden = false;
+  $('weakNext').textContent = lastOfSet ? 'See how the ten went' : 'Next';
+  $('weakExplore').hidden = false;
+  $('weakExplore').onclick = () => openPractice(opened.start, { arrows: arrowsFor(null, opened.line[0].uci) });
+  $('weakAskWhy').hidden = !Coach.ready;
+  $('weakAskWhy').onclick = () => askCoachAbout(opened.start, `Why is ${opened.line[0].san} the move here?`, { arrows: arrowsFor(null, opened.line[0].uci) });
+
+  await Store.set('weakspots', App.weak);
+}
+
+function weakNext() {
+  if (!Weak.set || !Weak.current?.over) return;
+  Weak.current = null;
+  Weak.set.at += 1;
+  nextWeakPuzzle();
+}
+
+/** How a finished set went, in a sentence or two. */
+function weakSetSummary(set, { ranOut = false, stopped = false } = {}) {
+  const done = set.results.length;
+  if (!done) return stopped ? 'Stopped before the first puzzle was answered. Nothing was counted.' : '';
+  const solved = set.results.filter((r) => r.ok).length;
+  const parts = [];
+  const groups = new Map();
+  for (const r of set.results) {
+    const key = r.kind === 'aimed' ? r.aim : r.kind;
+    if (!groups.has(key)) groups.set(key, { kind: r.kind, aim: r.aim, ok: 0, n: 0 });
+    const g = groups.get(key);
+    g.n++;
+    if (r.ok) g.ok++;
+  }
+  for (const g of groups.values()) {
+    const name = g.kind === 'aimed' ? (PUZZLE_THEME_WORDS[g.aim]?.many ?? g.aim) : (g.kind === 'again' ? 'ones you missed before' : 'the mix');
+    parts.push(`${name} ${g.ok} of ${g.n}`);
+  }
+  const level = App.weak.level === set.from ? `Your level stays at ${set.from}.` : `Your level went from ${set.from} to ${App.weak.level}.`;
+  const how = stopped ? `Stopped after ${done}. ` : (ranOut ? 'That is every puzzle in the pack. ' : '');
+  return `${how}${solved} of ${done} solved: ${parts.join(', ')}. ${level}`;
+}
+
+/**
+ * The set is over: say how it went, and note that today's has been done.
+ *
+ * THE SCREEN FIRST, THE SAVE AFTER. The summary is the thing that was waited
+ * for, and it does not depend on the save having landed.
+ */
+function endWeakSet({ ranOut = false, stopped = false } = {}) {
+  const set = Weak.set;
+  Weak.current = null;
+  Weak.turn++;
+  let saved = null;
+  if (set) {
+    set.summary = weakSetSummary(set, { ranOut, stopped });
+    // A set counts as today's once it has been seen through.
+    if (!stopped && set.results.length) {
+      App.weak.lastSet = Date.now();
+      saved = Store.set('weakspots', App.weak);
+    }
+  }
+  renderWeak();
+  return saved;
+}
+
+/** Leave the set. A puzzle that was never answered is not counted, and stays in the pack. */
+function stopWeakSet() {
+  if (!Weak.set) return;
+  endWeakSet({ stopped: true });
+}
+
+
 // ── a backup file ──────────────────────────────────────────────────────────
 //
 // Everything the app keeps, in one file that can be put somewhere else.
@@ -21254,6 +22306,7 @@ const BACKUP_SHAPES = {
   endgames: isPlainObject,
   vision: isPlainObject,
   storm: (v) => v === null || isPlainObject(v),
+  weakspots: (v) => v === null || (isPlainObject(v) && listOrAbsent(v.done) && listOrAbsent(v.again) && listOrAbsent(v.log)),
 };
 
 /** The Android app's own file handling, where the page is running inside it. */
@@ -21958,6 +23011,7 @@ async function loadStored() {
   App.history = await Store.get('history', { bands: {}, games: [] });
   App.reviews = await Store.get('reviews', { games: [] });
   App.puzzles = await Store.get('puzzles', { items: [], scanned: [] });
+  App.weak = weakSpotsData(await Store.get('weakspots', null));
   App.teaching = await Store.get('teaching', { games: [] });
   Endgames.results = await Store.get('endgames', {});
   Vision.best = await Store.get('vision', {});
@@ -21999,6 +23053,7 @@ async function boot() {
   Review.bar = makeEvalBar($('reviewEval'));
   Drill.view = makeBoardView($('drillBoard'), { interactive: false });
   Puzzles.view = makeBoardView($('puzzleBoard'), { interactive: false });
+  Weak.view = makeBoardView($('weakBoard'), { interactive: false, onMove: onWeakMove });
   Endgames.view = makeBoardView($('endgameBoard'), { onMove: onEndgameMove });
   Storm.view = makeBoardView($('stormBoard'), { onMove: onStormMove });
   Watch.view = makeBoardView($('watchBoard'), { interactive: false });
@@ -22150,6 +23205,12 @@ async function boot() {
   $('puzzleScan').addEventListener('click', scanGamesForTactics);
   $('puzzleStop').addEventListener('click', stopScan);
 
+  // Weak spots
+  $('weakStart').addEventListener('click', () => startWeakSet());
+  $('weakNext').addEventListener('click', weakNext);
+  $('weakShow').addEventListener('click', showWeakAnswer);
+  $('weakStop').addEventListener('click', stopWeakSet);
+
   // Endgames
   $('endgameNext').addEventListener('click', closeEndgame);
   $('endgameTakeBack').addEventListener('click', takeBackEndgame);
@@ -22292,6 +23353,10 @@ async function boot() {
 
   newPlayGame();
   show('today');
+
+  // Whether there are puzzles beside this page is found out once it is up,
+  // and Today is drawn again if the answer adds a row to it.
+  findPuzzlePack().then((about) => { if (about && App.section === 'today') renderToday(); });
 
   // New games, brought in and analysed without being asked for — and only
   // once the page is up, so that opening the app never waits on Chess.com.

@@ -102,9 +102,9 @@ if not os.path.exists('src/puzzle-bank.js'):
 
 parts = [engine_source] + [re.sub(r'^export ', '', open(f).read(), flags=re.M) for f in [
     'src/engine/bundle.js', 'src/engine/bands.js', 'src/openings.js', 'src/notation.js',
-    'src/store.js', 'src/pgn.js', 'src/motifs.js', 'src/rating-fit.js', 'src/engine-pool.js', 'src/review.js', 'src/explain.js', 'src/stockfish-driver.js', 'src/reckless-driver.js', 'src/deviation.js', 'src/import.js', 'src/board-view.js',
+    'src/store.js', 'src/pgn.js', 'src/motifs.js', 'src/weak-spots.js', 'src/rating-fit.js', 'src/engine-pool.js', 'src/review.js', 'src/explain.js', 'src/stockfish-driver.js', 'src/reckless-driver.js', 'src/deviation.js', 'src/import.js', 'src/board-view.js',
     'src/pawn-tb.js', 'src/endgames.js', 'src/famous.js', 'src/notation-lessons.js', 'src/puzzle-bank.js',
-    'src/icons.js', 'src/traps.js', 'src/app-h.js', 'src/app-g.js', 'src/app-a.js', 'src/app-b.js', 'src/app-d.js', 'src/app-e.js', 'src/app-f.js', 'src/app-k.js', 'src/app-i.js', 'src/app-j.js', 'src/app-l.js', 'src/app-m.js', 'src/app-n.js', 'src/app-o.js', 'src/app-p.js', 'src/backup.js', 'src/app-c.js',
+    'src/icons.js', 'src/traps.js', 'src/app-h.js', 'src/app-g.js', 'src/app-a.js', 'src/app-b.js', 'src/app-d.js', 'src/app-e.js', 'src/app-f.js', 'src/app-k.js', 'src/app-i.js', 'src/app-j.js', 'src/app-l.js', 'src/app-m.js', 'src/app-n.js', 'src/app-o.js', 'src/app-p.js', 'src/app-q.js', 'src/backup.js', 'src/app-c.js',
 ]]
 script = "<script>\n" + "\n\n".join(parts) + "\n</" + "script>\n"
 
@@ -142,6 +142,36 @@ print('built', standalone, '(standalone, for sending)')
 # Everything else is identical, and the app runs exactly the same without them.
 pwa_index = document('<link rel="manifest" href="manifest.webmanifest">\n')
 open('dist/pwa/index.html', 'w').write(pwa_index)
+
+# ── the puzzle pack, beside the page ───────────────────────────────────────
+#
+# The Weak spots screen chooses from a pack of puzzles (src/weak-spots.js),
+# made once by tools/make-puzzle-pack.mjs and committed under vendor/puzzles:
+# pack.txt, the puzzles, and pack.json, which says what is in it. They are
+# copied beside every page that can fetch a file — the kit, and dist/ for the
+# Android app, which takes them from there.
+#
+# THE DESCRIPTION IS ALWAYS WRITTEN, pack or no pack. The page asks for it
+# every time it opens, to know whether to offer the puzzles at all, and a
+# build without a pack answers "none" with a file that says so rather than
+# with a request that fails on every launch.
+PUZZLE_PACK = ['puzzle-pack.json', 'puzzle-pack.txt']
+_pack = None
+if os.path.exists('vendor/puzzles/pack.txt') and os.path.exists('vendor/puzzles/pack.json'):
+    _pack = json.load(open('vendor/puzzles/pack.json'))
+    _text = open('vendor/puzzles/pack.txt', 'rb').read()
+    import hashlib as _hashlib
+    if _pack.get('bytes') != len(_text) or _pack.get('sha256') != _hashlib.sha256(_text).hexdigest():
+        sys.exit('build.py: vendor/puzzles/pack.txt is not the file vendor/puzzles/pack.json describes; '
+                 'make them again together with tools/make-puzzle-pack.mjs')
+for _dir in ('dist/', 'dist/pwa/'):
+    if _pack:
+        shutil.copy('vendor/puzzles/pack.json', _dir + 'puzzle-pack.json')
+        shutil.copy('vendor/puzzles/pack.txt', _dir + 'puzzle-pack.txt')
+    else:
+        open(_dir + 'puzzle-pack.json', 'w').write('{"format": 1, "count": 0}\n')
+        if os.path.exists(_dir + 'puzzle-pack.txt'): os.remove(_dir + 'puzzle-pack.txt')
+print(f"puzzle pack: {_pack['count']} puzzles" if _pack else 'puzzle pack: vendor/puzzles has none, so this build has no Weak spots puzzles')
 
 # THE WORKER IS GENERATED, AND ITS VERSION IS THE PAGE'S HASH. sw.js was a
 # hand-written file with VERSION = 'hard-lines-v1', which nothing bumped, so an
@@ -199,6 +229,10 @@ _version_input = pwa_index.encode('utf-8')
 for _f in STOCKFISH:
     _version_input += open('vendor/stockfish/' + _f, 'rb').read()
 _version_input += open('src/reckless-worker.js', 'rb').read()
+# And the puzzles: a new pack is a new shell, or a phone would go on choosing
+# from the old one beside a description of the new.
+for _f in PUZZLE_PACK:
+    if os.path.exists('dist/pwa/' + _f): _version_input += open('dist/pwa/' + _f, 'rb').read()
 sw_version = 'hard-lines-' + hashlib.sha256(_version_input).hexdigest()[:12]
 open('dist/pwa/sw.js', 'w').write(sw_template.replace('__VERSION__', sw_version))
 shutil.copy('pwa/manifest.webmanifest', 'dist/pwa/manifest.webmanifest')

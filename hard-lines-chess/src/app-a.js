@@ -8,6 +8,7 @@ const App = {
   history: null,
   reviews: null,
   puzzles: null,
+  weak: null,
   teaching: null,
   prefs: null,
   downloads: null,
@@ -94,7 +95,7 @@ function applyPrefs() {
 }
 
 function allViews() {
-  return [Play.view, Openings.view, Review.view, Drill.view, Practice.view, Puzzles.view];
+  return [Play.view, Openings.view, Review.view, Drill.view, Practice.view, Puzzles.view, Weak.view];
 }
 
 async function savePrefs() {
@@ -117,6 +118,7 @@ const SECTIONS = [
   ['openings', 'Openings'],
   ['review', 'Game review'],
   ['puzzles', 'Puzzles'],
+  ['weak', 'Weak spots'],
   ['storm', 'Timed'],
   ['endgames', 'Endgames'],
   ['watch', 'Watch'],
@@ -150,7 +152,7 @@ const GROUPS = [
   { id: 'today', label: 'Today', sections: ['today'] },
   { id: 'play', label: 'Play', sections: ['play', 'board', 'review'] },
   { id: 'learn', label: 'Learn', sections: ['notation', 'openings', 'endgames', 'drills', 'vision'] },
-  { id: 'train', label: 'Train', sections: ['puzzles', 'storm'] },
+  { id: 'train', label: 'Train', sections: ['puzzles', 'weak', 'storm'] },
   { id: 'watch', label: 'Watch', sections: ['watch'] },
   { id: 'you', label: 'Profile', sections: ['progress', 'settings'] },
 ];
@@ -183,6 +185,7 @@ function show(section) {
   if (section === 'openings') renderOpenings();
   if (section === 'drills') renderDrills();
   if (section === 'puzzles') renderPuzzles();
+  if (section === 'weak') renderWeak();
   if (section === 'progress') renderProgress();
   if (section === 'board') renderPractice();
   if (section === 'settings') renderSettings();
@@ -268,6 +271,24 @@ function renderToday() {
       note: 'Your own mistakes, offered again once they have had time to fade.',
       action: 'Drill',
       go: () => { show('drills'); startDrill(); },
+    });
+  }
+
+  // OFFERED ONLY WHERE THERE IS A PACK TO CHOOSE FROM, and once a day: a row
+  // that came back the moment a set was finished would be a list that can
+  // never be cleared.
+  if (Weak.about && !weakSetDoneToday()) {
+    const aims = weakAimsNow().aims;
+    const again = weakDueAgain().length;
+    rows.push({
+      kind: 'Weak spots',
+      title: aims.length ? `Ten puzzles aimed at ${weakAimsPhrase(aims)}` : 'Ten puzzles at your level',
+      note: (aims.length
+        ? 'From the Lichess puzzle database, chosen for what your own games go wrong in.'
+        : 'From the Lichess puzzle database. Analyse some of your games and they will be aimed at what goes wrong in them.')
+        + (again ? ` ${again} you missed before ${again === 1 ? 'is' : 'are'} due again.` : ''),
+      action: 'Solve',
+      go: () => { show('weak'); startWeakSet(); },
     });
   }
 

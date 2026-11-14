@@ -36,12 +36,17 @@ def webApp = rootProject.file('../dist/hard-lines-chess-app.html')
 // the loader finds its .wasm by swapping its own extension, so the two files
 // sit beside index.html under the names build.py gave them.
 def stockfishFiles = ['stockfish.js', 'stockfish.wasm'].collect { rootProject.file("../dist/${it}") }
+// AND SO DO THE PUZZLES the Weak spots screen chooses from. The description is
+// always there — a build without a pack says so in it — and the pack itself
+// is there when the build was given one.
+def puzzlePackAbout = rootProject.file('../dist/puzzle-pack.json')
+def puzzlePack = rootProject.file('../dist/puzzle-pack.txt')
 def webAppDir = layout.buildDirectory.dir('generated/webAppAssets')
 
 def syncWebApp = tasks.register('syncWebApp', Copy) {
     description = 'Copies the built single-file app, and the engine it plays with, into the APK assets.'
     doFirst {
-        (stockfishFiles + [webApp]).each { f ->
+        (stockfishFiles + [webApp, puzzlePackAbout]).each { f ->
             if (!f.exists()) {
                 throw new GradleException(
                     "${f} is missing. Build the app first:\n" +
@@ -53,6 +58,8 @@ def syncWebApp = tasks.register('syncWebApp', Copy) {
         rename { 'index.html' }
     }
     from(stockfishFiles)
+    from(puzzlePackAbout)
+    from(puzzlePack)
     into(webAppDir)
 }
 

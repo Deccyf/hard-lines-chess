@@ -96,9 +96,14 @@ jobs:
       - name: Check the kit is complete
         working-directory: hard-lines-chess
         run: |
-          for f in index.html manifest.webmanifest sw.js icon-192.png icon-512.png icon-maskable-512.png stockfish.js stockfish.wasm reckless-worker.js reckless/manifest.json; do
+          for f in index.html manifest.webmanifest sw.js icon-192.png icon-512.png icon-maskable-512.png stockfish.js stockfish.wasm reckless-worker.js reckless/manifest.json puzzle-pack.json; do
             test -s "dist/pwa/$f" || { echo "dist/pwa/$f is missing or empty"; exit 1; }
           done
+          # The puzzles the Weak spots screen chooses from: where the
+          # repository holds a pack, the site has to serve it.
+          if [ -f vendor/puzzles/pack.txt ]; then
+            test -s dist/pwa/puzzle-pack.txt || { echo "dist/pwa/puzzle-pack.txt is missing or empty"; exit 1; }
+          fi
           # Reckless is downloaded piece by piece, and a piece the manifest names
           # but the site does not serve is a download that stops at the same
           # place on every phone, for ever.
@@ -179,6 +184,17 @@ jobs:
             unzip -l "$APK" | grep -q "assets/$f" \
               || { echo "the APK is missing assets/$f — Watch cannot play Stockfish"; exit 1; }
           done
+
+          # AND THE PUZZLES THE WEAK SPOTS SCREEN CHOOSES FROM. The page asks
+          # for their description every time it opens, so that has to be there
+          # whatever the build; and where the repository holds a pack, an APK
+          # without it would open on a screen saying there are no puzzles.
+          unzip -l "$APK" | grep -q 'assets/puzzle-pack.json' \
+            || { echo "the APK is missing assets/puzzle-pack.json — the page asks for it on every launch"; exit 1; }
+          if [ -f ../vendor/puzzles/pack.txt ]; then
+            unzip -l "$APK" | grep -q 'assets/puzzle-pack.txt' \
+              || { echo "the APK is missing assets/puzzle-pack.txt — the Weak spots screen has nothing to choose from"; exit 1; }
+          fi
 
           # And it must be signed, or a phone will not install it at all.
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | tee certs.txt

@@ -61,6 +61,7 @@ const BACKUP_SHAPES = {
   endgames: isPlainObject,
   vision: isPlainObject,
   storm: (v) => v === null || isPlainObject(v),
+  weakspots: (v) => v === null || (isPlainObject(v) && listOrAbsent(v.done) && listOrAbsent(v.again) && listOrAbsent(v.log)),
 };
 
 /** The Android app's own file handling, where the page is running inside it. */

@@ -51,6 +51,9 @@ const FONT_CSS = FACES.map(({ file, family, weight }) =>
 
 // See android/app/build.gradle (stockfishFiles) and MainActivity.asset().
 const STOCKFISH = { 'stockfish.js': 'application/javascript', 'stockfish.wasm': 'application/wasm' };
+// And the puzzles the Weak spots screen chooses from (puzzlePackAbout and
+// puzzlePack there): the description always, the pack when the build has one.
+const PUZZLES = { 'puzzle-pack.json': 'application/json', 'puzzle-pack.txt': 'text/plain' };
 
 // Kept in step with PAGE_POLICY, ARCHIVE_HOST and ARCHIVE_PATH in MainActivity.
 const POLICY = { 'Content-Security-Policy': "connect-src 'self' https://api.chess.com" };
@@ -121,6 +124,9 @@ function check(what, got, want) {
     if (STOCKFISH[rel]) {
       return route.fulfill({ status: 200, contentType: STOCKFISH[rel], headers: POLICY, body: fs.readFileSync(path.join(ROOT, 'dist', rel)) });
     }
+    if (PUZZLES[rel] && fs.existsSync(path.join(ROOT, 'dist', rel))) {
+      return route.fulfill({ status: 200, contentType: PUZZLES[rel], headers: POLICY, body: fs.readFileSync(path.join(ROOT, 'dist', rel)) });
+    }
     const file = path.join(ASSETS, rel);
     if (!file.startsWith(ASSETS) || !fs.existsSync(file)) {
       refused.push(route.request().url());
@@ -167,6 +173,21 @@ function check(what, got, want) {
   // is how every review is searched now. In the app that has to work under
   // the rule about connecting, or reviews fall back to the page's own thread.
   check('this app\'s engine starts in workers', await page.evaluate(async () => (await ownEngineLanes()) === engineLanes()), true);
+
+  // The puzzles for the Weak spots screen are two more files beside the page,
+  // read under the same rule about connecting. A build with a pack has to be
+  // able to choose from it in the app; a build without one has to say so,
+  // and in neither case may the page ask for a file the APK does not hold.
+  const about = JSON.parse(fs.readFileSync(path.join(ROOT, 'dist/puzzle-pack.json'), 'utf8'));
+  await page.evaluate(() => show('weak'));
+  if (about.count > 0) {
+    await page.waitForFunction(() => Weak.pack || Weak.failed, null, { timeout: 20000 });
+    check('the puzzle pack is read in the app', await page.evaluate(() => Weak.failed ?? Weak.pack.count), about.count);
+  } else {
+    await page.waitForFunction(() => Weak.about !== undefined, null, { timeout: 20000 });
+    check('a build with no puzzle pack says so in the app', await page.$eval('#weakNote', (e) => e.textContent),
+      'This build of the app was made without the puzzle pack, so there is nothing to choose from here.');
+  }
 
   // THE ONE THING THAT GOES OUT: your games, from Chess.com.
   await page.evaluate(() => show('review'));

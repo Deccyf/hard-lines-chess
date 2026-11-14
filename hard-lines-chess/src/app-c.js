@@ -82,6 +82,7 @@ async function loadStored() {
   App.history = await Store.get('history', { bands: {}, games: [] });
   App.reviews = await Store.get('reviews', { games: [] });
   App.puzzles = await Store.get('puzzles', { items: [], scanned: [] });
+  App.weak = weakSpotsData(await Store.get('weakspots', null));
   App.teaching = await Store.get('teaching', { games: [] });
   Endgames.results = await Store.get('endgames', {});
   Vision.best = await Store.get('vision', {});
@@ -123,6 +124,7 @@ async function boot() {
   Review.bar = makeEvalBar($('reviewEval'));
   Drill.view = makeBoardView($('drillBoard'), { interactive: false });
   Puzzles.view = makeBoardView($('puzzleBoard'), { interactive: false });
+  Weak.view = makeBoardView($('weakBoard'), { interactive: false, onMove: onWeakMove });
   Endgames.view = makeBoardView($('endgameBoard'), { onMove: onEndgameMove });
   Storm.view = makeBoardView($('stormBoard'), { onMove: onStormMove });
   Watch.view = makeBoardView($('watchBoard'), { interactive: false });
@@ -274,6 +276,12 @@ async function boot() {
   $('puzzleScan').addEventListener('click', scanGamesForTactics);
   $('puzzleStop').addEventListener('click', stopScan);
 
+  // Weak spots
+  $('weakStart').addEventListener('click', () => startWeakSet());
+  $('weakNext').addEventListener('click', weakNext);
+  $('weakShow').addEventListener('click', showWeakAnswer);
+  $('weakStop').addEventListener('click', stopWeakSet);
+
   // Endgames
   $('endgameNext').addEventListener('click', closeEndgame);
   $('endgameTakeBack').addEventListener('click', takeBackEndgame);
@@ -416,6 +424,10 @@ async function boot() {
 
   newPlayGame();
   show('today');
+
+  // Whether there are puzzles beside this page is found out once it is up,
+  // and Today is drawn again if the answer adds a row to it.
+  findPuzzlePack().then((about) => { if (about && App.section === 'today') renderToday(); });
 
   // New games, brought in and analysed without being asked for — and only
   // once the page is up, so that opening the app never waits on Chess.com.

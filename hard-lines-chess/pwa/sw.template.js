@@ -16,8 +16,12 @@ const VERSION = '__VERSION__';
 // The engine is part of the shell: an installed app that plays Stockfish when
 // it has a connection and cannot when it does not is not offline. So is the
 // small script that fetches and runs Reckless — but not Reckless itself.
+//
+// AND SO ARE THE PUZZLES the Weak spots screen chooses from: a description of
+// the pack, and the pack. A build without one has only the description, and
+// the missing file is passed over like any other optional one.
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png',
-  './stockfish.js', './stockfish.wasm', './reckless-worker.js'];
+  './stockfish.js', './stockfish.wasm', './reckless-worker.js', './puzzle-pack.json', './puzzle-pack.txt'];
 
 // RECKLESS IS NOT THIS WORKER'S TO KEEP. It is 44 MB, downloaded only by the
 // people who ask for it, and kept by its own worker in a cache of its own

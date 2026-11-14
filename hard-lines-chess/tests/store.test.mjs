@@ -1,6 +1,6 @@
 // One list of what the app keeps, and everything held to it.
 //
-// The app's data is ten separate areas — settings, drills, reviewed games and
+// The app's data is eleven separate areas — settings, drills, reviewed games and
 // so on — and three things have to know all of them: the store, which moves
 // each out of the small store; the backup file, which has to carry each; and
 // the start of the app, which has to load each. An area added to one and not
