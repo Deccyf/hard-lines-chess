@@ -372,7 +372,7 @@ async function boot() {
     // its progress somewhere else — and there is nowhere here to open it.
     $('downloadTitle').textContent = 'Your copy';
     $('downloadBlurb').hidden = true;
-    $('downloadNote').textContent = 'The whole trainer is inside this app — engine, openings, review and all. It holds no internet permission, so it never asks the network for anything. Your progress stays on this device.';
+    $('downloadNote').textContent = 'The whole trainer is inside this app — engine, openings, review and all — and works with no connection. The one thing it ever connects to is Chess.com’s public list of your games, to bring new ones in; nothing is sent anywhere else, and your progress stays on this phone.';
   }
   (async () => {
     try { App.downloads = await window.claude?.use?.('downloads') ?? null; } catch { App.downloads = null; }

@@ -332,8 +332,8 @@ jobs:
 
             Tap the file once it has downloaded and allow your browser to
             install apps when Android asks. There is no account, and the app
-            holds no internet permission at all, so it works the same on a
-            plane as at home.
+            works with no connection. The one thing it ever connects to is
+            Chess.com's public archive of your games, to bring new ones in.
 
             | | |
             |---|---|

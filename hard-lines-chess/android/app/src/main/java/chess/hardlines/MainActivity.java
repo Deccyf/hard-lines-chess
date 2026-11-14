@@ -54,10 +54,13 @@ import java.util.Map;
 /**
  * The whole app is one HTML file in assets/. This is the window it opens in.
  *
- * THE APP HAS NO INTERNET PERMISSION, and that is a decision rather than an
- * oversight — see AndroidManifest.xml. Every request the page makes is
- * answered from the APK, so there is no state in which the app behaves
- * differently because a network was or was not there.
+ * THE APP REACHES ONE PLACE OUTSIDE ITSELF, AND IT IS NAMED HERE: Chess.com's
+ * public archive of a player's games, read and never written to, so that new
+ * games can be brought in without being typed. Every other request the page
+ * makes is answered from the APK or refused — see shouldInterceptRequest —
+ * so everything but that import works the same with no network at all. See
+ * AndroidManifest.xml for why the permission is there and what keeps it to
+ * this.
  */
 public class MainActivity extends ComponentActivity {
 
@@ -79,8 +82,28 @@ public class MainActivity extends ComponentActivity {
     private static final String DOMAIN = "appassets.androidplatform.net";
     private static final String START_URL = "https://" + DOMAIN + "/assets/index.html";
 
-    /** The one host the page reaches for, and the one this answers locally. */
+    /** The host the page links its typefaces from, which this answers locally. */
     private static final String FONT_CSS_HOST = "fonts.googleapis.com";
+
+    /**
+     * THE ONE PLACE THE APP FETCHES FROM: Chess.com's public archive of a
+     * player's games — https, this host, under this path, and only to read.
+     * It needs no key and no password and is sent nothing but the player's
+     * name. Kept in step with CHESSCOM_API in src/import.js by
+     * tests/android-reach.test.mjs.
+     */
+    private static final String ARCHIVE_HOST = "api.chess.com";
+    private static final String ARCHIVE_PATH = "/pub/player/";
+
+    /**
+     * The same rule, given to the page itself. A request the page makes with
+     * fetch is seen by shouldInterceptRequest and refused there; a socket it
+     * opened would not be. This is the browser's own lock on both: the page
+     * may connect to where it came from and to the archive, and nowhere else.
+     * Nothing in the page tries to — this is what stops a later change from
+     * doing it unnoticed.
+     */
+    private static final String PAGE_POLICY = "connect-src 'self' https://" + ARCHIVE_HOST;
 
     /** How long a first back press stays counted, in milliseconds. */
     private static final long LEAVE_WINDOW = 2000L;
@@ -176,9 +199,10 @@ public class MainActivity extends ComponentActivity {
         // switch of its own; this one is for the small store it moved out of,
         // which it still reads on the way.)
         settings.setDomStorageEnabled(true);
-        // Nothing is fetched, so nothing should be cached; the assets are the
-        // cache. An HTTP cache layered over an APK asset can only ever serve
-        // an older app than the one installed.
+        // Nothing is cached. The assets are their own cache — an HTTP cache
+        // layered over an APK asset can only ever serve an older app than the
+        // one installed — and the one thing fetched, the list of a player's
+        // games, is wanted as it stands now.
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
@@ -235,12 +259,16 @@ public class MainActivity extends ComponentActivity {
                 }
 
                 WebResourceResponse local = loader.shouldInterceptRequest(url);
-                if (local != null) return local;
+                if (local != null) return sealed(local);
+
+                // THE ONE REQUEST THAT GOES OUT: a read of Chess.com's public
+                // archive. Null hands it to the WebView to fetch.
+                if (isGameArchive(request)) return null;
 
                 // ANYTHING ELSE IS REFUSED RATHER THAN FETCHED. Nothing in the
                 // app asks for anything else; if something ever does, failing
-                // here makes it visible instead of quietly giving an app whose
-                // whole claim is that it needs no network a dependency on one.
+                // here makes it visible instead of quietly giving the app a
+                // second place it talks to.
                 return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found",
                         new HashMap<String, String>(), new ByteArrayInputStream(new byte[0]));
             }
@@ -679,6 +707,26 @@ public class MainActivity extends ComponentActivity {
             close();
             from.delete();
         }
+    }
+
+    /** Whether a request is a read of Chess.com's public archive of a player's games, and nothing else. */
+    private static boolean isGameArchive(WebResourceRequest request) {
+        Uri url = request.getUrl();
+        String path = url.getPath();
+        return "https".equalsIgnoreCase(url.getScheme())
+                && ARCHIVE_HOST.equalsIgnoreCase(url.getHost())
+                && (url.getPort() == -1 || url.getPort() == 443)
+                && path != null && path.startsWith(ARCHIVE_PATH)
+                && "GET".equalsIgnoreCase(request.getMethod());
+    }
+
+    /** Something served from inside the app, with the rule about where the page may connect attached. */
+    private static WebResourceResponse sealed(WebResourceResponse response) {
+        Map<String, String> headers = new HashMap<>();
+        if (response.getResponseHeaders() != null) headers.putAll(response.getResponseHeaders());
+        headers.put("Content-Security-Policy", PAGE_POLICY);
+        response.setResponseHeaders(headers);
+        return response;
     }
 
     /** A name the chooser can be handed: the page's suggestion, less anything that is not part of a file name. */

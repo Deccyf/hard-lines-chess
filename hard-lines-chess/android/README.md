@@ -37,18 +37,35 @@ install apps when Android asks.
 
 ## The three decisions
 
-### It has no internet permission
+### It connects to one place, and only to read
 
-Look at `AndroidManifest.xml`: there is no `android.permission.INTERNET`, and
-that is the point. The app has no accounts, no sync and no telemetry, and the
-one remote thing the page asks for — a Google Fonts stylesheet — is answered
-from `assets/fonts/` by `MainActivity.fontStylesheet()`. Without the permission
-the claim that everything runs on your own device is enforced by the system
-rather than promised by a README. The app could not phone home if a later
-change tried to.
+Until version 1.6 the APK held no `android.permission.INTERNET` at all, and
+the claim that everything runs on your own device was enforced by the system.
+It now holds that permission, for one thing: reading Chess.com's public
+archive of a player's games, so that new games arrive without being typed in
+(see "Catching up" in the main README). Android cannot grant the permission
+for a single address, so what keeps it to one is in the app, twice, and
+tested:
 
-That also means the app behaves identically on a plane and at home, which a
-chess trainer that plays its own engine ought to.
+- `MainActivity.shouldInterceptRequest` answers every request the page makes
+  from the APK — the page, the engine, the typefaces — lets out a `GET` to
+  `https://api.chess.com/pub/player/…`, and refuses everything else with a
+  404, as it always did.
+- Everything it serves carries `Content-Security-Policy: connect-src 'self'
+  https://api.chess.com`, the browser's own lock on where the page may
+  connect. It also covers what the first cannot see, such as a socket.
+
+Nothing in the page tries to connect anywhere else; the two together are what
+would stop a later change from doing so unnoticed. The app still has no
+accounts, no sync and no telemetry, and sends nothing but the player's name,
+to Chess.com. `tests/android-bridge.test.mjs` runs the first rule against a
+list of addresses that are nearly the archive and are not;
+`tests/android-assets-test.cjs` runs the page under both; and
+`tests/android-reach.test.mjs` holds the manifest to that one permission and
+the address the app lets out to the one the page asks for.
+
+Everything except that import behaves identically on a plane and at home,
+which a chess trainer that plays its own engine ought to.
 
 ### The page is served over https, not opened as a file
 
@@ -71,7 +88,7 @@ So `MainActivity` exposes a small bridge to the page (`HardLinesAndroid`, see
 opens the system's "save to" chooser and writes the file where it is told; and
 the other way round for a restore. Neither needs a permission — the system's
 chooser does the choosing, and the app is handed the one file that was picked.
-The app still holds no internet permission.
+It needed no new permission for this.
 
 Nothing is held whole in memory on the way. A backup being saved is written to
 the app's cache as its pieces arrive and copied from there to wherever the

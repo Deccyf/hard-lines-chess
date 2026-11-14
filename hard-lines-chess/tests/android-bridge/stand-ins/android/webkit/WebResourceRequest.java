@@ -1,2 +1,2 @@
 package android.webkit;
-public interface WebResourceRequest { android.net.Uri getUrl(); }
+public interface WebResourceRequest { android.net.Uri getUrl(); String getMethod(); }

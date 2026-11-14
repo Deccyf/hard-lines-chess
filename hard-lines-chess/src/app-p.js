@@ -45,15 +45,9 @@ function importNote(text, kind = 'note') {
 async function runImport() {
   if (Import.running) return;
 
-  // THE ANDROID APP CANNOT DO THIS AND SAYS SO RATHER THAN FAILING. The APK
-  // holds no INTERNET permission — that is the promise that makes everything
-  // else in it trustworthy — so there is no request to make and no error worth
-  // showing. Pasting a game still works there, and so does everything else.
-  if (IN_ANDROID_APP) {
-    importNote('The Android app has no internet permission, which is what lets it promise nothing leaves your device. Import in the web version — same address you installed this from — or paste a game below.', 'note');
-    return;
-  }
-
+  // (The Android app does this too, from version 1.6. Until then it held no
+  // permission to connect at all and said so here; it now holds one and uses
+  // it for this request and no other — see AndroidManifest.xml.)
   const username = $('importUser').value.trim();
   if (!username) { importNote('Type your Chess.com username first.', 'note bad-note'); return; }
   const wanted = Number($('importCount').value) || 100;

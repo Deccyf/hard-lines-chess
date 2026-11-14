@@ -9,7 +9,8 @@ public class WebView extends android.view.ViewGroup {
     private final WebSettings settings = new WebSettings();
     public WebView(android.content.Context c) {}
     public WebSettings getSettings() { return settings; }
-    public void setWebViewClient(WebViewClient c) {}
+    public WebViewClient client = null;
+    public void setWebViewClient(WebViewClient c) { client = c; }
     public void addJavascriptInterface(Object o, String name) {
         if (loaded != null) throw new IllegalStateException("added after the page was loaded: the page would never see it");
         interfaces.put(name, o);

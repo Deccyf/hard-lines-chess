@@ -25,7 +25,7 @@
 //
 // WHERE THERE IS NO MODEL, A FUNCTION NARRATES. The coach used to be hidden
 // wherever Claude could not be reached — which is every installed copy of this
-// app, since the APK holds no internet permission and a saved file has no
+// app, since the APK may connect to nothing but Chess.com's archive and a saved file has no
 // runtime to ask. But the model was never the part that knew anything: the
 // bundle below already contains the search, the material, the top four lines
 // and every named move's refutation, each turned into English by plainEval().
@@ -469,8 +469,8 @@ async function setupCoach() {
   try { Coach.sample = await window.claude?.use?.('sample') ?? null; } catch { Coach.sample = null; }
 
   // THE COACH IS NEVER ABSENT NOW. It used to be hidden wherever Claude could
-  // not be reached, which is every installed copy of this app — the APK holds
-  // no internet permission and a saved file has no runtime to ask. The engine
+  // not be reached, which is every installed copy of this app — the APK may
+  // connect to nothing but Chess.com's archive and a saved file has no runtime to ask. The engine
   // work was always local; only the sentences were not. narrateCoach() writes
   // them from the same bundle, so the answer rests on the same search either
   // way and the panel is shown either way.

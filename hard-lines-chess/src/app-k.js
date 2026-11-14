@@ -2,7 +2,7 @@
 //
 // The rule this app is built on is that the engine is the source of truth and
 // the model is the narrator. In the installed app there is no model: the APK
-// holds no internet permission and a saved copy has no runtime to ask. So the
+// may connect to nothing but Chess.com's archive and a saved copy has no runtime to ask. So the
 // coach was simply absent, which is the one thing the README advertises that
 // the phone could not do.
 //

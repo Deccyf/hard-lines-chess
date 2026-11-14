@@ -3,8 +3,9 @@
 // One of the two strongest chess engines there are, playing Stockfish on the
 // Watch screen. It is here only in the website version of the app: it is a
 // 44 MB download, fetched the first time somebody asks for it, and the APK
-// has no internet permission to fetch it with and no reason to carry it for
-// everybody. vendor/reckless/README.md says what the build is.
+// may connect to nothing but Chess.com's archive of games, so it has nowhere
+// to fetch it from and no reason to carry it for everybody.
+// vendor/reckless/README.md says what the build is.
 //
 // The work happens in reckless-worker.js — the download, the checks, the
 // engine. This is the page's side of it: finding out where things stand
@@ -82,7 +83,7 @@ function recklessStatusText(status) {
     none: `Reckless, one of the two strongest engines there are, is a ${mb(status.total)} download the first time, and is kept on this device after that.`,
     partial: `${mb((status.total ?? 0) - (status.need ?? 0))} of Reckless's ${mb(status.total)} is already here. The rest downloads from where it stopped.`,
     offline: 'Reckless needs a connection the first time, to download it.',
-    apk: 'Reckless is in the website version of the app only. This app has no internet connection to download it with, and it is too big to carry inside — install the app from the same website this one came from.',
+    apk: 'Reckless is in the website version of the app only. This app connects to nothing but Chess.com, for your games, so it has nowhere to download it from, and it is too big to carry inside — install the app from the same website this one came from.',
     file: 'Reckless cannot run in a copy of the page opened from a file. It works in the app installed from the website.',
     missing: 'This copy of the app was built without Reckless.',
     unsupported: 'This browser cannot download and run Reckless.',

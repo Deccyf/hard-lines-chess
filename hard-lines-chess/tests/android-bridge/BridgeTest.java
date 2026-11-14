@@ -2,6 +2,8 @@ package chess.hardlines;
 
 import android.content.ContentResolver;
 import android.net.Uri;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -19,9 +21,9 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * The Android app's half of saving and opening a backup file, and of keeping
- * its own copy of the page's data, run on an ordinary JVM against stand-ins
- * for Android.
+ * The Android app's half of saving and opening a backup file, of keeping its
+ * own copy of the page's data, and of deciding what the page may fetch, run
+ * on an ordinary JVM against stand-ins for Android.
  *
  * WHY THIS EXISTS. The page's half is driven in a real browser by
  * tests/storage-drive.cjs, against a pretend app. Nothing drove the app's
@@ -187,6 +189,27 @@ public final class BridgeTest {
         return String.join(" ", all);
     }
 
+    /** A request, as the page makes one. */
+    private static WebResourceRequest request(final String method, String url) {
+        final Uri address = new Uri(url);
+        return new WebResourceRequest() {
+            @Override public Uri getUrl() { return address; }
+            @Override public String getMethod() { return method; }
+        };
+    }
+
+    /**
+     * What the app does with a request: "let out" when it hands it on to be
+     * fetched; otherwise the status it answers with itself, and the rule
+     * about connecting that it attaches, where it attaches one.
+     */
+    private static String answer(App app, String method, String url) {
+        WebResourceResponse given = app.web.client.shouldInterceptRequest(app.web, request(method, url));
+        if (given == null) return "let out";
+        String rule = given.getResponseHeaders() == null ? null : given.getResponseHeaders().get("Content-Security-Policy");
+        return given.getStatusCode() + (rule == null ? "" : " | " + rule);
+    }
+
     private static String said(String function, String arguments) {
         return "window." + function + " && window." + function + "(" + arguments + ");";
     }
@@ -220,6 +243,33 @@ public final class BridgeTest {
                 if (m.getName().equals(name)) marked = m.getAnnotation(android.webkit.JavascriptInterface.class) != null;
             }
             check("the page may call " + name, marked, true);
+        }
+
+        // ── what the app will fetch, and what it will not ──────────────────
+        String rule = "connect-src 'self' https://api.chess.com";
+        check("the page is served from the app, with the rule about where it may connect",
+                answer(app, "GET", "https://appassets.androidplatform.net/assets/index.html"), "200 | " + rule);
+        check("and so is everything else in the app, the engine's worker included",
+                answer(app, "GET", "https://appassets.androidplatform.net/assets/stockfish.js"), "200 | " + rule);
+        check("the typefaces are answered from the app", answer(app, "GET", "https://fonts.googleapis.com/css2?family=Inter"), "200");
+        check("the list of a player's months on Chess.com is let out",
+                answer(app, "GET", "https://api.chess.com/pub/player/hardliner/games/archives"), "let out");
+        check("and so is a month of their games",
+                answer(app, "GET", "https://api.chess.com/pub/player/hardliner/games/2026/11"), "let out");
+        for (String[] refused : new String[][] {
+                {"anything else Chess.com publishes", "GET", "https://api.chess.com/pub/leaderboards"},
+                {"Chess.com's own site", "GET", "https://www.chess.com/game/live/1"},
+                {"anything sent to the archive rather than read from it", "POST", "https://api.chess.com/pub/player/hardliner/games/archives"},
+                {"the archive without https", "GET", "http://api.chess.com/pub/player/hardliner/games/archives"},
+                {"the archive on another port", "GET", "https://api.chess.com:8443/pub/player/hardliner/games/archives"},
+                {"a host that only begins like it", "GET", "https://api.chess.com.example.net/pub/player/hardliner/games/archives"},
+                {"a host that only ends like it", "GET", "https://notapi.chess.com/pub/player/hardliner/games/archives"},
+                {"a host with its name in front of an @", "GET", "https://api.chess.com@example.net/pub/player/hardliner/games/archives"},
+                {"any other site", "GET", "https://example.net/"},
+                {"a socket to it", "GET", "wss://api.chess.com/pub/player/hardliner"},
+                {"the app's own name, outside its files", "GET", "https://appassets.androidplatform.net/elsewhere"},
+        }) {
+            check(refused[0] + " is refused", answer(app, refused[1], refused[2]), "404");
         }
 
         // ── saving ─────────────────────────────────────────────────────────

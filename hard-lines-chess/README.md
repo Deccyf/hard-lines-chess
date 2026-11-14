@@ -227,8 +227,9 @@ explained from its own analysis — its line is its reason — and Stockfish's
 opinion of each is the verdict; neither is called a mistake for disagreeing.
 
 **Website only, fetched when asked for.** It is 64 MB, almost all network
-weights, so it is not in the APK (which has no internet permission to fetch
-it) and not in anybody's download until they pick it. Then it arrives as 16
+weights, so it is not in the APK (which may connect to nothing but Chess.com's
+archive of games, and so has nowhere to fetch it from) and not in anybody's
+download until they pick it. Then it arrives as 16
 gzipped pieces, 43.8 MB, each checked against its checksum and kept as it
 arrives, so a connection that drops loses only the piece in flight and the
 next press of the button carries on from there. A piece that goes twenty
@@ -470,7 +471,7 @@ again by Puzzles.
 
 ```
 npm install            # playwright, for the browser drivers
-npm test               # 23 node suites: perft, motifs, the move explainer, Reckless, the judges, traps,
+npm test               # 24 node suites: perft, motifs, the move explainer, Reckless, the judges, traps,
                        # mate cap, multi-line search, the solved table, endgame
                        # and opening prose, notation, clocks, the stored areas,
                        # the Android app's file handling (needs a Java compiler),
@@ -501,9 +502,9 @@ https://deccyf.github.io/hard-lines-chess/hard-lines-chess.apk
 ```
 
 Tap it once downloaded and allow your browser to install apps when Android
-asks. This one holds no internet permission at all, so it is the same app on a
-plane as at home — and so the Chess.com importer, which is the one feature that
-needs a network, is not offered there. See
+asks. It works with no connection — the engine, the openings, review and all
+the rest are inside it — and the one thing it ever connects to is Chess.com's
+public archive of your games, to bring new ones in. See
 [`android/README.md`](android/README.md) for how it is built, and for what the
 committed signing key is and is not for.
 

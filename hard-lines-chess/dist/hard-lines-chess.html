@@ -9717,8 +9717,9 @@ function runStockfishSearch(worker, position, nodes, multipv) {
 // One of the two strongest chess engines there are, playing Stockfish on the
 // Watch screen. It is here only in the website version of the app: it is a
 // 44 MB download, fetched the first time somebody asks for it, and the APK
-// has no internet permission to fetch it with and no reason to carry it for
-// everybody. vendor/reckless/README.md says what the build is.
+// may connect to nothing but Chess.com's archive of games, so it has nowhere
+// to fetch it from and no reason to carry it for everybody.
+// vendor/reckless/README.md says what the build is.
 //
 // The work happens in reckless-worker.js — the download, the checks, the
 // engine. This is the page's side of it: finding out where things stand
@@ -9796,7 +9797,7 @@ function recklessStatusText(status) {
     none: `Reckless, one of the two strongest engines there are, is a ${mb(status.total)} download the first time, and is kept on this device after that.`,
     partial: `${mb((status.total ?? 0) - (status.need ?? 0))} of Reckless's ${mb(status.total)} is already here. The rest downloads from where it stopped.`,
     offline: 'Reckless needs a connection the first time, to download it.',
-    apk: 'Reckless is in the website version of the app only. This app has no internet connection to download it with, and it is too big to carry inside — install the app from the same website this one came from.',
+    apk: 'Reckless is in the website version of the app only. This app connects to nothing but Chess.com, for your games, so it has nowhere to download it from, and it is too big to carry inside — install the app from the same website this one came from.',
     file: 'Reckless cannot run in a copy of the page opened from a file. It works in the app installed from the website.',
     missing: 'This copy of the app was built without Reckless.',
     unsupported: 'This browser cannot download and run Reckless.',
@@ -10160,11 +10161,13 @@ function measureDeviation(row, { Board, sanToMove, engine, nodes = 30000, depth 
 //   for a Chess.com login, and if this app ever puts a password field on the
 //   screen for a service that is not this one, something has gone wrong.
 //
-//   NOTHING LEAVES YOUR DEVICE. The request goes from your browser to
-//   Chess.com and back. There is no server in this app to send anything to.
-//   In the Android app it does not run at all, because the APK holds no
-//   INTERNET permission — which is the promise that makes the rest of it
-//   trustworthy, and is worth more than the convenience.
+//   NOTHING LEAVES YOUR DEVICE BUT THE NAME. The request goes from your
+//   browser to Chess.com and back, and carries the player's name and nothing
+//   else. There is no server in this app to send anything to. The Android app
+//   makes the same request, and it is the only one it can make: MainActivity
+//   lets out a read of this archive and refuses everything else, and
+//   tests/android-reach.test.mjs holds the address it lets out to the one
+//   below.
 
 const CHESSCOM_API = 'https://api.chess.com/pub/player';
 
@@ -17030,7 +17033,7 @@ function stopScan() {
 //
 // WHERE THERE IS NO MODEL, A FUNCTION NARRATES. The coach used to be hidden
 // wherever Claude could not be reached — which is every installed copy of this
-// app, since the APK holds no internet permission and a saved file has no
+// app, since the APK may connect to nothing but Chess.com's archive and a saved file has no
 // runtime to ask. But the model was never the part that knew anything: the
 // bundle below already contains the search, the material, the top four lines
 // and every named move's refutation, each turned into English by plainEval().
@@ -17474,8 +17477,8 @@ async function setupCoach() {
   try { Coach.sample = await window.claude?.use?.('sample') ?? null; } catch { Coach.sample = null; }
 
   // THE COACH IS NEVER ABSENT NOW. It used to be hidden wherever Claude could
-  // not be reached, which is every installed copy of this app — the APK holds
-  // no internet permission and a saved file has no runtime to ask. The engine
+  // not be reached, which is every installed copy of this app — the APK may
+  // connect to nothing but Chess.com's archive and a saved file has no runtime to ask. The engine
   // work was always local; only the sentences were not. narrateCoach() writes
   // them from the same bundle, so the answer rests on the same search either
   // way and the panel is shown either way.
@@ -17696,7 +17699,7 @@ function askCoachAbout(fen, question, { arrows = [] } = {}) {
 //
 // The rule this app is built on is that the engine is the source of truth and
 // the model is the narrator. In the installed app there is no model: the APK
-// holds no internet permission and a saved copy has no runtime to ask. So the
+// may connect to nothing but Chess.com's archive and a saved copy has no runtime to ask. So the
 // coach was simply absent, which is the one thing the README advertises that
 // the phone could not do.
 //
@@ -20314,15 +20317,9 @@ function importNote(text, kind = 'note') {
 async function runImport() {
   if (Import.running) return;
 
-  // THE ANDROID APP CANNOT DO THIS AND SAYS SO RATHER THAN FAILING. The APK
-  // holds no INTERNET permission — that is the promise that makes everything
-  // else in it trustworthy — so there is no request to make and no error worth
-  // showing. Pasting a game still works there, and so does everything else.
-  if (IN_ANDROID_APP) {
-    importNote('The Android app has no internet permission, which is what lets it promise nothing leaves your device. Import in the web version — same address you installed this from — or paste a game below.', 'note');
-    return;
-  }
-
+  // (The Android app does this too, from version 1.6. Until then it held no
+  // permission to connect at all and said so here; it now holds one and uses
+  // it for this request and no other — see AndroidManifest.xml.)
   const username = $('importUser').value.trim();
   if (!username) { importNote('Type your Chess.com username first.', 'note bad-note'); return; }
   const wanted = Number($('importCount').value) || 100;
@@ -21937,7 +21934,7 @@ async function boot() {
     // its progress somewhere else — and there is nowhere here to open it.
     $('downloadTitle').textContent = 'Your copy';
     $('downloadBlurb').hidden = true;
-    $('downloadNote').textContent = 'The whole trainer is inside this app — engine, openings, review and all. It holds no internet permission, so it never asks the network for anything. Your progress stays on this device.';
+    $('downloadNote').textContent = 'The whole trainer is inside this app — engine, openings, review and all — and works with no connection. The one thing it ever connects to is Chess.com’s public list of your games, to bring new ones in; nothing is sent anywhere else, and your progress stays on this phone.';
   }
   (async () => {
     try { App.downloads = await window.claude?.use?.('downloads') ?? null; } catch { App.downloads = null; }

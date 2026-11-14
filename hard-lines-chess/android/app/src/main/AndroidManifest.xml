@@ -1,18 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- THERE IS NO <uses-permission android:name="android.permission.INTERNET" />
-         AND THERE IS NOT MEANT TO BE.
+    <!-- ONE PERMISSION, FOR ONE THING: reading Chess.com's public archive of a
+         player's games, so that new games arrive without being typed in.
 
-         The app is the trainer's own index.html, served to the WebView out of
-         this APK. It has no accounts, no sync and no telemetry, and the one
-         remote thing the page asks for — a Google Fonts stylesheet — is
-         answered from bundled files by MainActivity. Without the permission
-         the claim that everything runs on your own device is enforced by the
-         system rather than promised by a README: the app cannot open a socket
-         even if a later change tried to. -->
+         Until version 1.6 the app held no INTERNET permission at all, and the
+         claim that everything runs on your own device was enforced by the
+         system. The permission cannot be granted for one address, so what
+         keeps it to one is in the app, twice over, and tested:
+
+           - MainActivity answers every request the page makes from the APK,
+             lets through a GET to https://api.chess.com/pub/player/… and
+             nothing else, and refuses the rest;
+           - every page it serves carries a policy that lets the page connect
+             to where it came from and to that host only, which also covers
+             what the first cannot see.
+
+         The app still has no accounts, no sync and no telemetry, and sends
+         nothing but the player's name, to Chess.com. Everything except that
+         import works with no connection. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
+        android:usesCleartextTraffic="false"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"

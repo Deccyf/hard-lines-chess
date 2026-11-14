@@ -16,11 +16,13 @@
 //   for a Chess.com login, and if this app ever puts a password field on the
 //   screen for a service that is not this one, something has gone wrong.
 //
-//   NOTHING LEAVES YOUR DEVICE. The request goes from your browser to
-//   Chess.com and back. There is no server in this app to send anything to.
-//   In the Android app it does not run at all, because the APK holds no
-//   INTERNET permission — which is the promise that makes the rest of it
-//   trustworthy, and is worth more than the convenience.
+//   NOTHING LEAVES YOUR DEVICE BUT THE NAME. The request goes from your
+//   browser to Chess.com and back, and carries the player's name and nothing
+//   else. There is no server in this app to send anything to. The Android app
+//   makes the same request, and it is the only one it can make: MainActivity
+//   lets out a read of this archive and refuses everything else, and
+//   tests/android-reach.test.mjs holds the address it lets out to the one
+//   below.
 
 const CHESSCOM_API = 'https://api.chess.com/pub/player';
 

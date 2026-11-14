@@ -47,6 +47,16 @@
   it: "3 new games from Chess.com, analysed: 8 new drills and 1 new puzzle."
   At most once every three hours; silent when there is no connection; and it
   can be turned off beside the name.
+- **The Android app can import, too.** It held no permission to connect at
+  all, so importing meant using the website and carrying the games across. It
+  now holds that permission for one thing: reading Chess.com's public list of
+  your games. Android cannot grant it for one address, so the app keeps
+  itself to one, twice over — it refuses every request the page makes except
+  a read of that archive, and the page is served with a rule that lets it
+  connect nowhere else — and both are tested against addresses that are
+  nearly the archive and are not. It still has no accounts, no sync and no
+  telemetry, sends nothing but your Chess.com name, to Chess.com, and does
+  everything except that import with no connection.
 
 ### Analysis that does not do the work twice
 - **Several engines at once.** A review's searches do not depend on each
