@@ -59,6 +59,11 @@ const DEFAULT_PREFS = {
   longPress: 1,          // highlight colour a long-press means, 1..4
   think: 'normal',       // fast | normal | deep — the practice board's budget
   judge: 'app',          // app | stockfish | reckless — who judges a reviewed game
+  walkDepth: 7,          // 7 | 9 | 12 — the setting games are analysed at, picked on the walk
+  // Catching up — see catchUp() in src/app-p.js.
+  chessComUser: '',      // the name the last import was for
+  catchUp: true,         // bring in new games when the app is opened
+  chessComChecked: 0,    // when Chess.com was last asked whether there are any
 };
 
 const THINK = {

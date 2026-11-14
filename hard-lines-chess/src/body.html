@@ -11,6 +11,10 @@
   <!-- TODAY -->
   <section id="section-today">
     <p class="lede">Your training for today. Items appear only when there is something to do.</p>
+    <div id="catchUp" class="panel" hidden>
+      <p class="note" id="catchUpNote"></p>
+      <div class="row"><button class="btn danger" id="catchUpStop" type="button" hidden>Stop</button></div>
+    </div>
     <div id="todayList" class="tasks"></div>
     <div id="todayRecord" class="panel"></div>
     <div class="panel" id="dataPanel">
@@ -325,12 +329,19 @@
       </div>
       <p class="note" id="importNote"></p>
       <p class="note" id="importState"></p>
+      <div class="toggles">
+        <label class="toggle"><input type="checkbox" id="catchUpOn" checked><span>Bring in my new games when the app is opened, and analyse them<small id="catchUpState"></small></span></label>
+      </div>
       <details class="more">
         <summary>How importing works</summary>
         <p class="note">Chess.com publishes public games through an open archive, newest month first. The request goes
           from this browser to Chess.com and back; this app has no server. Importing brings the moves, ratings and
           clocks, which is enough for the repertoire report and the rating chart. Accuracy and a mistake list come from
           reviewing each game, below.</p>
+        <p class="note">Once you have imported, the app remembers the name and asks Chess.com for anything newer when it
+          is opened — at most once every three hours — and analyses what arrives with the judge and depth picked
+          below. Only games newer than the newest one already here are brought in that way; use Import for older
+          ones.</p>
       </details>
 
       <div class="after" style="margin-top:14px">

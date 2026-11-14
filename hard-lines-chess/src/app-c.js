@@ -268,7 +268,15 @@ async function boot() {
   $('importUser').addEventListener('keydown', (e) => { if (e.key === 'Enter') runImport(); });
   $('walkRun').addEventListener('click', walkImported);
   $('walkStop').addEventListener('click', stopWalk);
+  // The depth games are analysed at is kept, because games are now analysed
+  // without anybody being there to pick it — see catchUp().
+  if (REVIEW_BUDGET[App.prefs.walkDepth]) $('walkDepth').value = String(App.prefs.walkDepth);
+  $('walkDepth').addEventListener('change', (e) => { App.prefs.walkDepth = Number(e.target.value) || 7; savePrefs(); });
+  $('importUser').value = App.prefs.chessComUser ?? '';
+  $('catchUpOn').addEventListener('change', (e) => { App.prefs.catchUp = e.target.checked; savePrefs(); renderCatchUp(); });
+  $('catchUpStop').addEventListener('click', stopWalk);
   renderImport();
+  renderCatchUp();
 
   // Notation
   $('notationTakeBack').addEventListener('click', takeBackNotation);
@@ -323,7 +331,12 @@ async function boot() {
   $('settingAnimate').addEventListener('change', (e) => { App.prefs.animate = e.target.checked; savePrefs(); });
   $('settingLongPress').addEventListener('change', (e) => { App.prefs.longPress = Number(e.target.value); savePrefs(); });
   $('settingThink').addEventListener('change', (e) => { App.prefs.think = e.target.value; savePrefs(); });
-  $('settingReset').addEventListener('click', () => { App.prefs = { ...DEFAULT_PREFS }; savePrefs(); renderSettings(); renderJudgeChoice(); renderImport(); });
+  // (Whose games to ask Chess.com about is not a setting to reset: it is kept.)
+  $('settingReset').addEventListener('click', () => {
+    App.prefs = { ...DEFAULT_PREFS, chessComUser: App.prefs.chessComUser ?? '', chessComChecked: App.prefs.chessComChecked ?? 0 };
+    savePrefs(); renderSettings(); renderJudgeChoice(); renderImport(); renderCatchUp();
+    $('walkDepth').value = String(App.prefs.walkDepth);
+  });
 
   // Taking it with you. The button is hidden in exactly ONE case: the page is
   // already running from a saved file, where offering to save it again is
@@ -376,6 +389,14 @@ async function boot() {
 
   newPlayGame();
   show('today');
+
+  // New games, brought in and analysed without being asked for — and only
+  // once the page is up, so that opening the app never waits on Chess.com.
+  // The app stays open for days on a phone, so coming back to it counts as
+  // opening it.
+  const caughtUp = () => { catchUp().catch(() => {}); };
+  caughtUp();
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') caughtUp(); });
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

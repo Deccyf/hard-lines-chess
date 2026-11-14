@@ -39,6 +39,15 @@
   open; a backup can still be saved from a session that cannot; and the next
   save that works writes everything that was owed.
 
+### New games arrive by themselves
+- **The app remembers your Chess.com name** from the first import, and when it
+  is opened it asks Chess.com for anything newer than the newest game already
+  here, brings it in, and analyses it — those games and no others — with the
+  judge and depth you last picked. Today says what arrived and what came of
+  it: "3 new games from Chess.com, analysed: 8 new drills and 1 new puzzle."
+  At most once every three hours; silent when there is no connection; and it
+  can be turned off beside the name.
+
 ### Analysis that does not do the work twice
 - **Several engines at once.** A review's searches do not depend on each
   other, so they are shared out among as many engines as the device has cores

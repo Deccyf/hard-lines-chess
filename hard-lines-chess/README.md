@@ -376,6 +376,26 @@ app and the pretend app the browser test drives to the same names for every
 way across between them, since each half is otherwise tested against its own
 idea of the other.
 
+## Catching up
+
+Importing used to be asked for every time: open Game review, type the name
+again — it was not kept — press Import, press Analyse. The name is now
+remembered from the first import, and whenever the app is opened (or comes
+back into view, on a phone where it stays open for days) it asks Chess.com for
+anything newer than the newest game already here, brings that in, and analyses
+it with the judge and depth picked on the walk. Today says what arrived and
+what came of it.
+
+It asks at most once every three hours, and makes two requests when there is
+nothing new: the list of months and the newest month. It never reaches back: a
+game older than the newest one stored is an import's to fetch, and games that
+were waiting to be analysed are left waiting — opening the app analyses the
+three games that just arrived, not a history somebody chose to leave for
+later. No connection, or Chess.com not answering, says nothing and is tried
+again next time. It is a setting, on by default, beside the name.
+`tests/catchup-drive.cjs` drives all of that against a stand-in for Chess.com
+that counts what it is asked.
+
 ## Speed
 
 Everything the app knows about a game it reads back out of the game's own PGN,
@@ -456,7 +476,7 @@ npm test               # 23 node suites: perft, motifs, the move explainer, Reck
                        # the Android app's file handling (needs a Java compiler),
                        # evaluation symmetry, the fast paths against the long
                        # way round, repeatability, interface vocabulary
-npm run test:browser   # 51 Playwright drivers against dist/
+npm run test:browser   # 52 Playwright drivers against dist/
 npm run verify:openings
 ```
 

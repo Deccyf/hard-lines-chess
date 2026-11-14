@@ -74,6 +74,12 @@ async function runImport() {
     if (!listed.ok) { importNote(`Chess.com answered ${listed.status}. Try again in a minute.`, 'note bad-note'); return; }
 
     const { archives = [] } = await listed.json();
+    // THE NAME IS REMEMBERED once Chess.com has answered for it, so that the
+    // app can ask about new games by itself from now on — see catchUp().
+    if (App.prefs.chessComUser !== username) {
+      App.prefs.chessComUser = username;
+      await savePrefs();
+    }
     if (!archives.length) { importNote('That account has no public games to import.', 'note'); return; }
 
     const fresh = [];
@@ -106,6 +112,9 @@ async function runImport() {
     }
 
     Import.added = fresh.length;
+    // Chess.com has just been asked, about everything: catching up can wait.
+    App.prefs.chessComChecked = Date.now();
+    await savePrefs();
     if (fresh.length) await storeImported(fresh);
     // A RUN THAT ADDED NOTHING CAN STILL HAVE CHANGED SOMETHING. Backfilling
     // ratings into games already stored happens in place, so without this the
@@ -130,6 +139,7 @@ async function runImport() {
     $('importRun').hidden = false;
     $('importStop').hidden = true;
     renderImport();
+    renderCatchUp();
   }
 }
 
@@ -301,12 +311,22 @@ function walkNote(text, kind = 'note') {
   box.className = kind;
 }
 
-async function walkImported() {
-  if (Walk.running) return;
-  const queue = unwalkedGames();
+/**
+ * Walk the games that have work waiting — or, given `games`, only those.
+ *
+ * Pressed, it is given the click and walks everything. Catching up gives it
+ * the games that have just arrived, so that opening the app analyses three
+ * new games and not a history somebody chose to leave for later. `watch` is
+ * told how far it has got. Resolves with what it did.
+ */
+async function walkImported(asked = null) {
+  const only = Array.isArray(asked?.games) ? asked.games : null;
+  const watch = typeof asked?.watch === 'function' ? asked.watch : null;
+  if (Walk.running) return { ran: false };
+  const queue = only ? only.filter((game) => walkReason(game)) : unwalkedGames();
   if (!queue.length) {
-    walkNote('Every game has been analysed, and every one of them under a fixed amount of work — so the figures on Progress all rest on the same measurement.', 'note good-note');
-    return;
+    if (!only) walkNote('Every game has been analysed, and every one of them under a fixed amount of work — so the figures on Progress all rest on the same measurement.', 'note good-note');
+    return { ran: false };
   }
 
   Walk.running = true;
@@ -324,7 +344,7 @@ async function walkImported() {
     $('walkRun').hidden = false;
     $('walkStop').hidden = true;
     $('walkBar').hidden = true;
-    return;
+    return { ran: false, why: ready ? 'stopped' : 'judge' };
   }
   $('walkFill').style.width = '0%';
   $('walkBar').hidden = false;
@@ -346,6 +366,7 @@ async function walkImported() {
     const doing = { fresh: 'Walking', stale: 'Re-measuring', other: 'Re-judging', bare: 'Filling in' }[reason];
     walkNote(`${doing} ${Walk.done + 1} of ${Walk.total}${judgeName === 'app' ? '' : ` with ${judgeWords(judgeName)}`}`
       + ` — ${game.white} vs ${game.black}…`);
+    watch?.({ at: Walk.done + 1, of: Walk.total, game });
 
     // A GAME THAT WILL NOT READ is marked, so the queue does not offer it
     // again for ever, and counted, so the summary is not silently short.
@@ -433,6 +454,7 @@ async function walkImported() {
   refreshBook();
 
   const left = unwalkedGames().length;
+  const outcome = { ran: true, done: Walk.done, failed: Walk.failed, drills: Walk.drills, puzzles: Walk.puzzles, cancelled: Walk.cancelled, stopped: stopped?.why ?? null, left };
   const did = `${Walk.done} reviewed${judgeName === 'app' ? '' : ` by ${judgeWords(judgeName)}`}${Walk.failed ? `, ${Walk.failed} of them would not read` : ''}.`
     + (Walk.drills ? ` ${Walk.drills} new ${Walk.drills === 1 ? 'position' : 'positions'} added to your drills.` : '')
     + (Walk.redrilled ? ` ${Walk.redrilled} ${Walk.redrilled === 1 ? 'drill was' : 'drills were'} brought into line with the new judgement.` : '')
@@ -441,12 +463,145 @@ async function walkImported() {
   if (stopped) {
     walkNote(`${did} Then ${judgeWords(judgeName)} stopped, on ${stopped.game.white} vs ${stopped.game.black}: ${stopped.why}`
       + ' That game and the ones after it were left exactly as they were. Press it again to carry on.', 'note bad-note');
-    return;
+    return outcome;
   }
   walkNote(did
     + (left ? ` ${left} still to go — press it again to carry on.`
             : ' Every game now rests on the same measurement.'),
     left ? 'note' : 'note good-note');
+  return outcome;
+}
+
+// ── catching up ────────────────────────────────────────────────────────────
+//
+// IMPORTING HAD TO BE ASKED FOR, EVERY TIME: open the app, go to Game review,
+// type the name again — it was not kept — press Import, then press Analyse.
+// Four steps between playing a game and seeing what went wrong in it, and a
+// trainer that only knows about the games somebody remembered to fetch is one
+// that is always a week behind.
+//
+// So the name is remembered from the first import, and whenever the app is
+// opened it asks Chess.com for anything newer than the newest game already
+// here, brings that in, and analyses it — those games and no others — with
+// the judge and depth picked on the walk. What it did is said on Today.
+//
+// WHAT IT WILL NOT DO.
+//
+//   ASK OFTEN. At most once every three hours, and two requests when there is
+//   nothing new: the list of months, and the newest month.
+//
+//   REACH BACK. Only games that finished after the newest one already here. A
+//   history somebody chose not to import — or to import and not analyse — is
+//   not gone through behind their back because they opened the app.
+//
+//   COMPLAIN. No connection, or Chess.com not answering, is not something to
+//   put on the screen of a person who did not ask for anything. It tries
+//   again the next time the app is opened.
+//
+//   CARRY ON UNASKED IF TOLD NOT TO. It is a setting, on by default, beside
+//   the name.
+
+const CatchUp = { running: false };
+
+/** How often, at most, Chess.com is asked whether there is anything new. */
+const CATCH_UP_EVERY_MS = 3 * 60 * 60 * 1000;
+
+/** The most games one catch-up brings in. More than that waiting is a job for Import, asked for. */
+const CATCH_UP_GAMES = 100;
+
+function catchUpSay(text, { working = false, kind = 'note' } = {}) {
+  $('catchUp').hidden = !text;
+  $('catchUpNote').textContent = text;
+  $('catchUpNote').className = kind;
+  $('catchUpStop').hidden = !working;
+}
+
+/** The line under the setting: whose games, and when Chess.com was last asked. */
+function renderCatchUp() {
+  const name = (App.prefs.chessComUser ?? '').trim();
+  $('catchUpOn').checked = App.prefs.catchUp !== false;
+  const asked = Number(App.prefs.chessComChecked) || 0;
+  $('catchUpState').textContent = !name
+    ? 'Import once, and the app will remember the name.'
+    : (App.prefs.catchUp === false
+      ? `Not asking Chess.com about ${name}’s new games.`
+      : `Asks Chess.com about ${name}’s new games when the app is opened${asked ? ` — last asked ${new Date(asked).toLocaleString('en-GB', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}` : ''}.`);
+}
+
+/**
+ * Bring in what is new, and analyse it. Resolves with what happened, or null
+ * when it did not ask — which is most of the time.
+ */
+async function catchUp({ force = false } = {}) {
+  const username = (App.prefs.chessComUser ?? '').trim();
+  if (!username || App.prefs.catchUp === false) return null;
+  if (CatchUp.running || Import.running || Walk.running) return null;
+  if (Store.mode === 'none') return null;                     // a session that cannot save has nowhere to put them
+  if (!force && Date.now() - (Number(App.prefs.chessComChecked) || 0) < CATCH_UP_EVERY_MS) return null;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return null;
+
+  // Newer than the newest game from Chess.com that is already here. With none
+  // here there is nothing to be newer than: that is an import, not a catch-up.
+  const newest = Math.max(0, ...App.reviews.games.filter((g) => g.source === 'chess.com').map((g) => g.at ?? 0));
+  if (!newest) return null;
+
+  CatchUp.running = true;
+  try {
+    const fresh = [];
+    let more = false;
+    try {
+      const listed = await fetch(archivesUrl(username), { headers: { Accept: 'application/json' } });
+      if (!listed.ok) return null;
+      const { archives = [] } = await listed.json();
+      // Newest month first, and back only as far as there is something new.
+      for (const url of [...archives].reverse()) {
+        const response = await fetch(url, { headers: { Accept: 'application/json' } });
+        if (!response.ok) return null;
+        const { games = [] } = await response.json();
+        const month = chessComMonth(games, username, [...App.reviews.games, ...fresh]);
+        const newer = month.rows.filter((row) => row.at > newest);
+        fresh.push(...newer);
+        if (!newer.length) break;
+        if (fresh.length > CATCH_UP_GAMES) { more = true; break; }
+        await new Promise((r) => setTimeout(r, 120));
+      }
+    } catch {
+      // Not reached, or not answered: asked again the next time the app is opened.
+      return null;
+    }
+
+    fresh.sort((a, b) => b.at - a.at);
+    if (fresh.length > CATCH_UP_GAMES) { more = true; fresh.length = CATCH_UP_GAMES; }
+    App.prefs.chessComChecked = Date.now();
+    await savePrefs();
+    renderCatchUp();
+    if (!fresh.length) return { added: 0 };
+
+    await storeImported(fresh);
+    renderImport();
+    renderDeviations();
+    const games = (n) => `${n} new ${n === 1 ? 'game' : 'games'} from Chess.com`;
+    const rest = more ? ` There are more than ${CATCH_UP_GAMES} new ones: Import brings in the rest.` : '';
+    catchUpSay(`${games(fresh.length)}. Analysing…`, { working: true });
+
+    const walk = await walkImported({
+      games: fresh,
+      watch: ({ at, of }) => catchUpSay(`${games(fresh.length)}. Analysing ${at} of ${of}…`, { working: true }),
+    });
+    const n = (count, one, many) => `${count} ${count === 1 ? one : many}`;
+    if (!walk.ran) {
+      catchUpSay(`${games(fresh.length)}, not analysed yet: ${walk.why === 'judge' ? `${judgeWords(walkJudgeName())} could not be started` : 'it was stopped'}. They are waiting in Game review.${rest}`);
+    } else if (walk.cancelled || walk.stopped) {
+      catchUpSay(`${games(fresh.length)}. ${walk.done - walk.failed} analysed before ${walk.cancelled ? 'it was stopped' : `${judgeWords(walkJudgeName())} stopped`}; the rest are waiting in Game review.${rest}`);
+    } else {
+      const made = [walk.drills ? n(walk.drills, 'new drill', 'new drills') : '', walk.puzzles ? n(walk.puzzles, 'new puzzle', 'new puzzles') : ''].filter(Boolean);
+      catchUpSay(`${games(fresh.length)}, analysed${made.length ? `: ${made.join(' and ')}` : ''}.${rest}`, { kind: 'note good-note' });
+    }
+    renderToday();
+    return { added: fresh.length, walk, more };
+  } finally {
+    CatchUp.running = false;
+  }
 }
 
 function stopWalk() {
