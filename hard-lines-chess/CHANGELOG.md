@@ -90,6 +90,18 @@
   once a day at about that time, and says nothing on a day when the session
   is already done. It sets itself again after the phone restarts.
 
+### What keeps happening
+- **Progress says what a coach would.** Where it listed how many of each kind
+  of mistake there had been, it now says which comes up most often lately and
+  how often — "about once every 2 games" — and, for each kind, your latest
+  twenty-five analysed games against the twenty-five before, with "rarer" or
+  "more often" only where the difference is more than luck and "too few to
+  say" where it is.
+- **Positions you keep going wrong in.** The same position, in the first
+  twelve moves, gone wrong in more than one game: how you got there, how often
+  you reached it and went wrong, what you played, what the reviewer wanted —
+  and the board, one tap away, with both moves drawn.
+
 ### Analysis that does not do the work twice
 - **Several engines at once.** A review's searches do not depend on each
   other, so they are shared out among as many engines as the device has cores

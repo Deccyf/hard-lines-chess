@@ -387,6 +387,19 @@
   .session-where span { display: block; color: var(--ink-soft); }
   .session-bar .row { margin: 0; flex: none; gap: 6px; flex-wrap: nowrap; }
   .session-bar .btn { padding: 6px 10px; font-size: 13px; }
+  /* What keeps happening, on Progress: the sentences at the top, and each
+     position gone wrong in more than once. */
+  .coach-points .idea { margin: 0; }
+  .coach-points .note { margin: 6px 0 0; }
+  .coach-points { margin-bottom: 12px; }
+  .pattern-spot { border-top: 1px solid var(--line); padding: 12px 0 2px; margin-top: 12px; }
+  .pattern-where { font-size: 14px; font-weight: 600; margin: 0; }
+  .pattern-spot .row { margin-top: 8px; }
+  /* A kind of mistake and its numbers make a long line. On a phone the name
+     goes above the numbers, rather than both being folded into two columns. */
+  @media (max-width: 619px) {
+    #patterns .record-row { flex-direction: column; gap: 2px; }
+  }
   .good-note { color: var(--good); }
   .bad-note { color: var(--danger); }
   .empty { color: var(--ink-faint); }
@@ -8181,6 +8194,212 @@ function planDailySession({ drills = 0, puzzles = 0, weak = false, opening = nul
   if (w > 0) parts.push({ kind: 'weak', want: w });
   if (opening) parts.push({ kind: 'opening', want: 1, id: opening });
   return parts;
+}
+
+
+// ── what keeps happening ───────────────────────────────────────────────────
+//
+// A review says what went wrong in one game. The Progress page added the
+// games up: so many forks allowed, so many pieces left loose. Neither says
+// the thing a coach would: which of these is costing you most often NOW,
+// whether it is getting rarer, and whether you keep going wrong in the same
+// place.
+//
+// HOW OFTEN IS A RATE, NOT A COUNT. "Fourteen forks" means one thing over
+// twenty games and another over two hundred, so every kind of mistake is said
+// per game.
+//
+// WHETHER IT IS GETTING RARER IS TWO WINDOWS OF THE SAME SIZE: your latest
+// games against the same number before them. And it is only said when the
+// difference is more than the luck of which games those happened to be — a
+// kind of mistake that came up three times and then twice has not got rarer,
+// and a page that said so would be praising noise. Where there are too few to
+// tell, it says that instead.
+//
+// THE SAME PLACE means the same position, in the opening, gone wrong in more
+// than once. A mistake made once is a mistake; made in one position three
+// games out of four it is a hole, and it is the cheapest thing on this page
+// to mend, because the position will be on the board again.
+//
+// Nothing here touches the page or searches anything: it counts what the
+// reviews already stored. tests/patterns.test.mjs holds it to what it says.
+
+/** The latest so many analysed games are set against the same number before them. */
+const PATTERN_WINDOW = 25;
+/** With fewer games than this in each window, nothing is said about a trend. */
+const PATTERN_MIN_GAMES = 8;
+/** "The opening" is each side's first twelve moves. */
+const PATTERN_OPENING_PLIES = 24;
+/** How many positions gone wrong in more than once are listed. */
+const PATTERN_POSITIONS = 5;
+
+/**
+ * Whether a count has moved, between two windows of the same number of games.
+ *
+ * The two counts are set against the spread two such counts would show if
+ * nothing had changed — for things that happen now and then, about the square
+ * root of their sum — and called different only when they are a clear step
+ * and a half of that apart. Under four in all, there is nothing to compare.
+ *
+ * @returns {'rarer' | 'more' | 'same' | 'unknown'}
+ */
+function patternTrend(before, recent) {
+  const total = before + recent;
+  if (total < 4) return 'unknown';
+  const apart = (before - recent) / Math.sqrt(total);
+  return apart >= 1.5 ? 'rarer' : (apart <= -1.5 ? 'more' : 'same');
+}
+
+/** Analysed games, oldest first. */
+function analysedInOrder(games) {
+  return (games ?? [])
+    .filter((g) => g && g.reviewed !== false && Array.isArray(g.mistakes))
+    .sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
+}
+
+/**
+ * How often each kind of mistake comes up, and whether it is getting rarer.
+ *
+ * Every theme a mistake was given is counted, as everywhere else in the app.
+ * What comes back:
+ *
+ *   games     how many analysed games there are
+ *   window    how many games are in each of the two windows, or 0 when there
+ *             are too few games to have two
+ *   mixed     the two windows were not all judged the same way — by the same
+ *             judge at the same depth — so the comparison is rougher
+ *   rows      [{ theme, count, perGame, before, recent, trend }] most frequent
+ *             first; `before` and `recent` are counts in the two windows
+ *   named     how many mistakes had a name, of `mistakes` in all
+ */
+function mistakePatterns(games, { window = PATTERN_WINDOW, least = PATTERN_MIN_GAMES } = {}) {
+  const all = analysedInOrder(games);
+  const size = Math.min(window, Math.floor(all.length / 2));
+  const span = size >= least ? size : 0;
+  const recentGames = span ? all.slice(-span) : [];
+  const beforeGames = span ? all.slice(-2 * span, -span) : [];
+
+  const tally = (list) => {
+    const counts = {};
+    for (const g of list) for (const m of g.mistakes) for (const t of m?.themes ?? []) counts[t] = (counts[t] ?? 0) + 1;
+    return counts;
+  };
+  const overall = tally(all);
+  const recent = tally(recentGames);
+  const before = tally(beforeGames);
+
+  let mistakes = 0, named = 0;
+  for (const g of all) for (const m of g.mistakes) { mistakes++; if (m?.themes?.length) named++; }
+
+  const how = (g) => `${g.judge ?? 'app'}/${g.depth ?? ''}`;
+  const ways = new Set([...recentGames, ...beforeGames].map(how));
+
+  const rows = Object.keys(overall).map((theme) => ({
+    theme,
+    count: overall[theme],
+    perGame: overall[theme] / all.length,
+    before: before[theme] ?? 0,
+    recent: recent[theme] ?? 0,
+    trend: span ? patternTrend(before[theme] ?? 0, recent[theme] ?? 0) : 'unknown',
+  })).sort((a, b) => b.count - a.count || a.theme.localeCompare(b.theme));
+
+  return { games: all.length, window: span, mixed: span > 0 && ways.size > 1, rows, mistakes, named };
+}
+
+/** A position as it counts for "the same position": the board, whose move, castling and en passant — not the move numbers. */
+function positionKey(fen) {
+  return String(fen ?? '').trim().split(/\s+/).slice(0, 4).join(' ');
+}
+
+/**
+ * Positions in the opening where you have gone wrong in more than one game.
+ *
+ * `reachedIn(game)` gives the positions (as positionKey) a game put in front
+ * of you in its opening, or null when the game's moves were not kept; it is
+ * handed in because reading a game's moves needs the rules, and this file
+ * only counts. A game whose moves were not kept still reached any position it
+ * went wrong in.
+ *
+ * Most games first, then the most lost. Each entry:
+ *
+ *   key, fen, side      the position, and whose move it is — yours
+ *   games               how many games you went wrong in it
+ *   reached             how many games put it in front of you
+ *   played              [{ san, uci, count }] what you played, most often first
+ *   best                { san, uci } what the reviewer wanted, as most often said
+ *   loss                the average of what it cost, in the engine's units; null for a mate
+ *   from                one of the games it happened in, the latest: { at, ply }
+ */
+function recurringMistakes(games, { plies = PATTERN_OPENING_PLIES, most = PATTERN_POSITIONS, reachedIn = () => null } = {}) {
+  const all = analysedInOrder(games);
+  const spots = new Map();
+  for (const g of all) {
+    const seen = new Set();
+    for (const m of g.mistakes) {
+      if (!m || !m.fen || !(m.ply <= plies)) continue;
+      const key = positionKey(m.fen);
+      if (!spots.has(key)) spots.set(key, { key, fen: m.fen, side: m.side ?? g.side ?? null, games: 0, played: new Map(), wanted: new Map(), losses: [], from: null, wrongIn: new Set() });
+      const spot = spots.get(key);
+      // One game counts once for a position, however the review came to list it twice.
+      if (seen.has(key)) continue;
+      seen.add(key);
+      spot.games += 1;
+      spot.wrongIn.add(g);
+      const played = spot.played.get(m.san) ?? { san: m.san, uci: m.uci ?? null, count: 0 };
+      played.count += 1;
+      spot.played.set(m.san, played);
+      if (m.best?.san) {
+        const wanted = spot.wanted.get(m.best.san) ?? { san: m.best.san, uci: m.best.uci ?? null, count: 0 };
+        wanted.count += 1;
+        spot.wanted.set(m.best.san, wanted);
+      }
+      if (Number.isFinite(m.loss)) spot.losses.push(m.loss);
+      spot.from = { at: g.at, ply: m.ply };
+    }
+  }
+
+  const repeated = [...spots.values()].filter((s) => s.games >= 2);
+  if (!repeated.length) return [];
+  const wanted = new Set(repeated.map((s) => s.key));
+  const reached = new Map(repeated.map((s) => [s.key, 0]));
+  for (const g of all) {
+    const keys = reachedIn(g);
+    if (keys) {
+      for (const key of new Set(keys)) if (wanted.has(key)) reached.set(key, reached.get(key) + 1);
+    } else {
+      for (const s of repeated) if (s.wrongIn.has(g)) reached.set(s.key, reached.get(s.key) + 1);
+    }
+  }
+
+  const byCount = (a, b) => b.count - a.count || a.san.localeCompare(b.san);
+  return repeated.map((s) => {
+    const best = [...s.wanted.values()].sort(byCount)[0] ?? null;
+    return {
+      key: s.key,
+      fen: s.fen,
+      side: s.side,
+      games: s.games,
+      // Never fewer than the games it went wrong in: a game read differently
+      // from how it was reviewed must not make "4 of 3".
+      reached: Math.max(s.games, reached.get(s.key)),
+      played: [...s.played.values()].sort(byCount),
+      best: best ? { san: best.san, uci: best.uci } : null,
+      loss: s.losses.length ? s.losses.reduce((a, b) => a + b, 0) / s.losses.length : null,
+      from: s.from,
+    };
+  }).sort((a, b) => b.games - a.games || (b.loss ?? Infinity) - (a.loss ?? Infinity) || a.key.localeCompare(b.key))
+    .slice(0, most);
+}
+
+/**
+ * How often, in words, from a number per game: "about 1.4 a game", "about
+ * once every 3 games". Nothing at all is said by the caller.
+ */
+function howOftenWords(perGame) {
+  if (!(perGame > 0)) return 'not at all';
+  if (perGame >= 0.95) return `about ${perGame >= 9.95 ? Math.round(perGame) : perGame.toFixed(1).replace(/\.0$/, '')} a game`;
+  const every = Math.round(1 / perGame);
+  return every <= 1 ? 'about once a game' : `about once every ${every} games`;
 }
 
 
@@ -16790,40 +17009,13 @@ function renderProgress() {
   }
   breakdown.appendChild(bars);
 
-  // WHAT THEY HAVE IN COMMON, which is the question this page exists to
-  // answer and which severity alone cannot: "twelve blunders" says how bad,
-  // never what kind. Every theme here was measured on the board.
-  const byTheme = {};
-  let classified = 0;
-  for (const m of allMistakes) {
-    if (!m.themes?.length) continue;
-    classified++;
-    for (const theme of m.themes) byTheme[theme] = (byTheme[theme] ?? 0) + 1;
-  }
-  const themes = Object.entries(byTheme).sort((a, b) => b[1] - a[1]);
-  if (themes.length) {
-    const panel = el('div', 'panel');
-    panel.appendChild(el('h3', null, 'What your mistakes have in common'));
-    panel.appendChild(el('p', 'note', 'Each one was shown on the board by replaying the moves that punished you, not guessed from what the move cost. They describe what was done TO you.'));
-    const bars = el('div', 'bars');
-    const worst = Math.max(...themes.map(([, n]) => n));
-    for (const [theme, count] of themes) {
-      const row = el('div', 'bar-row');
-      row.innerHTML = `<span class="bar-label">${esc(THEME_LABEL[theme] ?? theme)}</span>
-        <span class="bar"><span class="bar-fill" style="width:${Math.round((count / worst) * 100)}%"></span></span>
-        <span class="bar-count">${count}</span>`;
-      bars.appendChild(row);
-    }
-    panel.appendChild(bars);
-    // COUNTED AND STATED. A mistake the classifier could not name is not a
-    // mistake without a cause, and reporting only what it could name would
-    // make the list look more complete than it is.
-    const unnamed = allMistakes.length - classified;
-    if (unnamed) {
-      panel.appendChild(el('p', 'note', `${unnamed} of your ${allMistakes.length} mistakes could not be given a name: the moves that punished them showed no motif this app is able to demonstrate. They were positional, or the loss came from a sequence rather than a trick.`));
-    }
-    box.appendChild(panel);
-  }
+  // WHAT KEEPS HAPPENING, which is the question this page exists to answer and
+  // which severity alone cannot: "twelve blunders" says how bad, never what
+  // kind, how often, or whether it is getting rarer. The counting is in
+  // src/patterns.js and the panels in src/app-s.js: the kinds of mistake,
+  // where any could be given a name, and the positions gone wrong in more
+  // than once, which need no name.
+  renderPatterns(box, games);
 
   const mates = (byKind.allowed_mate ?? 0) + (byKind.missed_mate ?? 0);
   if (mates > 0) {
@@ -22860,6 +23052,180 @@ function renderReminder(card) {
 
 /** The app says the reminder has changed — it was set, or the phone answered the question about notifications. */
 window.hardLinesReminderChanged = () => { if (App.section === 'today') renderToday(); };
+
+
+// ── what keeps happening: the panel on Progress ────────────────────────────
+//
+// src/patterns.js counts. This says what the counts come to, the way somebody
+// looking over your games would: the thing that goes wrong most often now,
+// what has got rarer and what has not, and the positions you have gone wrong
+// in more than once — each with the board one tap away.
+//
+// EVERY SENTENCE HERE IS A COUNT WITH ITS GAMES BESIDE IT. "Rarer" is never
+// said without the two numbers it came from, and where there are too few
+// games to tell, that is what is said.
+
+const Patterns = {
+  // What each game's opening put in front of you, read once: game -> positions, or null.
+  reached: new Map(),
+};
+
+const PATTERN_TREND_WORDS = { rarer: 'rarer', more: 'more often', same: 'about the same', unknown: 'too few to say' };
+
+/** A mistake's name, as it reads in the middle of a sentence. */
+const themeInSentence = (theme) => {
+  const label = THEME_LABEL[theme] ?? theme;
+  return label.charAt(0).toLowerCase() + label.slice(1);
+};
+
+/**
+ * The positions a game's opening put in front of you, as patterns.js counts
+ * them — or null when the game's moves were not kept. Read once a game: it
+ * means replaying the moves, and Progress is drawn often.
+ */
+function openingPositionsOf(game) {
+  if (!game.pgn || !game.side) return null;
+  const id = `${game.at}|${game.side}|${game.pgn.length}`;
+  if (!Patterns.reached.has(id)) {
+    let keys = null;
+    try {
+      keys = parsePgn(game.pgn, { maxPlies: PATTERN_OPENING_PLIES }).plies
+        .filter((p) => p.colour === game.side).map((p) => positionKey(p.fenBefore));
+    } catch { keys = null; }
+    Patterns.reached.set(id, keys);
+  }
+  return Patterns.reached.get(id);
+}
+
+/** The moves that led to a position in one game, written out: "1. e4 e5 2. Nf3" — or '' when they were not kept. */
+function movesLeadingTo(game, ply) {
+  if (!game?.pgn || !(ply > 1)) return '';
+  try {
+    const sans = parsePgn(game.pgn, { maxPlies: ply - 1 }).plies.map((p) => p.san);
+    if (sans.length !== ply - 1) return '';
+    return sans.map((san, i) => (i % 2 === 0 ? `${i / 2 + 1}. ${san}` : san)).join(' ');
+  } catch {
+    return '';
+  }
+}
+
+const timesWords = (n) => (n === 1 ? 'once' : (n === 2 ? 'twice' : `${n} times`));
+
+/**
+ * Draw both panels into `box`, from the analysed games the page is showing:
+ * the kinds of mistake, and the positions gone wrong in more than once.
+ *
+ * THE TWO DO NOT DEPEND ON EACH OTHER. A position is the same position
+ * whether or not the mistake made in it could be given a name, so the list of
+ * positions is drawn even when there is no kind of mistake to count — it was
+ * once left out with it, and a player whose mistakes were all nameless was
+ * not told about the one move he kept getting wrong.
+ */
+function renderPatterns(box, games) {
+  const found = mistakePatterns(games);
+  if (found.rows.length) renderMistakeKinds(box, found);
+  renderRecurring(box, games);
+}
+
+/** How often each kind of mistake comes up, and whether it is getting rarer. */
+function renderMistakeKinds(box, found) {
+  const panel = el('div', 'panel');
+  panel.id = 'patterns';
+  panel.appendChild(el('h3', null, 'What keeps happening'));
+
+  // ── what it comes to ────────────────────────────────────────────────────
+  const n = found.window;
+  const latest = n ? [...found.rows].sort((a, b) => b.recent - a.recent || b.count - a.count)[0] : null;
+  // THE ONE NAMED AT THE TOP, with how it compares — and so not named again
+  // underneath. Only something that actually came up lately can be it: when
+  // the latest games have none of any of these, nothing is "most often
+  // lately", and everything that has got rarer is said below as usual.
+  const lead = latest && latest.recent > 0 ? latest : null;
+  const most = found.rows[0];
+  const points = el('div', 'coach-points');
+  if (lead) {
+    const versus = { rarer: `which is rarer than in the ${n} before`, more: `which is more often than in the ${n} before`,
+      same: `about as often as in the ${n} before`, unknown: '' }[lead.trend];
+    points.appendChild(el('p', 'idea', `Most often lately: ${themeInSentence(lead.theme)} — ${howOftenWords(lead.recent / n)} over your latest ${n} analysed games${versus ? `, ${versus}` : ''}.`));
+  } else if (n) {
+    points.appendChild(el('p', 'idea', `None of these came up in your latest ${n} analysed games. Over all ${found.games}, most often: ${themeInSentence(most.theme)} — ${howOftenWords(most.perGame)}.`));
+  } else {
+    points.appendChild(el('p', 'idea', `Most often: ${themeInSentence(most.theme)} — ${howOftenWords(most.perGame)} over your ${found.games === 1 ? 'one analysed game' : `${found.games} analysed games`}.`));
+  }
+  const rarer = found.rows.filter((r) => r.trend === 'rarer' && r !== lead).slice(0, 2);
+  const more = found.rows.filter((r) => r.trend === 'more' && r !== lead).slice(0, 2);
+  const pair = (r) => `${themeInSentence(r.theme)} (${r.before}, then ${r.recent})`;
+  if (rarer.length) points.appendChild(el('p', 'note good-note', `Getting rarer: ${rarer.map(pair).join('; ')}.`));
+  if (more.length) points.appendChild(el('p', 'note bad-note', `Coming up more: ${more.map(pair).join('; ')}.`));
+  panel.appendChild(points);
+
+  // ── every kind, with its numbers ────────────────────────────────────────
+  const list = el('div', 'record');
+  for (const r of found.rows) {
+    const row = el('div', 'record-row');
+    row.dataset.theme = r.theme;
+    const often = `${r.count} in ${found.games === 1 ? 'one game' : `${found.games} games`} · ${howOftenWords(r.perGame)}`;
+    const moved = n ? ` · ${r.before}, then ${r.recent}: ${PATTERN_TREND_WORDS[r.trend]}` : '';
+    row.innerHTML = `<span class="record-band">${esc(THEME_LABEL[r.theme] ?? r.theme)}</span>
+      <span class="record-score">${esc(often)}${esc(moved)}</span>`;
+    list.appendChild(row);
+  }
+  panel.appendChild(list);
+
+  panel.appendChild(el('p', 'note', n
+    ? `Each was shown on the board by replaying the moves that punished you, and describes what was done to you. The two numbers after each are your ${n} analysed games before the latest ${n}, and then the latest ${n}; "rarer" and "more often" are said only when the two are further apart than the luck of which games those were.`
+    : `Each was shown on the board by replaying the moves that punished you, and describes what was done to you. With ${2 * PATTERN_MIN_GAMES} analysed games this will also say whether each is getting rarer; there ${found.games === 1 ? 'is one' : `are ${found.games}`} so far.`));
+  if (found.mixed) {
+    panel.appendChild(el('p', 'note', 'Those two sets of games were not all judged the same way — by the same judge, at the same setting — and a different judge finds different things, so read the comparison loosely.'));
+  }
+  const unnamed = found.mistakes - found.named;
+  if (unnamed) {
+    panel.appendChild(el('p', 'note', `${unnamed} of your ${found.mistakes} mistakes could not be given a name: the moves that punished them showed no pattern this app is able to demonstrate. They were positional, or the loss came from a sequence rather than a trick.`));
+  }
+  if (Weak.about) {
+    const go = el('button', 'btn', 'Ten puzzles aimed at these');
+    go.type = 'button';
+    go.id = 'patternsWeak';
+    go.addEventListener('click', () => { show('weak'); startWeakSet(); });
+    const row = el('div', 'row');
+    row.style.marginTop = '10px';
+    row.appendChild(go);
+    panel.appendChild(row);
+  }
+  box.appendChild(panel);
+}
+
+/** The positions gone wrong in more than once, each with what was played, what was wanted, and the board. */
+function renderRecurring(box, games) {
+  const spots = recurringMistakes(games, { reachedIn: openingPositionsOf });
+  if (!spots.length) return;
+
+  const panel = el('div', 'panel');
+  panel.id = 'patternPositions';
+  panel.appendChild(el('h3', null, spots.length === 1 ? 'A position you keep going wrong in' : 'Positions you keep going wrong in'));
+  panel.appendChild(el('p', 'note', `In the first ${PATTERN_OPENING_PLIES / 2} moves, the same position gone wrong in more than one game. It will be on the board again, which makes it the cheapest thing here to put right.`));
+
+  for (const s of spots) {
+    const game = games.find((g) => g.at === s.from?.at);
+    const line = movesLeadingTo(game, s.from?.ply);
+    const item = el('div', 'pattern-spot');
+    item.dataset.key = s.key;
+    const Side = s.side === 'black' ? 'Black' : 'White';
+    item.appendChild(el('p', 'pattern-where', line ? `After ${line}` : `A position on move ${Math.ceil((s.from?.ply ?? 1) / 2)}, with ${Side} to play`));
+    const playedWords = s.played.map((p) => `${p.san} ${timesWords(p.count)}`);
+    const said = playedWords.length < 2 ? playedWords[0] : `${playedWords.slice(0, -1).join(', ')} and ${playedWords[playedWords.length - 1]}`;
+    const cost = Number.isFinite(s.loss) ? ` It cost about ${(s.loss / 100).toFixed(1)} points each time.` : '';
+    item.appendChild(el('p', 'note', `Reached ${timesWords(s.reached)}, gone wrong in ${s.games}: you played ${said}.${s.best ? ` The reviewer wanted ${s.best.san}.` : ''}${cost}`));
+    const look = el('button', 'btn', 'Look at it');
+    look.type = 'button';
+    look.addEventListener('click', () => openPractice(s.fen, { arrows: arrowsFor(s.played[0]?.uci ?? null, s.best?.uci ?? null) }));
+    const row = el('div', 'row');
+    row.appendChild(look);
+    item.appendChild(row);
+    panel.appendChild(item);
+  }
+  box.appendChild(panel);
+}
 
 
 // ── a backup file ──────────────────────────────────────────────────────────

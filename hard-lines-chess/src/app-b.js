@@ -2470,40 +2470,13 @@ function renderProgress() {
   }
   breakdown.appendChild(bars);
 
-  // WHAT THEY HAVE IN COMMON, which is the question this page exists to
-  // answer and which severity alone cannot: "twelve blunders" says how bad,
-  // never what kind. Every theme here was measured on the board.
-  const byTheme = {};
-  let classified = 0;
-  for (const m of allMistakes) {
-    if (!m.themes?.length) continue;
-    classified++;
-    for (const theme of m.themes) byTheme[theme] = (byTheme[theme] ?? 0) + 1;
-  }
-  const themes = Object.entries(byTheme).sort((a, b) => b[1] - a[1]);
-  if (themes.length) {
-    const panel = el('div', 'panel');
-    panel.appendChild(el('h3', null, 'What your mistakes have in common'));
-    panel.appendChild(el('p', 'note', 'Each one was shown on the board by replaying the moves that punished you, not guessed from what the move cost. They describe what was done TO you.'));
-    const bars = el('div', 'bars');
-    const worst = Math.max(...themes.map(([, n]) => n));
-    for (const [theme, count] of themes) {
-      const row = el('div', 'bar-row');
-      row.innerHTML = `<span class="bar-label">${esc(THEME_LABEL[theme] ?? theme)}</span>
-        <span class="bar"><span class="bar-fill" style="width:${Math.round((count / worst) * 100)}%"></span></span>
-        <span class="bar-count">${count}</span>`;
-      bars.appendChild(row);
-    }
-    panel.appendChild(bars);
-    // COUNTED AND STATED. A mistake the classifier could not name is not a
-    // mistake without a cause, and reporting only what it could name would
-    // make the list look more complete than it is.
-    const unnamed = allMistakes.length - classified;
-    if (unnamed) {
-      panel.appendChild(el('p', 'note', `${unnamed} of your ${allMistakes.length} mistakes could not be given a name: the moves that punished them showed no motif this app is able to demonstrate. They were positional, or the loss came from a sequence rather than a trick.`));
-    }
-    box.appendChild(panel);
-  }
+  // WHAT KEEPS HAPPENING, which is the question this page exists to answer and
+  // which severity alone cannot: "twelve blunders" says how bad, never what
+  // kind, how often, or whether it is getting rarer. The counting is in
+  // src/patterns.js and the panels in src/app-s.js: the kinds of mistake,
+  // where any could be given a name, and the positions gone wrong in more
+  // than once, which need no name.
+  renderPatterns(box, games);
 
   const mates = (byKind.allowed_mate ?? 0) + (byKind.missed_mate ?? 0);
   if (mates > 0) {

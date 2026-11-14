@@ -387,6 +387,19 @@
   .session-where span { display: block; color: var(--ink-soft); }
   .session-bar .row { margin: 0; flex: none; gap: 6px; flex-wrap: nowrap; }
   .session-bar .btn { padding: 6px 10px; font-size: 13px; }
+  /* What keeps happening, on Progress: the sentences at the top, and each
+     position gone wrong in more than once. */
+  .coach-points .idea { margin: 0; }
+  .coach-points .note { margin: 6px 0 0; }
+  .coach-points { margin-bottom: 12px; }
+  .pattern-spot { border-top: 1px solid var(--line); padding: 12px 0 2px; margin-top: 12px; }
+  .pattern-where { font-size: 14px; font-weight: 600; margin: 0; }
+  .pattern-spot .row { margin-top: 8px; }
+  /* A kind of mistake and its numbers make a long line. On a phone the name
+     goes above the numbers, rather than both being folded into two columns. */
+  @media (max-width: 619px) {
+    #patterns .record-row { flex-direction: column; gap: 2px; }
+  }
   .good-note { color: var(--good); }
   .bad-note { color: var(--danger); }
   .empty { color: var(--ink-faint); }

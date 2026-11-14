@@ -131,6 +131,8 @@ src/engine-pool.js  this app's engine in workers, several searches at once
 src/weak-spots.js   puzzles aimed at what your games go wrong in: reading the
                 pack, what to aim at, which puzzle next, your level on them
 src/daily.js    one session a day: what goes in it, and how many days running
+src/patterns.js what keeps happening: how often each kind of mistake comes up,
+                whether it is getting rarer, positions gone wrong in twice
 src/deviation.js where your games leave your repertoire, and what it cost
 src/import.js   the Chess.com archive reader (browser only; the APK has no network)
 src/pawn-tb.js  king and pawn against king, solved exactly (see below)
@@ -483,6 +485,52 @@ with a row of every kind it has to turn down, and plays through one in ten of
 the pack that ships; `tests/weak-spots-drive.cjs` takes sets across a board in
 a browser — aims, misses, puzzles coming back, a pack that cannot be had.
 
+## What keeps happening
+
+A review says what went wrong in one game, and Progress added the games up: so
+many forks allowed, so many pieces left loose. Neither said what a coach
+would: which of these is costing you most often now, whether it is getting
+rarer, and whether you keep going wrong in the same place. The panel that
+listed counts now says those three things (`src/patterns.js` counts,
+`src/app-s.js` says it).
+
+**How often is a rate.** "Fourteen forks" means one thing over twenty games
+and another over two hundred, so every kind of mistake is said per game:
+"about once every 2 games".
+
+**Whether it is getting rarer is two windows of the same size** — your latest
+twenty-five analysed games against the twenty-five before them, or fewer when
+there are fewer, and nothing at all under sixteen games. Each kind carries
+both counts, and "rarer" or "more often" is said only when they are further
+apart than the luck of which games those were: the two counts are set against
+the spread two such counts would show if nothing had changed, about the
+square root of their sum, and have to be a clear step and a half of that
+apart. Nine and then three is rarer; six and then three is not; three in all
+is too few to say, and the page says "too few to say". Windows that were not
+all judged the same way — one judge, one setting — are said to be, because a
+different judge finds different things. The sentence at the top is about the
+latest window: what came up most in it, at its rate there. What it names is
+not named again underneath, and when none of these came up in the latest
+window at all, that is what it says.
+
+**The same place** is the same position, in the first twelve moves, gone
+wrong in more than one game — the board, whose move, castling and en passant,
+so the same position by another order of moves is the same place. Each is
+listed with how one game got there, how many games reached it and how many
+went wrong in it, what you played and how often, what the reviewer wanted,
+and what it cost — and opens on the analysis board with both moves drawn. How
+often it was reached is read from the games' own moves, once a game; a game
+whose moves were not kept still reached whatever it went wrong in. A position
+needs no name for the mistake made in it, so the list is there even when no
+mistake could be given one.
+
+Everything follows the page's choice of time control, and where there are
+puzzles beside the page there is a way straight to ten aimed at these.
+`tests/patterns.test.mjs` holds the counting to its rules — counts that
+differ by luck and counts that differ by more, a game listed twice, a game
+whose moves were not kept, the same position by another road — and
+`tests/patterns-drive.cjs` holds the page to the numbers in the games.
+
 ## One session a day
 
 Today is a list: drills due, puzzles due, an opening to run through, ten
@@ -600,15 +648,16 @@ again by Puzzles.
 
 ```
 npm install            # playwright, for the browser drivers
-npm test               # 27 node suites: perft, motifs, the move explainer, Reckless, the judges, traps,
+npm test               # 28 node suites: perft, motifs, the move explainer, Reckless, the judges, traps,
                        # mate cap, multi-line search, the solved table, endgame
                        # and opening prose, notation, clocks, the stored areas,
                        # the weak-spot puzzles and the tool that makes their pack,
-                       # the daily session and its count of days,
+                       # the daily session and its count of days, what keeps
+                       # happening across games,
                        # the Android app's file handling (needs a Java compiler),
                        # evaluation symmetry, the fast paths against the long
                        # way round, repeatability, interface vocabulary
-npm run test:browser   # 56 Playwright drivers against dist/
+npm run test:browser   # 57 Playwright drivers against dist/
 npm run verify:openings
 ```
 
