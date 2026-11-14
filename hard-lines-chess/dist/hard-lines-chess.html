@@ -376,6 +376,17 @@
 
   .note { font-size: 13px; color: var(--ink-faint); line-height: 1.5; margin: 10px 0 0; }
   .note strong { color: var(--ink-soft); font-weight: 600; }
+  /* Today's session: the card on Today, and the bar while one is under way. */
+  .session-run { font-size: 15px; font-weight: 600; margin: 8px 0 0; }
+  /* THE BAR IS SHORT ON PURPOSE. It sits above a board on a phone, and every
+     line it takes is a line of the board pushed under the fold: two short
+     lines of words on the left, small buttons on the right. */
+  .session-bar { margin-bottom: 14px; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .session-where { margin: 0; font-size: 13px; line-height: 1.35; min-width: 0; }
+  .session-where strong { display: block; font-weight: 600; }
+  .session-where span { display: block; color: var(--ink-soft); }
+  .session-bar .row { margin: 0; flex: none; gap: 6px; flex-wrap: nowrap; }
+  .session-bar .btn { padding: 6px 10px; font-size: 13px; }
   .good-note { color: var(--good); }
   .bad-note { color: var(--danger); }
   .empty { color: var(--ink-faint); }
@@ -436,11 +447,11 @@
   /* ── forms ─────────────────────────────────────────────────────────── */
   .field { display: grid; gap: 5px; margin-bottom: 10px; }
   .field > span { font-size: 12.5px; color: var(--ink-soft); font-weight: 500; }
-  select, input[type="text"], textarea {
+  select, input[type="text"], input[type="time"], textarea {
     border: 1px solid var(--line-strong); background: var(--panel); color: var(--ink); border-radius: var(--radius-sm);
     padding: 9px 11px; font: inherit; font-size: 14px; width: 100%;
   }
-  select:focus, input[type="text"]:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
+  select:focus, input[type="text"]:focus, input[type="time"]:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
   textarea { resize: vertical; font-size: 13px; line-height: 1.5; }
   .fields { display: grid; gap: 10px; margin-top: 12px; }
   @media (min-width: 620px) { .fields { grid-template-columns: repeat(3, 1fr); } }
@@ -710,6 +721,17 @@
     <div class="tabs-wrap subtabs-wrap" id="subtabsWrap" hidden><nav class="tabs subtabs" id="subtabs" aria-label="Screens in this section"></nav></div>
   </header>
 
+  <!-- TODAY'S SESSION, while one is under way: on every screen, above it -->
+  <div class="panel session-bar" id="sessionBar" hidden>
+    <p class="session-where"><strong id="sessionWhere"></strong><span id="sessionPart"></span></p>
+    <div class="row">
+      <button class="btn primary" id="sessionNext" type="button" hidden>Next part</button>
+      <button class="btn" id="sessionBack" type="button" hidden>Back to it</button>
+      <button class="btn" id="sessionSkip" type="button" aria-label="Skip this part of the session">Skip</button>
+      <button class="btn" id="sessionStop" type="button" aria-label="Stop the session">Stop</button>
+    </div>
+  </div>
+
   <!-- TODAY -->
   <section id="section-today">
     <p class="lede">Your training for today. Items appear only when there is something to do.</p>
@@ -717,6 +739,7 @@
       <p class="note" id="catchUpNote"></p>
       <div class="row"><button class="btn danger" id="catchUpStop" type="button" hidden>Stop</button></div>
     </div>
+    <div id="sessionCard" class="panel session-card" hidden></div>
     <div id="todayList" class="tasks"></div>
     <div id="todayRecord" class="panel"></div>
     <div class="panel" id="dataPanel">
@@ -5654,7 +5677,7 @@ const STORE_VERSION = 2;
  * the move between stores cannot each forget a different one —
  * tests/store.test.mjs holds every Store.get and Store.set in the source to it.
  */
-const STORE_AREAS = ['prefs', 'openings', 'drills', 'history', 'reviews', 'puzzles', 'teaching', 'endgames', 'vision', 'storm', 'weakspots'];
+const STORE_AREAS = ['prefs', 'openings', 'drills', 'history', 'reviews', 'puzzles', 'teaching', 'endgames', 'vision', 'storm', 'weakspots', 'daily'];
 
 /** Where the copy on this device is kept, and how long opening it may take. */
 const LOCAL_DB = { name: 'hardlines', table: 'state', openMs: 8000 };
@@ -7985,6 +8008,179 @@ function packLineText(opened) {
 /** What a puzzle was, in the solver's words: the themes there are words for, in the pack's order. */
 function packThemeWords(themes) {
   return (themes ?? []).map((t) => PUZZLE_THEME_WORDS[t]?.one).filter(Boolean);
+}
+
+
+// ── one session a day, and how many days running ───────────────────────────
+//
+// Today is a list: drills due, puzzles due, an opening to run through, ten
+// puzzles for your weak spots. Each row is a different screen, and working
+// down the list means choosing four times. A session is the same work as one
+// thing with a beginning and an end: a few of your own mistakes, a few chances
+// from your own games, puzzles for what your games go wrong in, and one
+// opening line from memory — in that order, without asking what is next.
+//
+// A SESSION IS SHORT ON PURPOSE. About a dozen positions and one line. What
+// is due beyond that is still on Today, underneath; the session is the part
+// that is done every day, and a part that takes forty minutes is not.
+//
+// A DAY COUNTS WHEN THE SESSION IS SEEN THROUGH, and the days are counted:
+// "six days running" is the only thing here that is about tomorrow rather
+// than today. A day on which there was nothing at all to do is neither
+// counted nor held against the run. A day that was simply missed ends it.
+//
+// Nothing in this file touches the page. tests/daily.test.mjs holds it to
+// what it says.
+
+/** How many positions a session asks, across its parts. */
+const SESSION_POSITIONS = 12;
+/** Of those, at most this many of your own mistakes, and of chances from your own games. */
+const SESSION_DRILLS = 4;
+const SESSION_PUZZLES = 3;
+/** The weak-spot puzzles are never fewer than this when there is a pack. */
+const SESSION_WEAK_LEAST = 5;
+/** How many days of sessions are kept. */
+const DAILY_KEEP_DAYS = 400;
+
+/** A day as the calendar on this device has it: 2026-11-14. */
+function dayKey(at = Date.now()) {
+  const d = new Date(at);
+  const two = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
+}
+
+/** The day before a day, by the calendar: clocks going forward or back do not make it two days or none. */
+function dayBefore(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return dayKey(new Date(y, m - 1, d - 1, 12).getTime());
+}
+
+/** The stored area as it starts, and with anything an older copy lacks filled in. */
+function dailyData(stored) {
+  const src = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+  const days = {};
+  if (src.days && typeof src.days === 'object' && !Array.isArray(src.days)) {
+    for (const [key, day] of Object.entries(src.days)) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(key) && day && typeof day === 'object') days[key] = day;
+    }
+  }
+  return {
+    ...src,
+    days,
+    best: Number.isFinite(src.best) && src.best > 0 ? Math.floor(src.best) : 0,
+  };
+}
+
+/** What a day is marked as: a session finished, nothing to do, or neither. */
+function dayMark(days, key) {
+  return days?.[key]?.done ? 'done' : (days?.[key]?.rest ? 'rest' : 'open');
+}
+
+/** The last day at or before this one that was not a day of nothing to do. */
+function lastWorkingDay(days, key) {
+  for (let i = 0; i < DAILY_KEEP_DAYS + 1 && dayMark(days, key) === 'rest'; i++) key = dayBefore(key);
+  return key;
+}
+
+/** The run that ends on a finished day, counted back day by day. */
+function runEndingOn(days, key) {
+  let run = 0;
+  for (let i = 0; i < DAILY_KEEP_DAYS + 1; i++) {
+    const mark = dayMark(days, key);
+    if (mark === 'open') break;
+    if (mark === 'done') {
+      // A day that knows how long the run was when it was marked settles it.
+      if (Number.isFinite(days[key].run)) return run + days[key].run;
+      run++;
+    }
+    key = dayBefore(key);
+  }
+  return run;
+}
+
+/**
+ * How many days running, as of a moment.
+ *
+ *   run     the days in a row a session was finished, ending today if today's
+ *           is done and yesterday if it is not — a run is not lost at
+ *           midnight, it is lost by a day going past
+ *   today   'done' | 'rest' | 'open'
+ *   atRisk  there is a run, and today's session is what keeps it
+ *
+ * A day marked as having had nothing to do is stepped over: it adds nothing
+ * and ends nothing.
+ */
+function dailyRun(days, now = Date.now()) {
+  const todayKey = dayKey(now);
+  const today = dayMark(days, todayKey);
+  const end = lastWorkingDay(days, today === 'done' ? todayKey : dayBefore(todayKey));
+  const run = dayMark(days, end) === 'done' ? runEndingOn(days, end) : 0;
+  return { run, today, atRisk: today !== 'done' && run > 0 };
+}
+
+/** The longest run there has been, among the days that are kept. */
+function dailyBest(days) {
+  let best = 0;
+  for (const key of Object.keys(days ?? {})) {
+    if (days[key]?.done) best = Math.max(best, runEndingOn(days, key));
+  }
+  return best;
+}
+
+/**
+ * Write a day in, and let go of days older than are kept.
+ *
+ * A FINISHED DAY IS TOLD HOW LONG THE RUN IS, counted as it is marked. Only so
+ * many days are kept, and a run longer than that would otherwise be counted
+ * back as far as the oldest day kept and no further.
+ */
+function markDay(data, key, day) {
+  data.days[key] = day;
+  if (day?.done) {
+    day.run = 1 + (() => {
+      const before = lastWorkingDay(data.days, dayBefore(key));
+      return dayMark(data.days, before) === 'done' ? runEndingOn(data.days, before) : 0;
+    })();
+    data.best = Math.max(data.best ?? 0, day.run);
+  }
+  const keys = Object.keys(data.days).sort();
+  for (const old of keys.slice(0, Math.max(0, keys.length - DAILY_KEEP_DAYS))) delete data.days[old];
+  return data;
+}
+
+/**
+ * Lay out today's session from what there is to do.
+ *
+ *   drills    how many of your own mistakes are due
+ *   puzzles   how many chances from your own games are due
+ *   weak      whether there is a pack of puzzles to choose from
+ *   opening   the id of an opening line that is due and has been met before,
+ *             or null
+ *
+ * Your own mistakes come first and are never crowded out; the weak-spot
+ * puzzles make the session up to its size, and with no pack the first two
+ * may take the room instead. Returns the parts in the order they are done —
+ * an empty list when there is nothing at all.
+ *
+ * @returns {Array<{ kind: 'drills'|'puzzles'|'weak'|'opening', want: number, id?: string }>}
+ */
+function planDailySession({ drills = 0, puzzles = 0, weak = false, opening = null } = {}) {
+  const parts = [];
+  let d = Math.min(drills, SESSION_DRILLS);
+  let p = Math.min(puzzles, SESSION_PUZZLES);
+  let w = 0;
+  if (weak) {
+    w = Math.max(SESSION_WEAK_LEAST, SESSION_POSITIONS - d - p);
+  } else {
+    // No pack: what would have been its room goes to what is due, mistakes first.
+    d = Math.min(drills, SESSION_POSITIONS - p);
+    p = Math.min(puzzles, SESSION_POSITIONS - d);
+  }
+  if (d > 0) parts.push({ kind: 'drills', want: d });
+  if (p > 0) parts.push({ kind: 'puzzles', want: p });
+  if (w > 0) parts.push({ kind: 'weak', want: w });
+  if (opening) parts.push({ kind: 'opening', want: 1, id: opening });
+  return parts;
 }
 
 
@@ -13286,6 +13482,7 @@ const App = {
   reviews: null,
   puzzles: null,
   weak: null,
+  daily: null,
   teaching: null,
   prefs: null,
   downloads: null,
@@ -13480,6 +13677,7 @@ function show(section) {
   // it ends when you leave rather than quietly carrying on.
   if (section !== 'storm') stopStorm();
   if (section !== 'vision') stopVision();
+  renderSessionBar();
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
@@ -13503,6 +13701,7 @@ function renderToday() {
   const note = $('storeNote');
   if (note) note.textContent = Store.where();
   renderBackup();
+  renderSessionCard();
 
   const box = $('todayList');
   box.innerHTML = '';
@@ -14508,6 +14707,7 @@ async function finishOpening() {
         ? `Clean run. ${what} comes back later rather than sooner.`
         : `${Openings.wrong} prompt${Openings.wrong === 1 ? '' : 's'} needed, so ${what.toLowerCase()} comes back tomorrow.`;
     }
+    sessionAnswered('opening', clean);
   } else {
     // A walk-through is recorded as exactly that. It does not schedule
     // anything — only a test can — but the card stops saying "not started".
@@ -15841,10 +16041,19 @@ async function onDrillMove({ move, san }) {
     `Why is ${Drill.current.best.san} better than ${Drill.current.played}?`, { arrows });
 
   Drill.current.card = SRS.review(Drill.current.card, correct);
+  // Counted for today's session before the save, not after: the bar is on the
+  // screen, and the save may take a moment.
+  sessionAnswered('drills', correct);
   await Store.set('drills', App.drills);
 }
 
-function nextDrill() { Drill.current = null; startDrill(); if (!Drill.current) renderDrills(); }
+function nextDrill() {
+  Drill.current = null;
+  // A session takes so many drills and then goes on to its next part.
+  if (sessionPartOver('drills', dueDrills().length)) return;
+  startDrill();
+  if (!Drill.current) renderDrills();
+}
 
 /**
  * What each theme is called on screen.
@@ -17724,12 +17933,15 @@ async function onPuzzleMove({ move, san }) {
   // distance and leave the ones he avoids due forever.
   if (Puzzles.scoring) {
     p.card = SRS.review(p.card, correct);
+    sessionAnswered('puzzles', correct);
     await Store.set('puzzles', App.puzzles);
   }
 }
 
 function nextPuzzle() {
   Puzzles.current = null;
+  // A session takes so many puzzles and then goes on to its next part.
+  if (sessionPartOver('puzzles', duePuzzles().length)) return;
   startPuzzle();
   if (!Puzzles.current) renderPuzzles();
 }
@@ -22025,7 +22237,8 @@ function nextWeakPuzzle() {
 
   $('weakSetup').hidden = true;
   $('weakBoardWrap').hidden = false;
-  $('weakStop').hidden = false;
+  // Inside a session the way out is the session's own, on the bar above.
+  $('weakStop').hidden = sessionIs('weak');
   $('weakLegend').hidden = true;
   $('weakNext').hidden = true;
   $('weakShow').hidden = true;
@@ -22151,6 +22364,7 @@ async function finishWeakPuzzle() {
   data.log.push({ t: Date.now(), id: opened.id, ok: solved, r: opened.rating, k: cur.kind, a: cur.aim });
   if (data.log.length > WEAK_LOG_KEEP) data.log = data.log.slice(-WEAK_LOG_KEEP);
   Weak.set.results.push({ ok: solved, kind: cur.kind, aim: cur.aim });
+  sessionAnswered('weak', solved);
 
   // ── what the screen says ────────────────────────────────────────────────
   const words = packThemeWords(opened.themes);
@@ -22167,7 +22381,7 @@ async function finishWeakPuzzle() {
 
   const lastOfSet = Weak.set.at >= Weak.set.slots.length - 1;
   $('weakNext').hidden = false;
-  $('weakNext').textContent = lastOfSet ? 'See how the ten went' : 'Next';
+  $('weakNext').textContent = lastOfSet && !sessionIs('weak') ? 'See how the ten went' : 'Next';
   $('weakExplore').hidden = false;
   $('weakExplore').onclick = () => openPractice(opened.start, { arrows: arrowsFor(null, opened.line[0].uci) });
   $('weakAskWhy').hidden = !Coach.ready;
@@ -22225,6 +22439,8 @@ function endWeakSet({ ranOut = false, stopped = false } = {}) {
       saved = Store.set('weakspots', App.weak);
     }
   }
+  // A set that was part of today's session hands on to the session's next part.
+  if (!stopped && sessionPartOver('weak', 0)) return saved;
   renderWeak();
   return saved;
 }
@@ -22234,6 +22450,416 @@ function stopWeakSet() {
   if (!Weak.set) return;
   endWeakSet({ stopped: true });
 }
+
+
+// ── today's session: the screen ────────────────────────────────────────────
+//
+// src/daily.js lays a session out and counts the days. This takes one across
+// the screens that already do the work: Drills asks your own mistakes,
+// Puzzles your own chances, Weak spots the puzzles aimed at what goes wrong,
+// Openings a line from memory. The session does not ask anything itself. It
+// says which screen is next, how far through you are, and when it is over.
+//
+// EACH SCREEN KEEPS ITS OWN RULES. A drill answered in a session is scheduled
+// exactly as one answered from the Drills tab, a puzzle solved moves your
+// level the same way, and everything is saved by the screen that asked it,
+// when it is answered. So a session abandoned half way loses nothing that was
+// done; it simply is not a finished session.
+//
+// THE BAR ACROSS THE TOP IS THE SESSION. It is there on every screen while
+// one is under way — which part, how many of how many — with the way out, and
+// the way back if you have wandered off to look at something.
+
+const Session = {
+  running: false,
+  parts: [],        // the plan, each part gaining { n, ok } as it is answered
+  at: -1,
+  waiting: false,   // the part on screen is finished and is waiting to be left
+};
+
+/** Which screen does each part. */
+const SESSION_SCREEN = { drills: 'drills', puzzles: 'puzzles', weak: 'weak', opening: 'openings' };
+
+/** A part, as the list of what is in a session says it. */
+const SESSION_PART_WORDS = {
+  drills: (n) => `${n} of your own ${n === 1 ? 'mistake' : 'mistakes'}`,
+  puzzles: (n) => `${n} ${n === 1 ? 'chance' : 'chances'} from your own games`,
+  weak: (n) => `${n} ${n === 1 ? 'puzzle' : 'puzzles'} for your weak spots`,
+  opening: () => 'one opening line from memory',
+};
+
+/** A part, as the bar names the one you are in. */
+const SESSION_PART_NAME = {
+  drills: 'your own mistakes',
+  puzzles: 'chances from your own games',
+  weak: 'puzzles for your weak spots',
+  opening: 'an opening line from memory',
+};
+
+/** "a", "a and b", "a, b and c". */
+function listWords(items) {
+  if (items.length < 2) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+const daysWords = (n) => `${n} ${n === 1 ? 'day' : 'days'}`;
+
+/**
+ * The opening line a session asks for: one that is due and has been met
+ * before — walked through, or tested — the longest overdue first. A line
+ * never looked at is not something to be asked from memory.
+ */
+function sessionOpening() {
+  const met = OPENINGS
+    .map((o) => ({ opening: o, card: App.openings.cards[o.id] }))
+    .filter(({ card }) => card && (card.seen > 0 || card.learned) && SRS.isDue(card));
+  met.sort((a, b) => (a.card.due ?? 0) - (b.card.due ?? 0));
+  return met[0]?.opening ?? null;
+}
+
+/** Today's session, laid out from what there is to do right now. */
+function sessionPlanNow() {
+  return planDailySession({
+    drills: dueDrills().length,
+    puzzles: duePuzzles().length,
+    weak: Boolean(Weak.about),
+    opening: sessionOpening()?.id ?? null,
+  });
+}
+
+const sessionPart = () => (Session.running ? Session.parts[Session.at] ?? null : null);
+/** Whether a session is under way and this is the part it is on. */
+const sessionIs = (kind) => sessionPart()?.kind === kind;
+
+function startSession() {
+  if (Session.running) { backToSession(); return; }
+  const parts = sessionPlanNow().map((p) => ({ ...p, n: 0, ok: 0 }));
+  if (!parts.length) { renderToday(); return; }
+  Session.running = true;
+  Session.parts = parts;
+  Session.at = -1;
+  advanceSession();
+}
+
+/** On to the next part, or the end. */
+function advanceSession() {
+  if (!Session.running) return;
+  Session.waiting = false;
+  Session.at += 1;
+  const part = Session.parts[Session.at];
+  if (!part) { finishSession(); return; }
+  openSessionPart(part);
+}
+
+/** Put a part on the screen that does it. A part with nothing left to ask is passed over. */
+function openSessionPart(part) {
+  show(SESSION_SCREEN[part.kind]);
+  if (part.kind === 'drills') {
+    Drill.current = null;
+    startDrill();
+    if (!Drill.current) { advanceSession(); return; }
+  } else if (part.kind === 'puzzles') {
+    Puzzles.current = null;
+    startPuzzle();
+    if (!Puzzles.current) { advanceSession(); return; }
+  } else if (part.kind === 'weak') {
+    // If the puzzles cannot be fetched, the Weak spots screen says why, and
+    // the bar's "Skip this part" is the way on.
+    if (Weak.current) stopWeakSet();
+    startWeakSet({ size: part.want - part.n });
+  } else if (part.kind === 'opening') {
+    const opening = OPENINGS.find((o) => o.id === part.id);
+    if (!opening) { advanceSession(); return; }
+    if (Openings.current) closeOpening();
+    startOpening(opening, 'drill');
+  }
+  renderSessionBar();
+}
+
+/** A screen says a question of this kind was answered, and whether rightly. */
+function sessionAnswered(kind, ok) {
+  const part = sessionPart();
+  if (!part || part.kind !== kind) return;
+  part.n += 1;
+  if (ok) part.ok += 1;
+  // A line from memory is one question; when it is over the part is, and the
+  // result stays up until it is left.
+  if (kind === 'opening') Session.waiting = true;
+  renderSessionBar();
+}
+
+/**
+ * A screen asks, as its "Next" is pressed: has the session had what it wanted
+ * from here? `left` is how many more this screen could still ask. True means
+ * the session has moved on and the screen should ask nothing more.
+ */
+function sessionPartOver(kind, left) {
+  const part = sessionPart();
+  if (!part || part.kind !== kind) return false;
+  if (part.n < part.want && left > 0) return false;
+  advanceSession();
+  return true;
+}
+
+/** Leave the part that is on the screen, the way it would be left by hand. */
+function leaveSessionPart(part) {
+  if (part?.kind === 'weak' && Weak.current) stopWeakSet();
+  if (part?.kind === 'opening' && Openings.current) closeOpening();
+  if (part?.kind === 'drills') Drill.current = null;
+  if (part?.kind === 'puzzles') Puzzles.current = null;
+}
+
+/** On from a part that is finished and has been left up to be read — the opening line. */
+function leaveFinishedPart() {
+  if (!Session.running) return;
+  leaveSessionPart(sessionPart());
+  advanceSession();
+}
+
+function skipSessionPart() {
+  if (!Session.running) return;
+  leaveSessionPart(sessionPart());
+  advanceSession();
+}
+
+/** Leave the session. What was answered stays answered; the day is not counted. */
+function stopSession() {
+  if (!Session.running) return;
+  const part = sessionPart();
+  Session.running = false;
+  Session.waiting = false;
+  leaveSessionPart(part);
+  renderSessionBar();
+  show('today');
+}
+
+/** Back to the screen the session is on, from wherever. */
+function backToSession() {
+  const part = sessionPart();
+  if (!part) return;
+  const section = SESSION_SCREEN[part.kind];
+  const idle = (part.kind === 'drills' && !Drill.current) || (part.kind === 'puzzles' && !Puzzles.current)
+    || (part.kind === 'weak' && !Weak.current) || (part.kind === 'opening' && !Openings.current && !Session.waiting);
+  if (idle) openSessionPart(part); else { show(section); renderSessionBar(); }
+}
+
+/**
+ * The end. The day counts if anything at all was answered: a session skipped
+ * from end to end is not a session.
+ */
+async function finishSession() {
+  Session.running = false;
+  Session.waiting = false;
+  const answered = Session.parts.reduce((n, p) => n + p.n, 0);
+  if (answered > 0) {
+    markDay(App.daily, dayKey(), {
+      done: true,
+      at: Date.now(),
+      parts: Session.parts.map(({ kind, n, ok, want }) => ({ kind, n, ok, want })),
+    });
+    await Store.set('daily', App.daily);
+    tellReminder();
+  }
+  renderSessionBar();
+  show('today');
+}
+
+// ── the bar ────────────────────────────────────────────────────────────────
+
+function renderSessionBar() {
+  const bar = $('sessionBar');
+  if (!bar) return;
+  const part = sessionPart();
+  bar.hidden = !part;
+  if (!part) return;
+  const here = App.section === SESSION_SCREEN[part.kind];
+  const count = part.kind === 'opening' ? '' : ` · ${Math.min(part.n, part.want)} of ${part.want}`;
+  const name = SESSION_PART_NAME[part.kind];
+  $('sessionWhere').textContent = `Today's session · part ${Session.at + 1} of ${Session.parts.length}`;
+  $('sessionPart').textContent = `${name.charAt(0).toUpperCase()}${name.slice(1)}${count}`;
+  const last = Session.at === Session.parts.length - 1;
+  $('sessionNext').hidden = !(here && Session.waiting);
+  $('sessionNext').textContent = last ? 'Finish' : 'Next part';
+  $('sessionBack').hidden = here;
+  $('sessionSkip').hidden = !here || Session.waiting;
+  // The last part's skip ends the session, and says so to anything that reads it out.
+  $('sessionSkip').setAttribute('aria-label', last ? 'Skip this part and finish the session' : 'Skip this part of the session');
+}
+
+// ── the card on Today ──────────────────────────────────────────────────────
+
+/** What a finished session did, in words. */
+function sessionDoneWords(parts) {
+  const said = [];
+  for (const p of parts ?? []) {
+    if (!p.n) continue;
+    if (p.kind === 'drills') said.push(`${p.ok} of ${p.n} of your own mistakes put right`);
+    if (p.kind === 'puzzles') said.push(`${p.ok} of ${p.n} ${p.n === 1 ? 'chance' : 'chances'} from your own games taken`);
+    if (p.kind === 'weak') said.push(`${p.ok} of ${p.n} weak-spot puzzles solved`);
+    if (p.kind === 'opening') said.push(p.ok ? 'an opening line from memory without a prompt' : 'an opening line from memory, with prompts');
+  }
+  return said.length ? `${listWords(said).replace(/^./, (c) => c.toUpperCase())}.` : '';
+}
+
+function renderSessionCard() {
+  const card = $('sessionCard');
+  if (!card) return;
+  card.innerHTML = '';
+  const plan = sessionPlanNow();
+  // Whether there are puzzles beside the page is still being found out, and
+  // they are most of a session: nothing is said about today until it is known.
+  if (!plan.length && Weak.about === undefined && !Session.running) { card.hidden = true; return; }
+  // A day marked as having nothing to do, on which something has since turned
+  // up — new games came in — is an ordinary day again.
+  if (plan.length && App.daily.days[dayKey()]?.rest) {
+    delete App.daily.days[dayKey()];
+    Store.set('daily', App.daily);
+  }
+  const state = dailyRun(App.daily.days);
+  const best = App.daily.best ?? 0;
+  const today = App.daily.days[dayKey()];
+  const button = (label, primary, go) => {
+    const b = el('button', primary ? 'btn primary' : 'btn', label);
+    b.type = 'button';
+    b.id = 'sessionStart';
+    b.addEventListener('click', go);
+    const row = el('div', 'row');
+    row.style.marginTop = '10px';
+    row.appendChild(b);
+    return row;
+  };
+  card.hidden = false;
+
+  if (Session.running) {
+    card.appendChild(el('h3', null, 'Today\'s session'));
+    card.appendChild(el('p', 'note', `Under way: part ${Session.at + 1} of ${Session.parts.length}, ${SESSION_PART_NAME[sessionPart().kind]}.`));
+    card.appendChild(button('Back to it', true, backToSession));
+    return;
+  }
+
+  if (state.today === 'done') {
+    card.appendChild(el('h3', null, 'Done for today'));
+    const run = el('p', 'session-run', `${daysWords(state.run)} running.`);
+    card.appendChild(run);
+    const did = sessionDoneWords(today?.parts);
+    if (did) card.appendChild(el('p', 'note', did));
+    if (best > state.run) card.appendChild(el('p', 'note', `Your longest run is ${daysWords(best)}.`));
+    if (plan.length) card.appendChild(button('Another session', false, startSession));
+    renderReminder(card);
+    return;
+  }
+
+  if (!plan.length) {
+    // Nothing to do is said — and where there is a run of days, the day is
+    // marked so that it does not end it.
+    //
+    // ONLY WHERE THERE IS A RUN. The mark exists to carry a run across a quiet
+    // day, and with no run there is nothing for it to carry: writing one
+    // anyway would mean that merely opening the app changed what is stored,
+    // on every quiet day, for nothing.
+    card.appendChild(el('h3', null, 'Today\'s session'));
+    card.appendChild(el('p', 'note', state.run
+      ? `Nothing is due today, so there is no session. A day like this does not end a run: it stands at ${daysWords(state.run)}.`
+      : 'Nothing is due today, so there is no session. Play a game or analyse one, and tomorrow there will be.'));
+    if (state.run > 0 && state.today !== 'rest') {
+      markDay(App.daily, dayKey(), { rest: true });
+      Store.set('daily', App.daily);
+    }
+    renderReminder(card);
+    return;
+  }
+
+  card.appendChild(el('h3', null, 'Today\'s session'));
+  card.appendChild(el('p', 'note', `${listWords(plan.map((p) => SESSION_PART_WORDS[p.kind](p.want))).replace(/^./, (c) => c.toUpperCase())}, one after another.`));
+  const run = state.run
+    ? `${daysWords(state.run)} running. Today's makes it ${state.run + 1}.`
+    : (best ? `Your longest run is ${daysWords(best)}. Today starts a new one.` : 'Finish one every day and the days are counted.');
+  card.appendChild(el('p', 'session-run', run));
+  card.appendChild(button('Start', true, startSession));
+  renderReminder(card);
+}
+
+// ── the reminder, in the Android app ───────────────────────────────────────
+//
+// A page cannot remind anybody of anything once it is closed, so the reminder
+// is the Android app's: it keeps the time, sets the alarm and shows the
+// notification (Reminder.java). The page's part is the switch, and telling
+// the app when a session has been done — which is how the reminder knows to
+// say nothing that day. In a browser there is no app to ask, and no switch.
+
+/** The Android app's reminder, where the page is running inside an app that has one. */
+function reminderBridge() {
+  const bridge = typeof window !== 'undefined' ? window.HardLinesAndroid : null;
+  return bridge && typeof bridge.setReminder === 'function' ? bridge : null;
+}
+
+/** How the reminder stands, as the app tells it: { on, hour, minute, allowed } — or null. */
+function reminderState() {
+  const bridge = reminderBridge();
+  if (!bridge) return null;
+  try {
+    const state = JSON.parse(bridge.reminder());
+    return state && typeof state.on === 'boolean' && Number.isInteger(state.hour) && Number.isInteger(state.minute) ? state : null;
+  } catch {
+    return null;
+  }
+}
+
+const clockWords = (hour, minute) => `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+
+/** Tell the app which day a session was last finished on, and the run then: it is what the reminder goes by. */
+function tellReminder() {
+  const bridge = reminderBridge();
+  if (!bridge) return;
+  const last = Object.keys(App.daily.days).filter((key) => App.daily.days[key]?.done).sort().pop() ?? '';
+  try { bridge.sessionDone(last, dailyRun(App.daily.days).run); } catch { /* nothing to be done about it from here */ }
+}
+
+function renderReminder(card) {
+  const bridge = reminderBridge();
+  const state = reminderState();
+  if (!bridge || !state) return;
+  const box = el('details', 'more');
+  box.id = 'reminderBox';
+  box.open = Session.reminderOpen === true;
+  box.addEventListener('toggle', () => { Session.reminderOpen = box.open; });
+  const at = clockWords(state.hour, state.minute);
+  box.appendChild(el('summary', null, state.on ? `Reminder: on, at ${at}` : 'Reminder: off'));
+
+  const row = el('div', 'row');
+  const time = document.createElement('input');
+  time.type = 'time';
+  time.id = 'reminderTime';
+  time.value = at;
+  time.setAttribute('aria-label', 'When to be reminded');
+  const toggle = el('button', 'btn', state.on ? 'Turn it off' : 'Turn it on');
+  toggle.type = 'button';
+  toggle.id = 'reminderToggle';
+  const set = (on) => {
+    const [hour, minute] = (time.value || at).split(':').map(Number);
+    Session.reminderOpen = true;
+    bridge.setReminder(on, Number.isInteger(hour) ? hour : state.hour, Number.isInteger(minute) ? minute : state.minute);
+  };
+  toggle.addEventListener('click', () => set(!state.on));
+  // Changing the time of a reminder that is on moves it; of one that is off, it waits for the switch.
+  time.addEventListener('change', () => { if (state.on) set(true); });
+  row.appendChild(time);
+  row.appendChild(toggle);
+  box.appendChild(row);
+
+  const say = !state.on
+    ? 'Turned on, the phone reminds you once a day, about this time, that the session has not been done — and says nothing on a day when it has.'
+    : (state.allowed
+      ? `The phone reminds you at ${at} or a few minutes after, on any day the session has not been done by then.`
+      : 'It is on, but this phone is not letting the app show notifications, so nothing will appear. Allow them for Hard Lines in the phone\'s settings, under Apps.');
+  const note = el('p', state.on && !state.allowed ? 'note bad-note' : 'note', say);
+  note.id = 'reminderNote';
+  box.appendChild(note);
+  card.appendChild(box);
+}
+
+/** The app says the reminder has changed — it was set, or the phone answered the question about notifications. */
+window.hardLinesReminderChanged = () => { if (App.section === 'today') renderToday(); };
 
 
 // ── a backup file ──────────────────────────────────────────────────────────
@@ -22300,6 +22926,7 @@ const BACKUP_SHAPES = {
   vision: isPlainObject,
   storm: (v) => v === null || isPlainObject(v),
   weakspots: (v) => v === null || (isPlainObject(v) && listOrAbsent(v.done) && listOrAbsent(v.again) && listOrAbsent(v.log)),
+  daily: (v) => v === null || (isPlainObject(v) && (v.days === undefined || isPlainObject(v.days))),
 };
 
 /** The Android app's own file handling, where the page is running inside it. */
@@ -23005,6 +23632,7 @@ async function loadStored() {
   App.reviews = await Store.get('reviews', { games: [] });
   App.puzzles = await Store.get('puzzles', { items: [], scanned: [] });
   App.weak = weakSpotsData(await Store.get('weakspots', null));
+  App.daily = dailyData(await Store.get('daily', null));
   App.teaching = await Store.get('teaching', { games: [] });
   Endgames.results = await Store.get('endgames', {});
   Vision.best = await Store.get('vision', {});
@@ -23198,6 +23826,12 @@ async function boot() {
   $('puzzleScan').addEventListener('click', scanGamesForTactics);
   $('puzzleStop').addEventListener('click', stopScan);
 
+  // Today's session: the bar that is there on every screen while one is under way
+  $('sessionNext').addEventListener('click', leaveFinishedPart);
+  $('sessionBack').addEventListener('click', backToSession);
+  $('sessionSkip').addEventListener('click', skipSessionPart);
+  $('sessionStop').addEventListener('click', stopSession);
+
   // Weak spots
   $('weakStart').addEventListener('click', () => startWeakSet());
   $('weakNext').addEventListener('click', weakNext);
@@ -23349,7 +23983,11 @@ async function boot() {
 
   // Whether there are puzzles beside this page is found out once it is up,
   // and Today is drawn again if the answer adds a row to it.
-  findPuzzlePack().then((about) => { if (about && App.section === 'today') renderToday(); });
+  findPuzzlePack().then(() => { if (App.section === 'today') renderToday(); });
+
+  // The Android app's reminder goes by the last day a session was finished,
+  // which it has to be told: after a restore, or a reinstall, it has forgotten.
+  tellReminder();
 
   // New games, brought in and analysed without being asked for — and only
   // once the page is up, so that opening the app never waits on Chess.com.

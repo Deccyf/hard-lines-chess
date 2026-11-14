@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app's mark, at the size and in the single colour a notification's
+     small icon is drawn in. The launcher's own monochrome layer is the same
+     two squares, but drawn for an icon with a wide margin round it, and in a
+     status bar it comes out as a speck. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#ffffff"
+        android:pathData="M4,4h8v8h-8z" />
+    <path
+        android:fillColor="#ffffff"
+        android:pathData="M12,12h8v8h-8z" />
+</vector>

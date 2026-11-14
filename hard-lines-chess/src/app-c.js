@@ -83,6 +83,7 @@ async function loadStored() {
   App.reviews = await Store.get('reviews', { games: [] });
   App.puzzles = await Store.get('puzzles', { items: [], scanned: [] });
   App.weak = weakSpotsData(await Store.get('weakspots', null));
+  App.daily = dailyData(await Store.get('daily', null));
   App.teaching = await Store.get('teaching', { games: [] });
   Endgames.results = await Store.get('endgames', {});
   Vision.best = await Store.get('vision', {});
@@ -276,6 +277,12 @@ async function boot() {
   $('puzzleScan').addEventListener('click', scanGamesForTactics);
   $('puzzleStop').addEventListener('click', stopScan);
 
+  // Today's session: the bar that is there on every screen while one is under way
+  $('sessionNext').addEventListener('click', leaveFinishedPart);
+  $('sessionBack').addEventListener('click', backToSession);
+  $('sessionSkip').addEventListener('click', skipSessionPart);
+  $('sessionStop').addEventListener('click', stopSession);
+
   // Weak spots
   $('weakStart').addEventListener('click', () => startWeakSet());
   $('weakNext').addEventListener('click', weakNext);
@@ -427,7 +434,11 @@ async function boot() {
 
   // Whether there are puzzles beside this page is found out once it is up,
   // and Today is drawn again if the answer adds a row to it.
-  findPuzzlePack().then((about) => { if (about && App.section === 'today') renderToday(); });
+  findPuzzlePack().then(() => { if (App.section === 'today') renderToday(); });
+
+  // The Android app's reminder goes by the last day a session was finished,
+  // which it has to be told: after a restore, or a reinstall, it has forgotten.
+  tellReminder();
 
   // New games, brought in and analysed without being asked for — and only
   // once the page is up, so that opening the app never waits on Chess.com.

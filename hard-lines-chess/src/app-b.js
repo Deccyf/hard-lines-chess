@@ -387,6 +387,7 @@ async function finishOpening() {
         ? `Clean run. ${what} comes back later rather than sooner.`
         : `${Openings.wrong} prompt${Openings.wrong === 1 ? '' : 's'} needed, so ${what.toLowerCase()} comes back tomorrow.`;
     }
+    sessionAnswered('opening', clean);
   } else {
     // A walk-through is recorded as exactly that. It does not schedule
     // anything — only a test can — but the card stops saying "not started".
@@ -1720,10 +1721,19 @@ async function onDrillMove({ move, san }) {
     `Why is ${Drill.current.best.san} better than ${Drill.current.played}?`, { arrows });
 
   Drill.current.card = SRS.review(Drill.current.card, correct);
+  // Counted for today's session before the save, not after: the bar is on the
+  // screen, and the save may take a moment.
+  sessionAnswered('drills', correct);
   await Store.set('drills', App.drills);
 }
 
-function nextDrill() { Drill.current = null; startDrill(); if (!Drill.current) renderDrills(); }
+function nextDrill() {
+  Drill.current = null;
+  // A session takes so many drills and then goes on to its next part.
+  if (sessionPartOver('drills', dueDrills().length)) return;
+  startDrill();
+  if (!Drill.current) renderDrills();
+}
 
 /**
  * What each theme is called on screen.

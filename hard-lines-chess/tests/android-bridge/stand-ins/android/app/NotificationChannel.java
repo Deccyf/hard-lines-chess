@@ -1,0 +1,7 @@
+package android.app;
+public final class NotificationChannel {
+    public final String id;
+    public final CharSequence name;
+    public final int importance;
+    public NotificationChannel(String id, CharSequence name, int importance) { this.id = id; this.name = name; this.importance = importance; }
+}

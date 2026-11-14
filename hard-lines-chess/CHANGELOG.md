@@ -74,6 +74,22 @@
   telemetry, sends nothing but your Chess.com name, to Chess.com, and does
   everything except that import with no connection.
 
+### One session a day
+- **Today starts with a session.** A few of your own mistakes, a few chances
+  from your own games, puzzles for your weak spots and one opening line from
+  memory, one after another — about a dozen positions — instead of four rows
+  to choose between. Each part is done on the screen that always did it, with
+  a bar across the top saying which part and how far; what is due beyond the
+  session is still listed underneath.
+- **The days are counted.** Seeing a session through counts the day: "six
+  days running", and the longest run there has been. Stopping part way counts
+  nothing and loses nothing. A day with nothing to do does not end a run; a
+  day missed does.
+- **The Android app can remind you.** A switch and a time, on Today. It asks
+  Android for leave to show notifications when it is turned on, reminds you
+  once a day at about that time, and says nothing on a day when the session
+  is already done. It sets itself again after the phone restarts.
+
 ### Analysis that does not do the work twice
 - **Several engines at once.** A review's searches do not depend on each
   other, so they are shared out among as many engines as the device has cores

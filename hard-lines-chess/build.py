@@ -102,9 +102,9 @@ if not os.path.exists('src/puzzle-bank.js'):
 
 parts = [engine_source] + [re.sub(r'^export ', '', open(f).read(), flags=re.M) for f in [
     'src/engine/bundle.js', 'src/engine/bands.js', 'src/openings.js', 'src/notation.js',
-    'src/store.js', 'src/pgn.js', 'src/motifs.js', 'src/weak-spots.js', 'src/rating-fit.js', 'src/engine-pool.js', 'src/review.js', 'src/explain.js', 'src/stockfish-driver.js', 'src/reckless-driver.js', 'src/deviation.js', 'src/import.js', 'src/board-view.js',
+    'src/store.js', 'src/pgn.js', 'src/motifs.js', 'src/weak-spots.js', 'src/daily.js', 'src/rating-fit.js', 'src/engine-pool.js', 'src/review.js', 'src/explain.js', 'src/stockfish-driver.js', 'src/reckless-driver.js', 'src/deviation.js', 'src/import.js', 'src/board-view.js',
     'src/pawn-tb.js', 'src/endgames.js', 'src/famous.js', 'src/notation-lessons.js', 'src/puzzle-bank.js',
-    'src/icons.js', 'src/traps.js', 'src/app-h.js', 'src/app-g.js', 'src/app-a.js', 'src/app-b.js', 'src/app-d.js', 'src/app-e.js', 'src/app-f.js', 'src/app-k.js', 'src/app-i.js', 'src/app-j.js', 'src/app-l.js', 'src/app-m.js', 'src/app-n.js', 'src/app-o.js', 'src/app-p.js', 'src/app-q.js', 'src/backup.js', 'src/app-c.js',
+    'src/icons.js', 'src/traps.js', 'src/app-h.js', 'src/app-g.js', 'src/app-a.js', 'src/app-b.js', 'src/app-d.js', 'src/app-e.js', 'src/app-f.js', 'src/app-k.js', 'src/app-i.js', 'src/app-j.js', 'src/app-l.js', 'src/app-m.js', 'src/app-n.js', 'src/app-o.js', 'src/app-p.js', 'src/app-q.js', 'src/app-r.js', 'src/backup.js', 'src/app-c.js',
 ]]
 script = "<script>\n" + "\n\n".join(parts) + "\n</" + "script>\n"
 

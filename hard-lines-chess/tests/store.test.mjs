@@ -1,6 +1,6 @@
 // One list of what the app keeps, and everything held to it.
 //
-// The app's data is eleven separate areas — settings, drills, reviewed games and
+// The app's data is twelve separate areas — settings, drills, reviewed games and
 // so on — and three things have to know all of them: the store, which moves
 // each out of the small store; the backup file, which has to carry each; and
 // the start of the app, which has to load each. An area added to one and not
@@ -58,20 +58,31 @@ check('what is kept beside the data is named so that it cannot be mistaken for a
 // and the app's half on a JVM against a pretend page. Each is tested against
 // its own idea of what the other is called — so a name spelt two ways would
 // pass both, and fail only on a phone. This holds the three to each other.
+//
+// TWO PARTS OF THE PAGE REACH THE APP: the backup (files, in backup.js) and
+// today's session (the reminder, in app-r.js). Each has a browser test with a
+// pretend app that offers its half, and the two halves are the whole.
 const activity = readFileSync(new URL('../android/app/src/main/java/chess/hardlines/MainActivity.java', import.meta.url), 'utf8');
 const offered = [...activity.matchAll(/@JavascriptInterface\s+public\s+[\w.\[\]<>]+\s+(\w+)\s*\(/g)].map((m) => m[1]).sort();
-const called = [...new Set([...backup.matchAll(/\bbridge\.(\w+)\b/g)].map((m) => m[1]))].sort();
+const session = read('app-r.js');
+const callsIn = (text) => [...new Set([...text.matchAll(/\bbridge\.(\w+)\b/g)].map((m) => m[1]))].sort();
+const called = [...new Set([...callsIn(backup), ...callsIn(session)])].sort();
 check('the Android app offers the page some ways in', offered.length > 0, true);
 check('every way into the Android app that the page calls is one the app offers', called.filter((n) => !offered.includes(n)), []);
 check('and the app offers none that the page never calls', offered.filter((n) => !called.includes(n)), []);
 const told = [...new Set([...activity.matchAll(/tellPage\("(\w+)"/g)].map((m) => m[1]))].sort();
-const heard = [...new Set([...backup.matchAll(/window\.(hardLines\w+)\s*=/g)].map((m) => m[1]))].sort();
+const heard = [...new Set([...(backup + session).matchAll(/window\.(hardLines\w+)\s*=/g)].map((m) => m[1]))].sort();
 check('everything the Android app tells the page is something the page listens for', told.filter((n) => !heard.includes(n)), []);
 check('and the page listens for nothing the app never says', heard.filter((n) => !told.includes(n)), []);
-const drive = readFileSync(new URL('./storage-drive.cjs', import.meta.url), 'utf8');
-const pretend = /window\.HardLinesAndroid = \{([\s\S]*?)\n    \};/.exec(drive)[1];
-const pretended = [...pretend.matchAll(/^\s{6}(\w+):/gm)].map((m) => m[1]).sort();
-check('the pretend app the browser test drives offers exactly what the real one does', pretended, offered);
+const pretendedIn = (file) => {
+  const drive = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
+  const pretend = /window\.HardLinesAndroid = \{([\s\S]*?)\n    \};/.exec(drive)[1];
+  return [...pretend.matchAll(/^\s{6}(\w+):/gm)].map((m) => m[1]).sort();
+};
+check('the pretend app the storage test drives offers exactly what the backup calls', pretendedIn('storage-drive.cjs'), callsIn(backup));
+check('the one the session test drives offers exactly what the reminder calls', pretendedIn('daily-drive.cjs'), callsIn(session));
+check('and between them they offer exactly what the real one does',
+  [...pretendedIn('storage-drive.cjs'), ...pretendedIn('daily-drive.cjs')].sort(), offered);
 
 console.log(`${checks} checks, ${failures} failed`);
 if (failures) process.exit(1);

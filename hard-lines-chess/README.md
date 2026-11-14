@@ -130,6 +130,7 @@ src/review.js   the reviewer, the compact per-game format, and what your own
 src/engine-pool.js  this app's engine in workers, several searches at once
 src/weak-spots.js   puzzles aimed at what your games go wrong in: reading the
                 pack, what to aim at, which puzzle next, your level on them
+src/daily.js    one session a day: what goes in it, and how many days running
 src/deviation.js where your games leave your repertoire, and what it cost
 src/import.js   the Chess.com archive reader (browser only; the APK has no network)
 src/pawn-tb.js  king and pawn against king, solved exactly (see below)
@@ -296,7 +297,7 @@ chart and panel on Progress, the reopened review and the drills.
 ## Where your data is kept
 
 Everything the app knows about you — games, drills, puzzles, openings
-progress, settings — lives on the device, in eleven areas listed once as
+progress, settings — lives on the device, in twelve areas listed once as
 `STORE_AREAS` in `src/store.js`.
 
 **In the browser's large database, not localStorage.** localStorage holds about
@@ -323,7 +324,7 @@ the true state every time it is drawn. Every area is written whole, so when a
 later save works the areas that were owed are written there and then, and the
 warning goes when nothing is owed.
 
-**A backup file.** "Save a backup file" writes all eleven areas to one JSON file.
+**A backup file.** "Save a backup file" writes all twelve areas to one JSON file.
 "Restore from a backup" checks the file before touching anything, says what it
 holds and what is in the app now, and replaces one with the other under a
 single transaction — all of it or none — keeping what was there so the restore
@@ -482,6 +483,49 @@ with a row of every kind it has to turn down, and plays through one in ten of
 the pack that ships; `tests/weak-spots-drive.cjs` takes sets across a board in
 a browser — aims, misses, puzzles coming back, a pack that cannot be had.
 
+## One session a day
+
+Today is a list: drills due, puzzles due, an opening to run through, ten
+puzzles for your weak spots. Each row is another screen, and working down the
+list means choosing four times. A session is the same work as one thing with a
+beginning and an end: up to four of your own mistakes, up to three chances
+from your own games, puzzles for your weak spots to make it up to twelve
+positions, and one opening line from memory — in that order, without asking
+what is next. With no puzzle pack, what is due takes the room instead.
+
+**The session asks nothing itself.** It takes the screens that already do the
+work, one after another: each keeps its own rules, schedules what it asks
+exactly as it would from its own tab, and saves each answer when it is given.
+The session only decides how many it wants from each, says so on a bar that is
+there on every screen while one is under way — which part, how far, the way
+out, and the way back if you have wandered off — and moves on when a screen's
+own Next is pressed and it has had what it wanted. What is due beyond that is
+left due. An opening line is only asked for if it has been met before: a line
+never looked at is not something to be asked from memory.
+
+**A day counts when the session is seen through**, and the days are counted:
+"six days running". Stopping counts nothing and loses nothing — whatever was
+answered stays answered. A session skipped from end to end is not a session.
+A run is not lost at midnight; it is lost by a day going past. A day on which
+there was nothing at all to do is marked as that, and neither adds to a run
+nor ends one; if something turns up later the same day — new games arrive —
+it is an ordinary day again. Each finished day is told how long the run was
+when it was marked, because only four hundred days are kept and a longer run
+would otherwise be counted back to the oldest one and no further.
+
+**The reminder is the Android app's**, since a page cannot remind anybody of
+anything once it is closed. In the app, Today has a switch and a time; the app
+sets a daily alarm, and shows one notification when it rings unless the page
+has told it that today's session is done (see `android/README.md`). In a
+browser there is no switch.
+
+`tests/daily.test.mjs` holds the counting to the calendar — midnight, the ends
+of months and years, both clock changes, a day of nothing, a run longer than
+the days kept — in a time zone far from Greenwich, where a day cut by the
+wrong clock shows. `tests/daily-drive.cjs` takes sessions across the four
+screens in a browser: stopped, skipped, wandered away from and seen through,
+with the reminder switch driven against a pretend app.
+
 ## Speed
 
 Everything the app knows about a game it reads back out of the game's own PGN,
@@ -556,14 +600,15 @@ again by Puzzles.
 
 ```
 npm install            # playwright, for the browser drivers
-npm test               # 26 node suites: perft, motifs, the move explainer, Reckless, the judges, traps,
+npm test               # 27 node suites: perft, motifs, the move explainer, Reckless, the judges, traps,
                        # mate cap, multi-line search, the solved table, endgame
                        # and opening prose, notation, clocks, the stored areas,
                        # the weak-spot puzzles and the tool that makes their pack,
+                       # the daily session and its count of days,
                        # the Android app's file handling (needs a Java compiler),
                        # evaluation symmetry, the fast paths against the long
                        # way round, repeatability, interface vocabulary
-npm run test:browser   # 55 Playwright drivers against dist/
+npm run test:browser   # 56 Playwright drivers against dist/
 npm run verify:openings
 ```
 

@@ -357,7 +357,7 @@ const SABOTAGE = () => {
   check('F: the file is named for the day it was made', /^hard-lines-chess-backup-\d{4}-\d{2}-\d{2}\.json$/.test(download.suggestedFilename()), true);
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
   check('F: it says what it is', `${saved.app} ${saved.kind} ${saved.format} ${saved.from}`, 'hard-lines-chess backup 1 the web version');
-  check('F: and holds every area the app keeps', Object.keys(saved.areas).sort().join(' '), 'drills endgames history openings prefs puzzles reviews storm teaching vision weakspots');
+  check('F: and holds every area the app keeps', Object.keys(saved.areas).sort().join(' '), 'daily drills endgames history openings prefs puzzles reviews storm teaching vision weakspots');
   check('F: the page says what was saved', /^Asked your browser to save hard-lines-chess-backup-[\d-]+\.json: /.test(await note(f)) && (await note(f)).includes(`.json: ${heldWords}`), true);
   await reload(f);
   await gotoSection(f, 'today');
@@ -466,7 +466,7 @@ const SABOTAGE = () => {
   await g.click('#backupKeep');
   await g.waitForFunction(() => document.getElementById('backupRestored').hidden);
   check('F: keeping it stops keeping what it replaced', await g.evaluate(async () => (await Store.undoCopy()) === null), true);
-  check('F: the large database then holds the areas and nothing else', await largeKeys(g), 'drills endgames history openings prefs puzzles reviews storm teaching vision weakspots');
+  check('F: the large database then holds the areas and nothing else', await largeKeys(g), 'daily drills endgames history openings prefs puzzles reviews storm teaching vision weakspots');
   check('F: and the restored history is still what the backup held', await areas(g), original);
   await g.close();
 

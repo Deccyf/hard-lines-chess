@@ -55,7 +55,7 @@ const STORE_VERSION = 2;
  * the move between stores cannot each forget a different one —
  * tests/store.test.mjs holds every Store.get and Store.set in the source to it.
  */
-const STORE_AREAS = ['prefs', 'openings', 'drills', 'history', 'reviews', 'puzzles', 'teaching', 'endgames', 'vision', 'storm', 'weakspots'];
+const STORE_AREAS = ['prefs', 'openings', 'drills', 'history', 'reviews', 'puzzles', 'teaching', 'endgames', 'vision', 'storm', 'weakspots', 'daily'];
 
 /** Where the copy on this device is kept, and how long opening it may take. */
 const LOCAL_DB = { name: 'hardlines', table: 'state', openMs: 8000 };

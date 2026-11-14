@@ -16,7 +16,8 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const dir = join(here, 'android-bridge');
-const activity = join(here, '..', 'android', 'app', 'src', 'main', 'java', 'chess', 'hardlines', 'MainActivity.java');
+// Every file of the app's own: the activity, and the reminder it reaches.
+const app = join(here, '..', 'android', 'app', 'src', 'main', 'java', 'chess', 'hardlines');
 
 // The sandbox this is developed in sets options for every JVM and each one
 // announces them on stderr; they have nothing to do with the test.
@@ -41,10 +42,10 @@ const javaFiles = (root) => readdirSync(root).flatMap((name) => {
 const out = mkdtempSync(join(tmpdir(), 'hl-bridge-'));
 try {
   const sources = join(out, 'sources.txt');
-  writeFileSync(sources, [...javaFiles(join(dir, 'stand-ins')), activity, join(dir, 'BridgeTest.java')].join('\n'));
+  writeFileSync(sources, [...javaFiles(join(dir, 'stand-ins')), ...javaFiles(app), join(dir, 'BridgeTest.java')].join('\n'));
   const compiled = run('javac', ['-nowarn', '-d', join(out, 'classes'), `@${sources}`]);
   if (compiled.status !== 0) {
-    console.log('FAIL MainActivity.java does not compile against the stand-ins');
+    console.log('FAIL the app does not compile against the stand-ins');
     console.log(compiled.stdout + compiled.stderr);
     process.exit(1);
   }

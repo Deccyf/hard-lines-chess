@@ -1,6 +1,11 @@
 package chess.hardlines;
 
+import android.app.AlarmManager;
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.ContentResolver;
+import android.content.Intent;
 import android.net.Uri;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -18,7 +23,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.List;
+import java.util.Locale;
+import java.util.TimeZone;
 
 /**
  * The Android app's half of saving and opening a backup file, of keeping its
@@ -71,6 +79,8 @@ public final class BridgeTest {
         final Object bridge;
         final ActivityResultLauncher<?> save;
         final ActivityResultLauncher<?> open;
+        /** Android's question about notifications, which the reminder asks. */
+        final ActivityResultLauncher<?> notify;
         final ContentResolver files;
 
         App() throws Exception {
@@ -79,13 +89,15 @@ public final class BridgeTest {
             field.setAccessible(true);
             web = (WebView) field.get(activity);
             bridge = web.interfaces.get("HardLinesAndroid");
-            ActivityResultLauncher<?> s = null, o = null;
+            ActivityResultLauncher<?> s = null, o = null, n = null;
             for (ActivityResultLauncher<?> chooser : activity.choosers) {
                 if (chooser.contract instanceof ActivityResultContracts.CreateDocument) s = chooser;
                 if (chooser.contract instanceof ActivityResultContracts.OpenDocument) o = chooser;
+                if (chooser.contract instanceof ActivityResultContracts.RequestPermission) n = chooser;
             }
             save = s;
             open = o;
+            notify = n;
             files = activity.getContentResolver();
         }
 
@@ -182,6 +194,217 @@ public final class BridgeTest {
         return new App();
     }
 
+    // ── the daily reminder ─────────────────────────────────────────────────
+
+    private static final String MAY_NOTIFY = "android.permission.POST_NOTIFICATIONS";
+    private static final String PLAIN = "A few of your own mistakes, and puzzles for what your games go wrong in.";
+
+    /** A phone on which the reminder has never been set and nothing has been allowed. */
+    private static void newPhone(int version) {
+        android.content.Context.stores.clear();
+        android.content.Context.granted.clear();
+        AlarmManager.only.reset();
+        NotificationManager.only.reset();
+        android.os.Build.VERSION.SDK_INT = version;
+    }
+
+    /** A moment, said by the clock on the wall somewhere. */
+    private static long at(TimeZone zone, int year, int month, int day, int hour, int minute) {
+        Calendar c = Calendar.getInstance(zone, Locale.ROOT);
+        c.clear();
+        c.set(year, month - 1, day, hour, minute, 0);
+        return c.getTimeInMillis();
+    }
+
+    /** And a moment back as that clock would show it. */
+    private static String local(long at, TimeZone zone) {
+        Calendar c = Calendar.getInstance(zone, Locale.ROOT);
+        c.setTimeInMillis(at);
+        return String.format(Locale.ROOT, "%04d-%02d-%02d %02d:%02d", c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1,
+                c.get(Calendar.DAY_OF_MONTH), c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE));
+    }
+
+    /** The alarm the phone is holding, in words — or "none". */
+    private static String alarm() {
+        AlarmManager alarms = AlarmManager.only;
+        if (alarms.set == null) return "none";
+        String when = local(alarms.at, TimeZone.getDefault()).substring(11);
+        String every = alarms.every == AlarmManager.INTERVAL_DAY ? "daily" : alarms.every + " ms";
+        String wakes = alarms.type == AlarmManager.RTC_WAKEUP ? "" : ", NOT by the clock";
+        String to = "broadcast".equals(alarms.set.kind) && alarms.set.intent.target == ReminderReceiver.class
+                ? "to the app's own receiver" : "to " + alarms.set.kind + " " + alarms.set.intent.target;
+        return when + ", " + every + ", " + to + wakes;
+    }
+
+    /**
+     * The daily reminder: the arithmetic of days and clocks, and then the app's
+     * own part — setting the alarm, asking leave, and deciding what to show.
+     *
+     * WHAT THIS CANNOT SHOW is the thing a phone adds: that Android rings the
+     * alarm about when it was asked to, and shows what it is handed. What it
+     * can show is that the app asks for the right alarm and hands over the
+     * right notification — or none, on a day the session is already done.
+     */
+    private static void reminder() throws Exception {
+        TimeZone london = TimeZone.getTimeZone("Europe/London");
+        TimeZone auckland = TimeZone.getTimeZone("Pacific/Auckland");
+
+        // ── which day a moment is ──────────────────────────────────────────
+        long eve = at(london, 2026, 11, 14, 23, 59);
+        check("a day is written the way the page writes it", Reminder.dayOf(at(london, 2026, 11, 4, 12, 0), london), "2026-11-04");
+        check("a minute before midnight is still that day", Reminder.dayOf(eve, london), "2026-11-14");
+        check("and two minutes later is the next", Reminder.dayOf(eve + 120_000L, london), "2026-11-15");
+        check("the same moment is already tomorrow on the other side of the world", Reminder.dayOf(eve, auckland), "2026-11-15");
+        check("the day before the first of a month", Reminder.dayBefore("2026-03-01"), "2026-02-28");
+        check("of March in a leap year", Reminder.dayBefore("2028-03-01"), "2028-02-29");
+        check("and of a year", Reminder.dayBefore("2027-01-01"), "2026-12-31");
+        check("something that is not a day has no day before it",
+                Reminder.dayBefore("yesterday") + "|" + Reminder.dayBefore(null) + "|" + Reminder.dayBefore("2026-xx-01"), "||");
+
+        // ── when the alarm should next ring ────────────────────────────────
+        check("before the time, the alarm is for today",
+                local(Reminder.nextAt(at(london, 2026, 11, 14, 9, 0), 18, 0, london), london), "2026-11-14 18:00");
+        check("after it, for tomorrow",
+                local(Reminder.nextAt(at(london, 2026, 11, 14, 19, 0), 18, 0, london), london), "2026-11-15 18:00");
+        check("on the minute itself, for tomorrow: it has just rung",
+                local(Reminder.nextAt(at(london, 2026, 11, 14, 18, 0), 18, 0, london), london), "2026-11-15 18:00");
+        check("across the night the clocks go forward it is still six by the clock",
+                local(Reminder.nextAt(at(london, 2026, 3, 28, 19, 0), 18, 0, london), london), "2026-03-29 18:00");
+        check("and across the night they go back",
+                local(Reminder.nextAt(at(london, 2026, 10, 24, 19, 0), 18, 0, london), london), "2026-10-25 18:00");
+        check("across the end of a year",
+                local(Reminder.nextAt(at(london, 2026, 12, 31, 23, 0), 7, 30, london), london), "2027-01-01 07:30");
+
+        // ── what it says ───────────────────────────────────────────────────
+        check("today's session done: nothing is said", Reminder.words("2026-11-14", "2026-11-14", 6), null);
+        check("yesterday's done, and a run: the run is said",
+                Reminder.words("2026-11-14", "2026-11-13", 6), "6 days running. Today's session keeps it going.");
+        check("a run of one is said as one", Reminder.words("2026-11-14", "2026-11-13", 1), "One day done. Today's session makes it two.");
+        check("a session done longer ago is no run to speak of", Reminder.words("2026-11-14", "2026-11-12", 6), PLAIN);
+        check("across the end of a month a run is still a run",
+                Reminder.words("2026-12-01", "2026-11-30", 3), "3 days running. Today's session keeps it going.");
+        check("never having done one is said plainly", Reminder.words("2026-11-14", "", 0), PLAIN);
+
+        // ── through the app, as the page reaches it ────────────────────────
+        newPhone(34);
+        App app = fresh();
+        check("there is a question about notifications for the app to ask", app.notify != null, true);
+        check("at first the reminder is off, set for six, and not yet allowed",
+                app.call("reminder"), "{\"on\":false,\"hour\":18,\"minute\":0,\"allowed\":false}");
+        check("and no alarm is held", alarm(), "none");
+
+        int before = app.web.said.size();
+        app.call("setReminder", true, 7, 30);
+        check("turning it on asks Android whether the app may notify", app.notify.launched, Arrays.asList(MAY_NOTIFY));
+        check("the alarm is set whatever the answer will be", alarm(), "07:30, daily, to the app's own receiver");
+        check("for a moment still to come, and within a day",
+                AlarmManager.only.at > System.currentTimeMillis() && AlarmManager.only.at <= System.currentTimeMillis() + 86_400_000L, true);
+        check("and in a form nothing else on the phone can alter", (AlarmManager.only.set.flags & PendingIntent.FLAG_IMMUTABLE) != 0, true);
+        check("the page hears nothing until there is an answer", app.web.said.size(), before);
+        android.content.Context.granted.add(MAY_NOTIFY);
+        app.notify.answer(true);
+        check("and then it is told to look", app.heard(before), Arrays.asList(said("hardLinesReminderChanged", "")));
+        check("and finds it on, at the time picked, and allowed",
+                app.call("reminder"), "{\"on\":true,\"hour\":7,\"minute\":30,\"allowed\":true}");
+
+        int asked = app.notify.launched.size();
+        before = app.web.said.size();
+        app.call("setReminder", true, 21, 15);
+        check("changed when it is already allowed, nothing is asked again", app.notify.launched.size(), asked);
+        check("the page is told at once", app.heard(before), Arrays.asList(said("hardLinesReminderChanged", "")));
+        check("and the alarm moves to the new time", alarm(), "21:15, daily, to the app's own receiver");
+        app.call("setReminder", true, 99, -4);
+        check("a time that is not a time is brought inside the clock",
+                app.call("reminder"), "{\"on\":true,\"hour\":23,\"minute\":0,\"allowed\":true}");
+        app.call("setReminder", true, 21, 15);
+
+        // ── the alarm rings ────────────────────────────────────────────────
+        ReminderReceiver receiver = new ReminderReceiver();
+        receiver.onReceive(app.activity, new Intent());
+        check("when the alarm rings, one notification is shown", NotificationManager.only.posted, 1);
+        Notification shown = NotificationManager.only.showing.get(1);
+        check("saying what it is about", shown.title + " | " + shown.text, "Today's session | " + PLAIN);
+        check("on a channel of its own, made before it was used",
+                shown.channel + " | " + NotificationManager.only.channels.get(0).name, "daily-session | Daily session");
+        check("tapping it opens the app, and takes it down",
+                shown.tap.kind + " " + shown.tap.intent.target.getSimpleName() + " " + shown.autoCancel, "activity MainActivity true");
+        check("it carries the app's own mark", shown.icon, R.drawable.ic_stat_session);
+
+        String today = Reminder.dayOf(System.currentTimeMillis(), TimeZone.getDefault());
+        app.call("sessionDone", today, 4);
+        check("when the page says today's session is done, a reminder still showing is taken down",
+                NotificationManager.only.showing.size(), 0);
+        receiver.onReceive(app.activity, new Intent());
+        check("and the alarm ringing later that day shows nothing", NotificationManager.only.posted, 1);
+
+        app.call("sessionDone", Reminder.dayBefore(today), 4);
+        check("a session done yesterday takes nothing down", NotificationManager.only.takenDown, 1);
+        receiver.onReceive(app.activity, new Intent());
+        check("the day after a session, it rings and says the run",
+                String.valueOf(NotificationManager.only.showing.get(1).text), "4 days running. Today's session keeps it going.");
+
+        // ── when it must stay quiet ────────────────────────────────────────
+        int posted = NotificationManager.only.posted;
+        android.content.Context.granted.clear();
+        receiver.onReceive(app.activity, new Intent());
+        check("with leave withdrawn, the alarm rings and nothing is shown", NotificationManager.only.posted, posted);
+        check("and the page is told it is on but not allowed",
+                app.call("reminder"), "{\"on\":true,\"hour\":21,\"minute\":15,\"allowed\":false}");
+        android.content.Context.granted.add(MAY_NOTIFY);
+        NotificationManager.only.enabled = false;
+        receiver.onReceive(app.activity, new Intent());
+        check("nor when notifications are switched off for the app in the phone's settings", NotificationManager.only.posted, posted);
+        NotificationManager.only.enabled = true;
+
+        app.call("setReminder", false, 21, 15);
+        check("turned off, the alarm is cleared", alarm(), "none");
+        receiver.onReceive(app.activity, new Intent());
+        check("and an alarm that rings anyway shows nothing", NotificationManager.only.posted, posted);
+        check("the time is remembered for when it is turned on again",
+                app.call("reminder"), "{\"on\":false,\"hour\":21,\"minute\":15,\"allowed\":true}");
+
+        // ── a restart, an update, and the app being closed ─────────────────
+        app.call("setReminder", true, 6, 45);
+        AlarmManager.only.reset();                           // the phone restarts: every alarm is gone
+        receiver.onReceive(app.activity, new Intent(Intent.ACTION_BOOT_COMPLETED));
+        check("after the phone restarts, the alarm is set again", alarm(), "06:45, daily, to the app's own receiver");
+        check("and hearing of the restart shows nothing", NotificationManager.only.posted, posted);
+        AlarmManager.only.reset();                           // the app is updated: the same
+        receiver.onReceive(app.activity, new Intent(Intent.ACTION_MY_PACKAGE_REPLACED));
+        check("and after the app is updated", alarm(), "06:45, daily, to the app's own receiver");
+        app = again();
+        check("closing the app and opening it again changes none of it",
+                app.call("reminder"), "{\"on\":true,\"hour\":6,\"minute\":45,\"allowed\":true}");
+        app.call("setReminder", false, 6, 45);
+        AlarmManager.only.reset();
+        receiver.onReceive(app.activity, new Intent(Intent.ACTION_BOOT_COMPLETED));
+        check("a restart with the reminder off sets no alarm", alarm(), "none");
+
+        // ── an Android with no such question ───────────────────────────────
+        newPhone(30);
+        app = fresh();
+        before = app.web.said.size();
+        app.call("setReminder", true, 8, 0);
+        check("an older Android has no question to ask: nothing is asked", app.notify.launched.size(), 0);
+        check("the page is told at once", app.heard(before), Arrays.asList(said("hardLinesReminderChanged", "")));
+        check("and the reminder is allowed as it stands",
+                app.call("reminder"), "{\"on\":true,\"hour\":8,\"minute\":0,\"allowed\":true}");
+        receiver.onReceive(app.activity, new Intent());
+        check("so the alarm ringing shows it", NotificationManager.only.posted, 1);
+
+        // ── refused ────────────────────────────────────────────────────────
+        newPhone(34);
+        app = fresh();
+        before = app.web.said.size();
+        app.call("setReminder", true, 8, 0);
+        app.notify.answer(false);
+        check("when the person says no, the page is still told to look", app.heard(before), Arrays.asList(said("hardLinesReminderChanged", "")));
+        check("and finds the reminder on and not allowed, which it can say",
+                app.call("reminder"), "{\"on\":true,\"hour\":8,\"minute\":0,\"allowed\":false}");
+        receiver.onReceive(app.activity, new Intent());
+        check("and nothing is shown", NotificationManager.only.posted, 0);
+    }
+
     private static String names(File dir) {
         String[] all = dir.list();
         if (all == null) return "(no such folder)";
@@ -237,7 +460,8 @@ public final class BridgeTest {
                 app.save == null ? null : ((ActivityResultContracts.CreateDocument) app.save.contract).mimeType, "application/json");
         check("and a chooser for opening", app.open != null, true);
         for (String name : new String[] {"beginBackup", "appendBackup", "saveBackup", "openBackup", "openRestore", "restoreChunk", "clearRestore",
-                "beginKeep", "appendKeep", "commitKeep", "openKept", "keptChunk", "closeKept"}) {
+                "beginKeep", "appendKeep", "commitKeep", "openKept", "keptChunk", "closeKept",
+                "reminder", "setReminder", "sessionDone"}) {
             boolean marked = false;
             for (Method m : app.bridge.getClass().getDeclaredMethods()) {
                 if (m.getName().equals(name)) marked = m.getAnnotation(android.webkit.JavascriptInterface.class) != null;
@@ -642,6 +866,8 @@ public final class BridgeTest {
         before = app.web.said.size();
         app.activity.onPause();
         check("when the app is left, the page is asked to refresh the copy", app.heard(before), Arrays.asList(said("hardLinesLeaving", "")));
+
+        reminder();
 
         System.out.println(checks + " checks, " + failures + " failed");
         if (failures > 0) System.exit(1);

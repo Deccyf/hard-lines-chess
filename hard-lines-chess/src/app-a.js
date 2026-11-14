@@ -9,6 +9,7 @@ const App = {
   reviews: null,
   puzzles: null,
   weak: null,
+  daily: null,
   teaching: null,
   prefs: null,
   downloads: null,
@@ -203,6 +204,7 @@ function show(section) {
   // it ends when you leave rather than quietly carrying on.
   if (section !== 'storm') stopStorm();
   if (section !== 'vision') stopVision();
+  renderSessionBar();
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
@@ -226,6 +228,7 @@ function renderToday() {
   const note = $('storeNote');
   if (note) note.textContent = Store.where();
   renderBackup();
+  renderSessionCard();
 
   const box = $('todayList');
   box.innerHTML = '';

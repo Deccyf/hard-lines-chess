@@ -8,6 +8,17 @@
     <div class="tabs-wrap subtabs-wrap" id="subtabsWrap" hidden><nav class="tabs subtabs" id="subtabs" aria-label="Screens in this section"></nav></div>
   </header>
 
+  <!-- TODAY'S SESSION, while one is under way: on every screen, above it -->
+  <div class="panel session-bar" id="sessionBar" hidden>
+    <p class="session-where"><strong id="sessionWhere"></strong><span id="sessionPart"></span></p>
+    <div class="row">
+      <button class="btn primary" id="sessionNext" type="button" hidden>Next part</button>
+      <button class="btn" id="sessionBack" type="button" hidden>Back to it</button>
+      <button class="btn" id="sessionSkip" type="button" aria-label="Skip this part of the session">Skip</button>
+      <button class="btn" id="sessionStop" type="button" aria-label="Stop the session">Stop</button>
+    </div>
+  </div>
+
   <!-- TODAY -->
   <section id="section-today">
     <p class="lede">Your training for today. Items appear only when there is something to do.</p>
@@ -15,6 +26,7 @@
       <p class="note" id="catchUpNote"></p>
       <div class="row"><button class="btn danger" id="catchUpStop" type="button" hidden>Stop</button></div>
     </div>
+    <div id="sessionCard" class="panel session-card" hidden></div>
     <div id="todayList" class="tasks"></div>
     <div id="todayRecord" class="panel"></div>
     <div class="panel" id="dataPanel">

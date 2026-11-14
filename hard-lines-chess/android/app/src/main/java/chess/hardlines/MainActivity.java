@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.content.ContentResolver;
 import android.content.res.Configuration;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.DocumentsContract;
 import android.view.View;
@@ -150,6 +151,8 @@ public class MainActivity extends ComponentActivity {
     private int restoreTurn = 0;
     private ActivityResultLauncher<String> saveChooser;
     private ActivityResultLauncher<String[]> openChooser;
+    /** Asking Android whether the app may show notifications; see Reminder. */
+    private ActivityResultLauncher<String> notifyAsk;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -166,6 +169,15 @@ public class MainActivity extends ComponentActivity {
                 new ActivityResultContracts.CreateDocument("application/json"), this::writeBackup);
         openChooser = registerForActivityResult(
                 new ActivityResultContracts.OpenDocument(), this::readBackup);
+
+        // ── the daily reminder ─────────────────────────────────────────────
+        //
+        // The one thing the app asks leave for, and only when the reminder is
+        // turned on. Whatever the answer, the page is told there is one, and
+        // reads how things stand for itself.
+        notifyAsk = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(),
+                granted -> tellPage("hardLinesReminderChanged", ""));
 
         // A backup in either direction passes through the app's cache, which
         // the phone may clear when it likes: it is only ever on its way
@@ -337,7 +349,9 @@ public class MainActivity extends ComponentActivity {
     }
 
     /**
-     * The page's way to a file, since a page in a WebView has none of its own.
+     * The page's way to a file, since a page in a WebView has none of its own
+     * — and to the daily reminder, which has to be kept outside the page
+     * because it fires when the page is not running.
      *
      * TEXT CROSSES A PIECE AT A TIME, in both directions. A backup is a few
      * million characters and the bridge between the page and the app is built
@@ -352,6 +366,40 @@ public class MainActivity extends ComponentActivity {
      * tests/store.test.mjs holds the two to the same names.
      */
     public final class FileBridge {
+        // ── the daily reminder: see Reminder, and src/app-r.js ─────────────
+
+        /** How the reminder stands: on or off, its time, and whether Android will show it. */
+        @JavascriptInterface
+        public String reminder() {
+            return "{\"on\":" + Reminder.isOn(MainActivity.this)
+                    + ",\"hour\":" + Reminder.hour(MainActivity.this)
+                    + ",\"minute\":" + Reminder.minute(MainActivity.this)
+                    + ",\"allowed\":" + Reminder.allowed(MainActivity.this) + "}";
+        }
+
+        /**
+         * Turn the reminder on at a time, or off. Turning it on is the moment
+         * Android is asked whether notifications may be shown, where it has to
+         * be asked; either way the page hears when there is something to read.
+         */
+        @JavascriptInterface
+        public void setReminder(final boolean on, final int hour, final int minute) {
+            Reminder.set(MainActivity.this, on, hour, minute);
+            final boolean ask = on && Build.VERSION.SDK_INT >= 33 && !Reminder.allowed(MainActivity.this);
+            runOnUiThread(() -> {
+                if (ask) notifyAsk.launch(Reminder.MAY_NOTIFY);
+                else tellPage("hardLinesReminderChanged", "");
+            });
+        }
+
+        /** The page says a session was finished: on which day, and how long the run of days then was. */
+        @JavascriptInterface
+        public void sessionDone(String day, int run) {
+            Reminder.done(MainActivity.this, day, run);
+        }
+
+        // ── files ──────────────────────────────────────────────────────────
+
         /** Start handing over a backup, under the name it should be offered as. */
         @JavascriptInterface
         public void beginBackup(String name) {

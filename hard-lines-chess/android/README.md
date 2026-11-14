@@ -61,8 +61,9 @@ accounts, no sync and no telemetry, and sends nothing but the player's name,
 to Chess.com. `tests/android-bridge.test.mjs` runs the first rule against a
 list of addresses that are nearly the archive and are not;
 `tests/android-assets-test.cjs` runs the page under both; and
-`tests/android-reach.test.mjs` holds the manifest to that one permission and
-the address the app lets out to the one the page asks for.
+`tests/android-reach.test.mjs` holds the manifest to that permission and the
+two the reminder needs (below) and no fourth, and the address the app lets out
+to the one the page asks for.
 
 Everything except that import behaves identically on a plane and at home,
 which a chess trainer that plays its own engine ought to.
@@ -122,6 +123,38 @@ boundary, the app restarted underneath its chooser, and a copy that cannot be
 written leaving the last one whole. What it cannot show is that a particular
 phone's file chooser behaves as documented, nor what a phone does when a file
 will not open — on a JVM every file opens.
+
+### The daily reminder is the app's, and is off until it is turned on
+
+The page counts the days a session was finished (see "One session a day" in
+the main README) and can be asked to remind you. A page cannot do that when it
+is not running, which is exactly when a reminder is for, so this part is the
+app's: `Reminder.java` keeps the time that was picked, sets a daily alarm for
+it, and when the alarm rings shows one notification — unless the page has said
+that today's session is done, in which case it shows nothing.
+
+- **It asks leave at the moment it is turned on, and not before.** Android 13
+  and later ask the person whether an app may show notifications. The app
+  declares `POST_NOTIFICATIONS` and asks only when the reminder is switched
+  on; refused, the reminder stays set and the page says the phone is not
+  letting it be shown.
+- **About the time, not on it.** The alarm is one Android may move by some
+  minutes to save the battery (`setInexactRepeating`). An exact one needs a
+  permission of its own, and a reminder does not need to be exact.
+- **A restart and an update both clear every alarm**, so
+  `ReminderReceiver` hears of both (`RECEIVE_BOOT_COMPLETED`, and the app's
+  own replacement) and sets it again. It is not exported: nothing outside the
+  app and the system can reach it.
+- **The page says when a session is done**, with the day and the run of days,
+  each time one is finished and each time the app opens. That is all the app
+  knows about sessions; the rest is clocks.
+
+`tests/android-bridge.test.mjs` runs the real `Reminder.java` on a JVM: which
+day a moment falls on, when the alarm should next ring across both clock
+changes and a year's end, what the notification says, and every case in which
+it must say nothing — the session done, leave refused or withdrawn,
+notifications switched off for the app, the reminder off. What it cannot show
+is that a phone rings the alarm when asked and shows what it is handed.
 
 ### The signing key is in this repository, and is not a secret
 

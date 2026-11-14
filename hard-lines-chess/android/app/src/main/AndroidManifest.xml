@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- ONE PERMISSION, FOR ONE THING: reading Chess.com's public archive of a
+    <!-- ONE PERMISSION TO CONNECT, FOR ONE THING: reading Chess.com's public archive of a
          player's games, so that new games arrive without being typed in.
 
          Until version 1.6 the app held no INTERNET permission at all, and the
@@ -20,6 +20,20 @@
          nothing but the player's name, to Chess.com. Everything except that
          import works with no connection. -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- AND TWO FOR THE DAILY REMINDER, which is off until it is turned on in
+         the app.
+
+         POST_NOTIFICATIONS is what lets the app show it. Android asks the
+         person whether to allow that, and the app asks Android only at the
+         moment the reminder is turned on; until then the permission is
+         declared here and has never been used.
+
+         RECEIVE_BOOT_COMPLETED lets the app hear that the phone has
+         restarted, which clears every alarm, so that the reminder can be set
+         again. It reads nothing and shows nothing by itself. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:usesCleartextTraffic="false"
@@ -49,5 +63,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- The reminder's alarm, and the two moments it has to be set again:
+             the phone restarting and the app being updated. Not exported: the
+             alarm is the app's own and the other two come from the system. -->
+        <receiver
+            android:name=".ReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

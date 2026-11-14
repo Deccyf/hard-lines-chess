@@ -26,8 +26,21 @@ const check = (what, got, want) => {
 // ── what the system is asked for ────────────────────────────────────────────
 const manifest = read('android/app/src/main/AndroidManifest.xml').replace(/<!--[\s\S]*?-->/g, '');
 const permissions = [...manifest.matchAll(/<uses-permission[^>]*android:name="([^"]+)"/g)].map((m) => m[1]);
-check('the app asks for one permission: to connect', permissions, ['android.permission.INTERNET']);
-check('and never without https', /android:usesCleartextTraffic="false"/.test(manifest), true);
+// One to connect, and two for the daily reminder: showing it, and hearing
+// that the phone has restarted so that its alarm can be set again. Neither of
+// those reaches anything — what the app may connect to is everything below —
+// and a fourth appearing here is the thing this is watching for.
+check('the app asks for three permissions and no more: to connect, to show its reminder, and to hear of a restart',
+  permissions, ['android.permission.INTERNET', 'android.permission.POST_NOTIFICATIONS', 'android.permission.RECEIVE_BOOT_COMPLETED']);
+check('and never connects without https', /android:usesCleartextTraffic="false"/.test(manifest), true);
+// What can be started from outside the app: its one screen, and nothing else.
+const exported = [...manifest.matchAll(/<(activity|receiver|service|provider)\b[^>]*>/g)]
+  .filter((m) => /android:exported="true"/.test(m[0])).map((m) => /android:name="([^"]+)"/.exec(m[0])?.[1]);
+check('nothing but the app\'s own screen can be started from outside it', exported, ['.MainActivity']);
+const receiver = /<receiver\b[\s\S]*?<\/receiver>/.exec(manifest)?.[0] ?? '';
+check('the reminder listens for the phone restarting and the app being updated, and for nothing else',
+  [...receiver.matchAll(/<action android:name="([^"]+)"/g)].map((m) => m[1]),
+  ['android.intent.action.BOOT_COMPLETED', 'android.intent.action.MY_PACKAGE_REPLACED']);
 
 // ── what the app lets out ───────────────────────────────────────────────────
 const activity = read('android/app/src/main/java/chess/hardlines/MainActivity.java');

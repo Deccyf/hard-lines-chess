@@ -376,6 +376,17 @@
 
   .note { font-size: 13px; color: var(--ink-faint); line-height: 1.5; margin: 10px 0 0; }
   .note strong { color: var(--ink-soft); font-weight: 600; }
+  /* Today's session: the card on Today, and the bar while one is under way. */
+  .session-run { font-size: 15px; font-weight: 600; margin: 8px 0 0; }
+  /* THE BAR IS SHORT ON PURPOSE. It sits above a board on a phone, and every
+     line it takes is a line of the board pushed under the fold: two short
+     lines of words on the left, small buttons on the right. */
+  .session-bar { margin-bottom: 14px; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .session-where { margin: 0; font-size: 13px; line-height: 1.35; min-width: 0; }
+  .session-where strong { display: block; font-weight: 600; }
+  .session-where span { display: block; color: var(--ink-soft); }
+  .session-bar .row { margin: 0; flex: none; gap: 6px; flex-wrap: nowrap; }
+  .session-bar .btn { padding: 6px 10px; font-size: 13px; }
   .good-note { color: var(--good); }
   .bad-note { color: var(--danger); }
   .empty { color: var(--ink-faint); }
@@ -436,11 +447,11 @@
   /* ── forms ─────────────────────────────────────────────────────────── */
   .field { display: grid; gap: 5px; margin-bottom: 10px; }
   .field > span { font-size: 12.5px; color: var(--ink-soft); font-weight: 500; }
-  select, input[type="text"], textarea {
+  select, input[type="text"], input[type="time"], textarea {
     border: 1px solid var(--line-strong); background: var(--panel); color: var(--ink); border-radius: var(--radius-sm);
     padding: 9px 11px; font: inherit; font-size: 14px; width: 100%;
   }
-  select:focus, input[type="text"]:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
+  select:focus, input[type="text"]:focus, input[type="time"]:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
   textarea { resize: vertical; font-size: 13px; line-height: 1.5; }
   .fields { display: grid; gap: 10px; margin-top: 12px; }
   @media (min-width: 620px) { .fields { grid-template-columns: repeat(3, 1fr); } }

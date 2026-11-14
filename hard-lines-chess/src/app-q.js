@@ -334,7 +334,8 @@ function nextWeakPuzzle() {
 
   $('weakSetup').hidden = true;
   $('weakBoardWrap').hidden = false;
-  $('weakStop').hidden = false;
+  // Inside a session the way out is the session's own, on the bar above.
+  $('weakStop').hidden = sessionIs('weak');
   $('weakLegend').hidden = true;
   $('weakNext').hidden = true;
   $('weakShow').hidden = true;
@@ -460,6 +461,7 @@ async function finishWeakPuzzle() {
   data.log.push({ t: Date.now(), id: opened.id, ok: solved, r: opened.rating, k: cur.kind, a: cur.aim });
   if (data.log.length > WEAK_LOG_KEEP) data.log = data.log.slice(-WEAK_LOG_KEEP);
   Weak.set.results.push({ ok: solved, kind: cur.kind, aim: cur.aim });
+  sessionAnswered('weak', solved);
 
   // ── what the screen says ────────────────────────────────────────────────
   const words = packThemeWords(opened.themes);
@@ -476,7 +478,7 @@ async function finishWeakPuzzle() {
 
   const lastOfSet = Weak.set.at >= Weak.set.slots.length - 1;
   $('weakNext').hidden = false;
-  $('weakNext').textContent = lastOfSet ? 'See how the ten went' : 'Next';
+  $('weakNext').textContent = lastOfSet && !sessionIs('weak') ? 'See how the ten went' : 'Next';
   $('weakExplore').hidden = false;
   $('weakExplore').onclick = () => openPractice(opened.start, { arrows: arrowsFor(null, opened.line[0].uci) });
   $('weakAskWhy').hidden = !Coach.ready;
@@ -534,6 +536,8 @@ function endWeakSet({ ranOut = false, stopped = false } = {}) {
       saved = Store.set('weakspots', App.weak);
     }
   }
+  // A set that was part of today's session hands on to the session's next part.
+  if (!stopped && sessionPartOver('weak', 0)) return saved;
   renderWeak();
   return saved;
 }

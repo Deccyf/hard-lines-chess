@@ -321,12 +321,15 @@ async function onPuzzleMove({ move, san }) {
   // distance and leave the ones he avoids due forever.
   if (Puzzles.scoring) {
     p.card = SRS.review(p.card, correct);
+    sessionAnswered('puzzles', correct);
     await Store.set('puzzles', App.puzzles);
   }
 }
 
 function nextPuzzle() {
   Puzzles.current = null;
+  // A session takes so many puzzles and then goes on to its next part.
+  if (sessionPartOver('puzzles', duePuzzles().length)) return;
   startPuzzle();
   if (!Puzzles.current) renderPuzzles();
 }
