@@ -522,6 +522,7 @@ async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress =
   //   singleReply  — he had only one legal move there, so there was nothing
   //                  to find.
   const passed = { capped: 0, notUnique: 0, singleReply: 0 };
+  const unchecked = [];
 
   if (withTactics) {
     for (let i = 0; i < parsed.plies.length; i++) {
@@ -555,6 +556,10 @@ async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress =
     candidates.sort((a, b) => (Number(b.mate) - Number(a.mate)) || (b.gain - a.gain));
     const shortlist = candidates.slice(0, TACTIC.perGame);
     passed.capped += candidates.length - shortlist.length;
+    // WHICH ONES WERE LEFT UNCHECKED, as well as how many: a puzzle this game
+    // already has, at one of these positions, has not been contradicted by
+    // this judgement — only not looked at.
+    for (const c of candidates.slice(TACTIC.perGame)) unchecked.push(positions[c.i + 1].fen);
 
     for (let n = 0; n < shortlist.length; n++) {
       const c = shortlist[n];
@@ -630,7 +635,7 @@ async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress =
   // fewer than MIN_JUDGED of his moves to average over.
   const { accuracy, meanLoss } = accuracyFrom(lost, counted);
 
-  return { evals, mistakes, accuracy, counted, minJudged: MIN_JUDGED, judged, whiteCp, tactics, capped, tacticsPassed: passed, meanLoss, depth, nodes, ranOutOfTime, judge: judge?.name ?? 'app' };
+  return { evals, mistakes, accuracy, counted, minJudged: MIN_JUDGED, judged, whiteCp, tactics, capped, tacticsPassed: passed, tacticsUnchecked: unchecked, meanLoss, depth, nodes, ranOutOfTime, judge: judge?.name ?? 'app' };
 }
 
 

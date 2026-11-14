@@ -187,7 +187,7 @@ function renderImport() {
 // measurement of a different thing, and the setting is stored beside the
 // result.
 
-const Walk = { running: false, cancelled: false, done: 0, total: 0, failed: 0, drills: 0, redrilled: 0 };
+const Walk = { running: false, cancelled: false, done: 0, total: 0, failed: 0, drills: 0, redrilled: 0, puzzles: 0, repuzzled: 0 };
 
 /** The judge the walk uses: the one picked, remembered between visits. */
 function walkJudgeName() {
@@ -311,7 +311,7 @@ async function walkImported() {
 
   Walk.running = true;
   Walk.cancelled = false;
-  Walk.done = 0; Walk.failed = 0; Walk.drills = 0; Walk.redrilled = 0; Walk.total = queue.length;
+  Walk.done = 0; Walk.failed = 0; Walk.drills = 0; Walk.redrilled = 0; Walk.puzzles = 0; Walk.repuzzled = 0; Walk.total = queue.length;
   $('walkRun').hidden = true;
   $('walkStop').hidden = false;
 
@@ -397,6 +397,18 @@ async function walkImported() {
     const redrilled = rejudgeDrills(game, before);
     Walk.redrilled += redrilled.changed + redrilled.removed;
     Walk.drills += await addMistakesToDrills(result.mistakes, { worstOnly: true, judge: judgeName });
+    // AND WHAT THEIR MISTAKES OFFERED BECOMES PUZZLES. The walk has always
+    // found these — the pass that judges his moves judges his opponent's too,
+    // and gives each chance it finds a second, harder look — and then let
+    // them go: only a review of one game on its own filed them. So Puzzles
+    // offered to "scan" every game the walk had just been through, which was
+    // the whole walk done a second time. Filing them here marks the game as
+    // scanned as well. The puzzles it already had are brought into line with
+    // the new judgement first, as its drills are.
+    const repuzzled = rejudgePuzzles(game.at, result, judgeName);
+    Walk.repuzzled += repuzzled.changed + repuzzled.removed;
+    if (repuzzled.changed || repuzzled.removed) await Store.set('puzzles', App.puzzles);
+    Walk.puzzles += await addTactics(result.tactics, { source: 'review', label: `${game.white} vs ${game.black}`, at: game.at, against: 'elsewhere', judge: judgeName });
     Walk.done++;
     // Saved after each, so stopping — or closing the tab — keeps what was done.
     await Store.set('reviews', App.reviews);
@@ -417,12 +429,15 @@ async function walkImported() {
   // comes back the next time the screen renders.
   renderImport();
   renderDrills();
+  renderPuzzles();
   refreshBook();
 
   const left = unwalkedGames().length;
   const did = `${Walk.done} reviewed${judgeName === 'app' ? '' : ` by ${judgeWords(judgeName)}`}${Walk.failed ? `, ${Walk.failed} of them would not read` : ''}.`
     + (Walk.drills ? ` ${Walk.drills} new ${Walk.drills === 1 ? 'position' : 'positions'} added to your drills.` : '')
-    + (Walk.redrilled ? ` ${Walk.redrilled} ${Walk.redrilled === 1 ? 'drill was' : 'drills were'} brought into line with the new judgement.` : '');
+    + (Walk.redrilled ? ` ${Walk.redrilled} ${Walk.redrilled === 1 ? 'drill was' : 'drills were'} brought into line with the new judgement.` : '')
+    + (Walk.puzzles ? ` ${Walk.puzzles} new ${Walk.puzzles === 1 ? 'puzzle' : 'puzzles'} from moments your opponents went wrong.` : '')
+    + (Walk.repuzzled ? ` ${Walk.repuzzled} ${Walk.repuzzled === 1 ? 'puzzle was' : 'puzzles were'} brought into line with the new judgement.` : '');
   if (stopped) {
     walkNote(`${did} Then ${judgeWords(judgeName)} stopped, on ${stopped.game.white} vs ${stopped.game.black}: ${stopped.why}`
       + ' That game and the ones after it were left exactly as they were. Press it again to carry on.', 'note bad-note');

@@ -30,9 +30,10 @@ const puzzleKey = (source, at) => `${source}:${at}`;
  * a game played here and then pasted into Review — and being asked the same
  * question twice from two lists is how a review queue stops being believed.
  */
-async function addTactics(tactics, { source, label, at, against = null, dropped = 0 }) {
+async function addTactics(tactics, { source, label, at, against = null, dropped = 0, judge = 'app' }) {
   const key = puzzleKey(source, at);
-  if (!App.puzzles.scanned.includes(key)) App.puzzles.scanned.push(key);
+  const marked = !App.puzzles.scanned.includes(key);
+  if (marked) App.puzzles.scanned.push(key);
 
   let added = 0;
   for (const t of tactics) {
@@ -43,6 +44,9 @@ async function addTactics(tactics, { source, label, at, against = null, dropped 
       source,
       label,
       at,
+      // WHOSE ANSWER IT IS. A puzzle is one judge's claim that exactly one
+      // move wins here, and another judge may not agree — see rejudgePuzzles.
+      judge,
       // WHO IT WAS AGAINST, kept on every row. A tactic taken against this
       // app's own opponent and one taken against a person are not the same
       // evidence, and a single ratio over both quietly claims they are.
@@ -54,8 +58,50 @@ async function addTactics(tactics, { source, label, at, against = null, dropped 
     });
     added++;
   }
-  if (added) await Store.set('puzzles', App.puzzles);
+  // Saved when the game was marked as scanned, too, and not only when it gave
+  // something: a game with nothing in it was otherwise marked for this visit
+  // only, and offered for scanning again after every reload.
+  if (added || marked) await Store.set('puzzles', App.puzzles);
   return added;
+}
+
+/**
+ * Bring the puzzles a game already has into line with a new judgement of it.
+ *
+ * A PUZZLE IS A JUDGE'S CLAIM that the opponent went wrong here and exactly
+ * one move takes it. When the game is judged again — by a stronger judge,
+ * above all — that claim is judged again with it, the way the game's drills
+ * are:
+ *
+ *   - a position the new judgement also files keeps its place in the
+ *     schedule and takes the new answer, line and figures;
+ *   - a position the new judgement looked at and did not file goes: by its
+ *     lights the opponent's move was no mistake, or more than one move
+ *     punishes it, and a puzzle like that marks a good move wrong;
+ *   - a position the new judgement LEFT UNCHECKED — a game has a limit, and
+ *     this one was beyond it — stays as it is. It has not been contradicted.
+ *
+ * Only this game's puzzles are touched, and only those that came from a
+ * review of it. Returns { changed, removed }; the caller saves.
+ */
+function rejudgePuzzles(at, result, judge) {
+  const mine = App.puzzles.items.filter((p) => p.at === at && p.source === 'review');
+  if (!mine.length) return { changed: 0, removed: 0 };
+  const filed = new Map((result.tactics ?? []).map((t) => [t.fen, t]));
+  const unchecked = new Set(result.tacticsUnchecked ?? []);
+  const gone = new Set();
+  let changed = 0;
+  for (const puzzle of mine) {
+    const now = filed.get(puzzle.fen);
+    if (now) {
+      if (puzzle.best?.uci !== now.best.uci) changed++;
+      Object.assign(puzzle, now, { judge });
+    } else if (!unchecked.has(puzzle.fen)) {
+      gone.add(puzzle);
+    }
+  }
+  if (gone.size) App.puzzles.items = App.puzzles.items.filter((p) => !gone.has(p));
+  return { changed, removed: gone.size };
 }
 
 function duePuzzles() {
@@ -339,7 +385,7 @@ async function scanGamesForTactics() {
       },
     });
 
-    found += await addTactics(result.tactics, { source: game.kind, label: game.label, at: game.at, against: game.against });
+    found += await addTactics(result.tactics, { source: game.kind, label: game.label, at: game.at, against: game.against, judge: 'app' });
     for (const reason of Object.keys(passedOver)) passedOver[reason] += result.tacticsPassed?.[reason] ?? 0;
     await Store.set('puzzles', App.puzzles);
   }

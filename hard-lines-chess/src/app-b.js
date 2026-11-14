@@ -754,7 +754,12 @@ async function runReview() {
   // The book is built from stored games, and one was just stored.
   refreshBook();
 
-  const filed = await addTactics(result.tactics, { source: 'review', label, at: game.at, against: 'elsewhere' });
+  // Its puzzles follow the new judgement as well, and then take what is new.
+  if (earlier) {
+    const repuzzled = rejudgePuzzles(game.at, result, judgeName);
+    if (repuzzled.changed || repuzzled.removed) await Store.set('puzzles', App.puzzles);
+  }
+  const filed = await addTactics(result.tactics, { source: 'review', label, at: game.at, against: 'elsewhere', judge: judgeName });
 
   notes.unshift(`Done: ${result.mistakes.length} ${result.mistakes.length === 1 ? 'mistake' : 'mistakes'} found in your ${result.counted} moves.`
     + (earlier ? ` This game was already stored, so this review replaced the earlier one${judgeName === 'app' ? '' : ` with ${judgeWords(judgeName)}'s`} rather than counting it twice.` : ''));

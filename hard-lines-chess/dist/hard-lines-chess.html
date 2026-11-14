@@ -8003,6 +8003,7 @@ async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress =
   //   singleReply  — he had only one legal move there, so there was nothing
   //                  to find.
   const passed = { capped: 0, notUnique: 0, singleReply: 0 };
+  const unchecked = [];
 
   if (withTactics) {
     for (let i = 0; i < parsed.plies.length; i++) {
@@ -8036,6 +8037,10 @@ async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress =
     candidates.sort((a, b) => (Number(b.mate) - Number(a.mate)) || (b.gain - a.gain));
     const shortlist = candidates.slice(0, TACTIC.perGame);
     passed.capped += candidates.length - shortlist.length;
+    // WHICH ONES WERE LEFT UNCHECKED, as well as how many: a puzzle this game
+    // already has, at one of these positions, has not been contradicted by
+    // this judgement — only not looked at.
+    for (const c of candidates.slice(TACTIC.perGame)) unchecked.push(positions[c.i + 1].fen);
 
     for (let n = 0; n < shortlist.length; n++) {
       const c = shortlist[n];
@@ -8111,7 +8116,7 @@ async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress =
   // fewer than MIN_JUDGED of his moves to average over.
   const { accuracy, meanLoss } = accuracyFrom(lost, counted);
 
-  return { evals, mistakes, accuracy, counted, minJudged: MIN_JUDGED, judged, whiteCp, tactics, capped, tacticsPassed: passed, meanLoss, depth, nodes, ranOutOfTime, judge: judge?.name ?? 'app' };
+  return { evals, mistakes, accuracy, counted, minJudged: MIN_JUDGED, judged, whiteCp, tactics, capped, tacticsPassed: passed, tacticsUnchecked: unchecked, meanLoss, depth, nodes, ranOutOfTime, judge: judge?.name ?? 'app' };
 }
 
 
@@ -13994,7 +13999,12 @@ async function runReview() {
   // The book is built from stored games, and one was just stored.
   refreshBook();
 
-  const filed = await addTactics(result.tactics, { source: 'review', label, at: game.at, against: 'elsewhere' });
+  // Its puzzles follow the new judgement as well, and then take what is new.
+  if (earlier) {
+    const repuzzled = rejudgePuzzles(game.at, result, judgeName);
+    if (repuzzled.changed || repuzzled.removed) await Store.set('puzzles', App.puzzles);
+  }
+  const filed = await addTactics(result.tactics, { source: 'review', label, at: game.at, against: 'elsewhere', judge: judgeName });
 
   notes.unshift(`Done: ${result.mistakes.length} ${result.mistakes.length === 1 ? 'mistake' : 'mistakes'} found in your ${result.counted} moves.`
     + (earlier ? ` This game was already stored, so this review replaced the earlier one${judgeName === 'app' ? '' : ` with ${judgeWords(judgeName)}'s`} rather than counting it twice.` : ''));
@@ -16259,9 +16269,10 @@ const puzzleKey = (source, at) => `${source}:${at}`;
  * a game played here and then pasted into Review — and being asked the same
  * question twice from two lists is how a review queue stops being believed.
  */
-async function addTactics(tactics, { source, label, at, against = null, dropped = 0 }) {
+async function addTactics(tactics, { source, label, at, against = null, dropped = 0, judge = 'app' }) {
   const key = puzzleKey(source, at);
-  if (!App.puzzles.scanned.includes(key)) App.puzzles.scanned.push(key);
+  const marked = !App.puzzles.scanned.includes(key);
+  if (marked) App.puzzles.scanned.push(key);
 
   let added = 0;
   for (const t of tactics) {
@@ -16272,6 +16283,9 @@ async function addTactics(tactics, { source, label, at, against = null, dropped 
       source,
       label,
       at,
+      // WHOSE ANSWER IT IS. A puzzle is one judge's claim that exactly one
+      // move wins here, and another judge may not agree — see rejudgePuzzles.
+      judge,
       // WHO IT WAS AGAINST, kept on every row. A tactic taken against this
       // app's own opponent and one taken against a person are not the same
       // evidence, and a single ratio over both quietly claims they are.
@@ -16283,8 +16297,50 @@ async function addTactics(tactics, { source, label, at, against = null, dropped 
     });
     added++;
   }
-  if (added) await Store.set('puzzles', App.puzzles);
+  // Saved when the game was marked as scanned, too, and not only when it gave
+  // something: a game with nothing in it was otherwise marked for this visit
+  // only, and offered for scanning again after every reload.
+  if (added || marked) await Store.set('puzzles', App.puzzles);
   return added;
+}
+
+/**
+ * Bring the puzzles a game already has into line with a new judgement of it.
+ *
+ * A PUZZLE IS A JUDGE'S CLAIM that the opponent went wrong here and exactly
+ * one move takes it. When the game is judged again — by a stronger judge,
+ * above all — that claim is judged again with it, the way the game's drills
+ * are:
+ *
+ *   - a position the new judgement also files keeps its place in the
+ *     schedule and takes the new answer, line and figures;
+ *   - a position the new judgement looked at and did not file goes: by its
+ *     lights the opponent's move was no mistake, or more than one move
+ *     punishes it, and a puzzle like that marks a good move wrong;
+ *   - a position the new judgement LEFT UNCHECKED — a game has a limit, and
+ *     this one was beyond it — stays as it is. It has not been contradicted.
+ *
+ * Only this game's puzzles are touched, and only those that came from a
+ * review of it. Returns { changed, removed }; the caller saves.
+ */
+function rejudgePuzzles(at, result, judge) {
+  const mine = App.puzzles.items.filter((p) => p.at === at && p.source === 'review');
+  if (!mine.length) return { changed: 0, removed: 0 };
+  const filed = new Map((result.tactics ?? []).map((t) => [t.fen, t]));
+  const unchecked = new Set(result.tacticsUnchecked ?? []);
+  const gone = new Set();
+  let changed = 0;
+  for (const puzzle of mine) {
+    const now = filed.get(puzzle.fen);
+    if (now) {
+      if (puzzle.best?.uci !== now.best.uci) changed++;
+      Object.assign(puzzle, now, { judge });
+    } else if (!unchecked.has(puzzle.fen)) {
+      gone.add(puzzle);
+    }
+  }
+  if (gone.size) App.puzzles.items = App.puzzles.items.filter((p) => !gone.has(p));
+  return { changed, removed: gone.size };
 }
 
 function duePuzzles() {
@@ -16568,7 +16624,7 @@ async function scanGamesForTactics() {
       },
     });
 
-    found += await addTactics(result.tactics, { source: game.kind, label: game.label, at: game.at, against: game.against });
+    found += await addTactics(result.tactics, { source: game.kind, label: game.label, at: game.at, against: game.against, judge: 'app' });
     for (const reason of Object.keys(passedOver)) passedOver[reason] += result.tacticsPassed?.[reason] ?? 0;
     await Store.set('puzzles', App.puzzles);
   }
@@ -20051,7 +20107,7 @@ function renderImport() {
 // measurement of a different thing, and the setting is stored beside the
 // result.
 
-const Walk = { running: false, cancelled: false, done: 0, total: 0, failed: 0, drills: 0, redrilled: 0 };
+const Walk = { running: false, cancelled: false, done: 0, total: 0, failed: 0, drills: 0, redrilled: 0, puzzles: 0, repuzzled: 0 };
 
 /** The judge the walk uses: the one picked, remembered between visits. */
 function walkJudgeName() {
@@ -20175,7 +20231,7 @@ async function walkImported() {
 
   Walk.running = true;
   Walk.cancelled = false;
-  Walk.done = 0; Walk.failed = 0; Walk.drills = 0; Walk.redrilled = 0; Walk.total = queue.length;
+  Walk.done = 0; Walk.failed = 0; Walk.drills = 0; Walk.redrilled = 0; Walk.puzzles = 0; Walk.repuzzled = 0; Walk.total = queue.length;
   $('walkRun').hidden = true;
   $('walkStop').hidden = false;
 
@@ -20261,6 +20317,18 @@ async function walkImported() {
     const redrilled = rejudgeDrills(game, before);
     Walk.redrilled += redrilled.changed + redrilled.removed;
     Walk.drills += await addMistakesToDrills(result.mistakes, { worstOnly: true, judge: judgeName });
+    // AND WHAT THEIR MISTAKES OFFERED BECOMES PUZZLES. The walk has always
+    // found these — the pass that judges his moves judges his opponent's too,
+    // and gives each chance it finds a second, harder look — and then let
+    // them go: only a review of one game on its own filed them. So Puzzles
+    // offered to "scan" every game the walk had just been through, which was
+    // the whole walk done a second time. Filing them here marks the game as
+    // scanned as well. The puzzles it already had are brought into line with
+    // the new judgement first, as its drills are.
+    const repuzzled = rejudgePuzzles(game.at, result, judgeName);
+    Walk.repuzzled += repuzzled.changed + repuzzled.removed;
+    if (repuzzled.changed || repuzzled.removed) await Store.set('puzzles', App.puzzles);
+    Walk.puzzles += await addTactics(result.tactics, { source: 'review', label: `${game.white} vs ${game.black}`, at: game.at, against: 'elsewhere', judge: judgeName });
     Walk.done++;
     // Saved after each, so stopping — or closing the tab — keeps what was done.
     await Store.set('reviews', App.reviews);
@@ -20281,12 +20349,15 @@ async function walkImported() {
   // comes back the next time the screen renders.
   renderImport();
   renderDrills();
+  renderPuzzles();
   refreshBook();
 
   const left = unwalkedGames().length;
   const did = `${Walk.done} reviewed${judgeName === 'app' ? '' : ` by ${judgeWords(judgeName)}`}${Walk.failed ? `, ${Walk.failed} of them would not read` : ''}.`
     + (Walk.drills ? ` ${Walk.drills} new ${Walk.drills === 1 ? 'position' : 'positions'} added to your drills.` : '')
-    + (Walk.redrilled ? ` ${Walk.redrilled} ${Walk.redrilled === 1 ? 'drill was' : 'drills were'} brought into line with the new judgement.` : '');
+    + (Walk.redrilled ? ` ${Walk.redrilled} ${Walk.redrilled === 1 ? 'drill was' : 'drills were'} brought into line with the new judgement.` : '')
+    + (Walk.puzzles ? ` ${Walk.puzzles} new ${Walk.puzzles === 1 ? 'puzzle' : 'puzzles'} from moments your opponents went wrong.` : '')
+    + (Walk.repuzzled ? ` ${Walk.repuzzled} ${Walk.repuzzled === 1 ? 'puzzle was' : 'puzzles were'} brought into line with the new judgement.` : '');
   if (stopped) {
     walkNote(`${did} Then ${judgeWords(judgeName)} stopped, on ${stopped.game.white} vs ${stopped.game.black}: ${stopped.why}`
       + ' That game and the ones after it were left exactly as they were. Press it again to carry on.', 'note bad-note');

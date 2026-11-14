@@ -10,7 +10,9 @@
 //   B: judged by Stockfish from the start, in a fresh browser
 //
 // — and everything A ends up with must be what B has: every stored figure,
-// every chart and panel on Progress, the reopened review, the drills.
+// every chart and panel on Progress, the reopened review, the drills, and the
+// puzzles — which the walk files itself, from the chances it finds while it
+// judges, rather than leaving every game to be gone through a second time.
 //
 // And around that, the ways a judgement can go wrong:
 //
@@ -137,10 +139,24 @@ const MOVES = PICK.map(([elo, g]) => played.find((r) => r.elo === elo && r.game 
   const mistakesOf = (page) => page.evaluate(() => App.reviews.games.flatMap((g) => (g.mistakes ?? [])
     .map((m) => ({ key: `${m.fen}|${m.uci}`, best: m.best?.uci, severity: m.severity, url: g.url }))));
 
+  // A puzzle, as what it asks and whose answer it is. `at` is the game it came from.
+  const puzzles = (page) => page.evaluate(() => App.puzzles.items
+    .map((p) => ({ fen: p.fen, best: p.best.uci, judge: p.judge, source: p.source, at: p.at, seen: p.card?.seen ?? 0 }))
+    .sort((a, b) => (a.fen < b.fen ? -1 : (a.fen > b.fen ? 1 : 0))));
+  const asked = (list) => JSON.stringify(list.map((p) => `${p.fen} ${p.best} ${p.judge}`));
+
   // ── 1. the same history, two ways ─────────────────────────────────────────
   const A = await open();
   await seed(A);
-  await walk(A, 'app');
+  const firstNote = await walk(A, 'app');
+  say('the first walk said', firstNote);
+  const appPuzzles = await puzzles(A);
+  check('the walk files the chances it finds as puzzles', appPuzzles.length > 0 && appPuzzles.every((p) => p.judge === 'app' && p.source === 'review'), true);
+  check('and says how many', firstNote.includes(`${appPuzzles.length} new ${appPuzzles.length === 1 ? 'puzzle' : 'puzzles'} from moments your opponents went wrong.`), true);
+  check('which leaves Puzzles nothing to scan', await A.evaluate(() => scannableGames().length), 0);
+  // Each has been seen seven times, so that what happens to its place in the
+  // schedule when the game is judged again can be told.
+  await A.evaluate(() => { for (const p of App.puzzles.items) p.card.seen = 7; return Store.set('puzzles', App.puzzles); });
   const appStored = await stored(A);
   const appProgress = await progress(A);          // looked at: every cache on it filled
   const appDrills = await drills(A);
@@ -160,10 +176,12 @@ const MOVES = PICK.map(([elo, g]) => played.find((r) => r.elo === elo && r.game 
   const aProgress = await progress(A);
   const aDrills = await drills(A);
   const aReopened = await reopened(A, 'rejudge-1');
+  const aPuzzles = await puzzles(A);
 
   const B = await open();
   await seed(B);
   await walk(B, 'stockfish');
+  const bPuzzles = await puzzles(B);
   const bStored = await stored(B);
   const bProgress = await progress(B);
   const bDrills = await drills(B);
@@ -201,7 +219,23 @@ const MOVES = PICK.map(([elo, g]) => played.find((r) => r.elo === elo && r.game 
   const gone = appDrills.filter((d) => !aByKey.has(d.key)).length;
   const changed = appDrills.filter((d) => aByKey.has(d.key) && aByKey.get(d.key).best !== d.best).length;
   say('drills from this app\'s engine: answer changed / removed', `${changed} / ${gone}`);
-  check('and the walk says when it changed any', /brought into line with the new judgement/.test(rejudgedNote), gone + changed > 0);
+  check('and the walk says when it changed any', /drills? (was|were) brought into line with the new judgement/.test(rejudgedNote), gone + changed > 0);
+
+  // Puzzles: the ones Stockfish files, with its answers, and no others.
+  check('the puzzles are the ones a fresh Stockfish history has, with its answers', asked(aPuzzles), asked(bPuzzles));
+  const stayed = aPuzzles.filter((p) => appPuzzles.some((q) => q.fen === p.fen));
+  const arrived = aPuzzles.filter((p) => !appPuzzles.some((q) => q.fen === p.fen));
+  const left = appPuzzles.filter((q) => !aPuzzles.some((p) => p.fen === q.fen));
+  const reanswered = stayed.filter((p) => appPuzzles.find((q) => q.fen === p.fen).best !== p.best);
+  say('puzzles from this app\'s engine: kept / answer changed / removed / new', `${stayed.length} / ${reanswered.length} / ${left.length} / ${arrived.length}`);
+  check('one the game already had keeps its place in the schedule', stayed.every((p) => p.seen === 7), true);
+  check('and one that is new starts at the beginning', arrived.every((p) => p.seen < 7), true);
+  check('the walk says when it changed any', /puzzles? (was|were) brought into line with the new judgement/.test(rejudgedNote), reanswered.length + left.length > 0);
+  check('and Puzzles still has nothing to scan', await A.evaluate(() => scannableGames().length), 0);
+  await A.reload();
+  await A.waitForSelector('#tab-today', { timeout: 20000 });
+  check('after a reload the puzzles are the same, and there is still nothing to scan',
+    `${asked(await puzzles(A))} ${await A.evaluate(() => scannableGames().length)}`, `${asked(bPuzzles)} 0`);
 
   // ── 2. a drill says whose answer it is ────────────────────────────────────
   await gotoSection(B, 'drills');
@@ -258,6 +292,11 @@ const MOVES = PICK.map(([elo, g]) => played.find((r) => r.elo === elo && r.game 
   const stale = nowDrills.filter((d) => wasKeys.has(d.key) && !others.has(d.key)
     && (!appSays.has(d.key) || appSays.get(d.key).best !== d.best || d.judge !== 'app'));
   check('its drills follow the new review', stale.length, 0);
+  const gameAt = await B.evaluate(() => App.reviews.games.find((g) => g.url === 'rejudge-1').at);
+  const ofGame = (list) => list.filter((p) => p.at === gameAt);
+  const nowPuzzles = await puzzles(B);
+  check('and so do its puzzles', asked(ofGame(nowPuzzles)), asked(ofGame(appPuzzles)));
+  check('and no other game\'s puzzle was touched', asked(nowPuzzles.filter((p) => p.at !== gameAt)), asked(bPuzzles.filter((p) => p.at !== gameAt)));
   check('and no other drill was touched', nowDrills.filter((d) => !wasKeys.has(d.key)).map((d) => `${d.key}|${d.best}|${d.judge}`).every((k) => beforeReview.drills.includes(k)), true);
 
   // ── 5. the judge stops halfway: nothing it had not finished is touched ────

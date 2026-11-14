@@ -39,6 +39,18 @@
   open; a backup can still be saved from a session that cannot; and the next
   save that works writes everything that was owed.
 
+### Analysis that does not do the work twice
+- **The walk keeps the puzzles it finds.** While it judges your moves it also
+  finds the moments your opponents went wrong, and checks each with a second,
+  harder search — and then it threw them away, so Puzzles offered to "scan"
+  every game it had just been through, which was the whole walk again (92
+  seconds on top of a 133-second walk, measured). They are filed as puzzles as
+  it goes, and the game is marked as scanned.
+- **Puzzles follow a new judgement, as drills do.** When a game is judged
+  again, a puzzle it already had takes the new judge's answer and keeps its
+  place in your schedule; one the new judge does not agree is a puzzle — more
+  than one move wins, or the opponent's move was no mistake — is removed.
+
 ### Since 1.5.0, not listed here until now
 - **Stockfish** on the Watch screen and as a judge, in every build; **Reckless**
   as a download in the web version; engine games explained move by move.
