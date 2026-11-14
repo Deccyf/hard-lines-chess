@@ -60,7 +60,7 @@ async function read(browser, url, userAgent) {
   check('marker read', app.marker, true);
   // Already installed, so neither offer is made.
   check('install row', app.installRow, 'hidden');
-  check('install note', app.installNote, 'Running as the Android app.');
+  check('install note', app.installNote, 'Running as the Android app, version 1.0.0.');
   check('save-a-copy row', app.downloadRow, 'hidden');
   check('panel heading', app.downloadTitle, 'Your copy');
   // setupInstall() returns before it injects one: there is no browser here to

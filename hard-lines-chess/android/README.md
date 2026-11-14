@@ -124,6 +124,18 @@ written leaving the last one whole. What it cannot show is that a particular
 phone's file chooser behaves as documented, nor what a phone does when a file
 will not open — on a JVM every file opens.
 
+### The app says when it was put on the phone
+
+A newly installed app is empty, and an empty app is what a lost history looks
+like. One was taken for the other: the games were in the web version — which
+keeps its data in the browser, where this app cannot see it — and the app had
+just been installed. The one fact that settles it is when the app arrived, and
+only Android knows that. So the page can ask (`installed()` on the bridge:
+`firstInstallTime` and `lastUpdateTime` from the package manager, and nothing
+else), and an app with nothing stored says at the top of Today when it was put
+on the phone, beside how a backup file brings a history in from the web
+version. "Your copy" gives the version and both dates.
+
 ### The daily reminder is the app's, and is off until it is turned on
 
 The page counts the days a session was finished (see "One session a day" in

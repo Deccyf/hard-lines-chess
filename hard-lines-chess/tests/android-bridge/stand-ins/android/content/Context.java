@@ -31,6 +31,14 @@ public class Context {
         if (service == android.app.NotificationManager.class) return (T) android.app.NotificationManager.only;
         return null;
     }
+    /** The app's name on the phone, and when the phone says it arrived and was last updated. The test sets the times. */
+    public static final String PACKAGE = "chess.hardlines";
+    public static long firstInstallTime = 0;
+    public static long lastUpdateTime = 0;
+    /** False for a phone that will not say anything about the app. */
+    public static boolean packageKnown = true;
+    public String getPackageName() { return PACKAGE; }
+    public android.content.pm.PackageManager getPackageManager() { return new android.content.pm.PackageManager(); }
     public int getColor(int id) { return 0; }
     public android.content.res.AssetManager getAssets() { return new android.content.res.AssetManager(); }
     public android.content.res.Resources getResources() { return new android.content.res.Resources(); }

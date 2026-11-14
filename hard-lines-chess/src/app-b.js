@@ -2340,6 +2340,12 @@ function renderProgress() {
     box.appendChild(el('p', 'note', waiting
       ? `${waiting} imported ${waiting === 1 ? 'game is' : 'games are'} stored${where} and none of them has been reviewed yet. Review one and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.`
       : `Review a game${where} and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.`));
+    // AN EMPTY PAGE IN AN EMPTY COPY IS NOT A LOST HISTORY, and this is the
+    // page somebody looks at to find out which. Today says how a history is
+    // brought here from another copy; this says there is such a thing.
+    if (copyIsNew()) {
+      box.appendChild(el('p', 'note', `Nothing is stored in this copy of the app. If your games are in another copy of it — ${IN_ANDROID_APP ? 'the web version, another phone' : 'the Android app, another browser'} — they are still there, and Today says how to bring them here.`));
+    }
     return;
   }
 

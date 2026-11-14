@@ -8,6 +8,15 @@
     <div class="tabs-wrap subtabs-wrap" id="subtabsWrap" hidden><nav class="tabs subtabs" id="subtabs" aria-label="Screens in this section"></nav></div>
   </header>
 
+  <!-- WHAT IS STORED COULD NOT BE REACHED, OR NOTHING IS BEING SAVED: said on
+       every screen, above it. An app that cannot open its data looks exactly
+       like an app that has none, and the one sentence that told them apart
+       used to be at the bottom of Today. -->
+  <div class="panel store-alert" id="storeAlert" role="alert" hidden>
+    <p class="note bad-note" id="storeAlertText"></p>
+    <div class="row"><button class="btn" id="storeAlertGo" type="button"></button></div>
+  </div>
+
   <!-- TODAY'S SESSION, while one is under way: on every screen, above it -->
   <div class="panel session-bar" id="sessionBar" hidden>
     <p class="session-where"><strong id="sessionWhere"></strong><span id="sessionPart"></span></p>
@@ -22,6 +31,15 @@
   <!-- TODAY -->
   <section id="section-today">
     <p class="lede">Your training for today. Items appear only when there is something to do.</p>
+    <!-- A COPY WITH NOTHING IN IT SAYS SO, AND SAYS WHERE A HISTORY MIGHT BE.
+         The web version and the Android app keep separate data, and so does
+         every browser: a newly installed copy is empty, and until this panel
+         there was nothing to tell that apart from a history that had gone. -->
+    <div id="newCopy" class="panel" hidden>
+      <h3 id="newCopyTitle"></h3>
+      <p class="note" id="newCopyNote"></p>
+      <div class="row" style="margin-top:10px"><button class="btn" id="newCopyRestore" type="button">Restore from a backup</button></div>
+    </div>
     <div id="catchUp" class="panel" hidden>
       <p class="note" id="catchUpNote"></p>
       <div class="row"><button class="btn danger" id="catchUpStop" type="button" hidden>Stop</button></div>
@@ -32,6 +50,7 @@
     <div class="panel" id="dataPanel">
       <h3>Your data</h3>
       <p class="note" id="storeNote">Checking…</p>
+      <p class="note" id="storeHolds"></p>
       <div class="row" style="margin-top:10px">
         <button class="btn" id="backupSave" type="button">Save a backup file</button>
         <button class="btn" id="backupOpen" type="button">Restore from a backup</button>

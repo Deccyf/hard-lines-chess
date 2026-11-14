@@ -426,6 +426,31 @@ and a wrong guess is a game counted twice on every chart. The web version and
 the Android app are separate places that cannot see each other, and the file is
 what carries a history from one to the other.
 
+**A copy with nothing in it says so.** A newly installed copy is empty, and it
+used to look exactly like one whose history had gone — the same empty Progress
+page, the same "No games reviewed yet". That was taken, once, for the loss of
+everything: the games were in the web version and the Android app had just been
+installed. So a copy that holds nothing anybody has made in it (`copyHoldsNothing()`
+in `src/backup.js`: no game, drill, puzzle, opening practised or session — a
+setting is not a thing made) says at the top of Today that nothing is stored in
+it yet, that other copies keep their own data and still have it, and how a
+backup file brings a history across, with the button that restores one. The
+Android app adds the date it was put on the phone, which it asks Android for:
+an app that arrived today has never held anything. "Your data" says what the
+copy holds in numbers, and the Progress page says in a sentence that the copy
+is empty. And each copy names itself at the bottom of Today — "the web
+version, installed as an app" or "the Android app, version …" — because "an
+installed app" describes both and they keep their data apart.
+
+**And a copy that could not open its data says that instead, on every screen.**
+A session that is stopped because its data would not open draws every screen
+empty, by design. What had happened was said in one line at the bottom of
+Today. It is now above whichever screen is open (`renderStoreAlert()`), with a
+button that tries again; a session whose saves have started failing and a
+database that has been cleared are said there too. The store tells the page
+whenever any of that changes (`Store.onState`), so the warning appears on the
+screen that is open when a save fails, and goes when the saves catch up.
+
 In the Android app, where a page can neither start a download nor open a file,
 `MainActivity` does both through the system's own file chooser, which needs no
 permission. Text crosses between the page and the app 200,000 characters at a
@@ -758,7 +783,7 @@ npm test               # 29 node suites: perft, motifs, the move explainer, Reck
                        # the Android app's file handling (needs a Java compiler),
                        # evaluation symmetry, the fast paths against the long
                        # way round, repeatability, interface vocabulary
-npm run test:browser   # 58 Playwright drivers against dist/
+npm run test:browser   # 59 Playwright drivers against dist/
 npm run verify:openings
 ```
 

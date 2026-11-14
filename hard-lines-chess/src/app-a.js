@@ -228,6 +228,7 @@ function renderToday() {
   const note = $('storeNote');
   if (note) note.textContent = Store.where();
   renderBackup();
+  renderNewCopy();
   renderSessionCard();
 
   const box = $('todayList');

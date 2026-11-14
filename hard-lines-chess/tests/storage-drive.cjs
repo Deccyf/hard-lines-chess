@@ -540,6 +540,9 @@ const SABOTAGE = () => {
       },
       keptChunk: () => next(app.kept),
       closeKept: () => { const all = whole(app.kept); app.kept = null; return all; },
+      // When the phone says the app arrived, and was last updated. What the
+      // page says with it is driven by tests/new-copy-drive.cjs.
+      installed: () => JSON.stringify({ first: 1788000000000, updated: 1794000000000 }),
     };
     // A file chosen just before the app was restarted underneath its chooser.
     const waiting = sessionStorage.getItem('test:waiting');

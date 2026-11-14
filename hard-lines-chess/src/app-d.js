@@ -648,6 +648,21 @@ function manifestFor() {
 
 const Install = { prompt: null };
 
+/**
+ * What the Android app says about itself: which version it is, and when it
+ * was put on the phone. Both are what anybody is asked first when something
+ * looks wrong, and neither was anywhere in the app.
+ */
+function androidCopyWords() {
+  const version = / HardLinesAndroid\/([\w.-]+)/.exec(navigator.userAgent)?.[1];
+  const facts = installFacts();
+  const day = (at) => new Date(at).toDateString();
+  const when = !facts ? '' : (day(facts.first) === day(facts.updated)
+    ? ` It was put on this phone on ${backupDate(facts.first)}.`
+    : ` It was put on this phone on ${backupDate(facts.first)} and last updated on ${backupDate(facts.updated)}.`);
+  return `Running as the Android app${version ? `, version ${version}` : ''}.${when}`;
+}
+
 function setupInstall() {
   // THE ANDROID APP IS THE INSTALLED APP. Everything below it would run and
   // achieve nothing there: there is no browser to attach an installed app to,
@@ -655,7 +670,7 @@ function setupInstall() {
   // already a file inside the APK would only put a stale copy in front of it.
   if (IN_ANDROID_APP) {
     $('installRow').hidden = true;
-    $('installNote').textContent = 'Running as the Android app.';
+    $('installNote').textContent = androidCopyWords();
     return;
   }
 
@@ -705,7 +720,10 @@ function setupInstall() {
 
   // Already running as an installed app: say so instead of offering it again.
   if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
-    $('installNote').textContent = 'Running as an installed app.';
+    // NAMED FOR WHAT IT IS. "An installed app" is what the Android app is
+    // too, and the two keep their data apart: which of them this is has to
+    // be something a person can read off the screen.
+    $('installNote').textContent = 'Running as the web version, installed as an app.';
   }
 }
 

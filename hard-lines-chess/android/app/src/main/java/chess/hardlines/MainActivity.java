@@ -2,6 +2,8 @@ package chess.hardlines;
 
 import android.annotation.SuppressLint;
 import android.content.ContentResolver;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Build;
@@ -396,6 +398,29 @@ public class MainActivity extends ComponentActivity {
         @JavascriptInterface
         public void sessionDone(String day, int run) {
             Reminder.done(MainActivity.this, day, run);
+        }
+
+        // ── when the app arrived ───────────────────────────────────────────
+
+        /**
+         * When the app was first put on this phone and when it was last
+         * updated, as {"first":…,"updated":…} in milliseconds; nothing when
+         * Android will not say.
+         *
+         * AN EMPTY APP RAISES ONE QUESTION, AND THIS ANSWERS IT. An app put
+         * on the phone today has never held anything; one that has been
+         * there for months and is empty has lost something. The page says
+         * the date where it says that nothing is stored — see
+         * renderNewCopy() in src/backup.js.
+         */
+        @JavascriptInterface
+        public String installed() {
+            try {
+                PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+                return "{\"first\":" + info.firstInstallTime + ",\"updated\":" + info.lastUpdateTime + "}";
+            } catch (PackageManager.NameNotFoundException | RuntimeException unknown) {
+                return "";
+            }
         }
 
         // ── files ──────────────────────────────────────────────────────────

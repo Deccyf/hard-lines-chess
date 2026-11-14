@@ -383,6 +383,11 @@
   .note strong { color: var(--ink-soft); font-weight: 600; }
   /* Today's session: the card on Today, and the bar while one is under way. */
   .session-run { font-size: 15px; font-weight: 600; margin: 8px 0 0; }
+  /* Said on every screen while it is true, so it is edged in the colour of a
+     warning rather than left looking like one more panel. */
+  .store-alert { margin-bottom: 14px; border-color: var(--danger); }
+  .store-alert .note { margin: 0 0 10px; }
+  .store-alert .row { margin: 0; }
   /* THE BAR IS SHORT ON PURPOSE. It sits above a board on a phone, and every
      line it takes is a line of the board pushed under the fold: two short
      lines of words on the left, small buttons on the right. */
@@ -741,6 +746,15 @@
     <div class="tabs-wrap subtabs-wrap" id="subtabsWrap" hidden><nav class="tabs subtabs" id="subtabs" aria-label="Screens in this section"></nav></div>
   </header>
 
+  <!-- WHAT IS STORED COULD NOT BE REACHED, OR NOTHING IS BEING SAVED: said on
+       every screen, above it. An app that cannot open its data looks exactly
+       like an app that has none, and the one sentence that told them apart
+       used to be at the bottom of Today. -->
+  <div class="panel store-alert" id="storeAlert" role="alert" hidden>
+    <p class="note bad-note" id="storeAlertText"></p>
+    <div class="row"><button class="btn" id="storeAlertGo" type="button"></button></div>
+  </div>
+
   <!-- TODAY'S SESSION, while one is under way: on every screen, above it -->
   <div class="panel session-bar" id="sessionBar" hidden>
     <p class="session-where"><strong id="sessionWhere"></strong><span id="sessionPart"></span></p>
@@ -755,6 +769,15 @@
   <!-- TODAY -->
   <section id="section-today">
     <p class="lede">Your training for today. Items appear only when there is something to do.</p>
+    <!-- A COPY WITH NOTHING IN IT SAYS SO, AND SAYS WHERE A HISTORY MIGHT BE.
+         The web version and the Android app keep separate data, and so does
+         every browser: a newly installed copy is empty, and until this panel
+         there was nothing to tell that apart from a history that had gone. -->
+    <div id="newCopy" class="panel" hidden>
+      <h3 id="newCopyTitle"></h3>
+      <p class="note" id="newCopyNote"></p>
+      <div class="row" style="margin-top:10px"><button class="btn" id="newCopyRestore" type="button">Restore from a backup</button></div>
+    </div>
     <div id="catchUp" class="panel" hidden>
       <p class="note" id="catchUpNote"></p>
       <div class="row"><button class="btn danger" id="catchUpStop" type="button" hidden>Stop</button></div>
@@ -765,6 +788,7 @@
     <div class="panel" id="dataPanel">
       <h3>Your data</h3>
       <p class="note" id="storeNote">Checking…</p>
+      <p class="note" id="storeHolds"></p>
       <div class="row" style="margin-top:10px">
         <button class="btn" id="backupSave" type="button">Save a backup file</button>
         <button class="btn" id="backupOpen" type="button">Restore from a backup</button>
@@ -5843,6 +5867,12 @@ const Store = {
   // Names whose last db write failed; retried on the next set() or init().
   // Kept in the small store as well, so a reload does not forget the debt.
   dirty: new Set(),
+  // TOLD WHENEVER WHAT THE PAGE SHOULD BE SAYING ABOUT ITS DATA MAY HAVE
+  // CHANGED: a save failed or caught up, the session was stopped, what was
+  // stored turned out to have been cleared or was put back. The page sets it
+  // (src/backup.js) and says so on whichever screen is open; nothing here
+  // knows what is on a screen.
+  onState: null,
 
   async init() {
     try {
@@ -5896,16 +5926,24 @@ const Store = {
     try { return localStorage.getItem(this.key(name)) !== null; } catch { return false; }
   },
 
+  /** Tell the page that what it says about its data may need saying again. */
+  told() {
+    // A screen that will not draw must not stop a save.
+    try { this.onState?.(); } catch { /* the sentence on Today is still there to be read */ }
+  },
+
   /** The database that was here is gone. Noted in the small store, which is not cleared with it. */
   lose() {
     this.lost = true;
     try { localStorage.setItem(this.key('__lost'), JSON.stringify({ at: Date.now() })); } catch { /* said for this session at least */ }
+    this.told();
   },
 
   /** What was lost has been put back, or let go of. */
   found() {
     this.lost = false;
     try { localStorage.removeItem(this.key('__lost')); } catch { /* asked again next load */ }
+    this.told();
   },
 
   /**
@@ -5917,16 +5955,20 @@ const Store = {
     this.mode = 'none';
     this.localFailed = true;
     this.failure = why;
+    this.told();
   },
 
   /** Record how one save to this device went. */
   settle(name, saved, error = null) {
+    const was = this.localFailed;
+    const why = this.failure;
     if (saved) this.unsaved.delete(name);
     else {
       this.unsaved.add(name);
       this.failure = error?.name === 'QuotaExceededError' ? 'full' : (this.mode === 'large' ? 'failed' : 'refused');
     }
     this.localFailed = this.mode === 'none' || this.unsaved.size > 0;
+    if (this.localFailed !== was || (this.localFailed && this.failure !== why)) this.told();
   },
 
   /** Where your progress is actually kept, in a sentence, whatever is true. */
@@ -14501,6 +14543,7 @@ function renderToday() {
   const note = $('storeNote');
   if (note) note.textContent = Store.where();
   renderBackup();
+  renderNewCopy();
   renderSessionCard();
 
   const box = $('todayList');
@@ -17510,6 +17553,12 @@ function renderProgress() {
     box.appendChild(el('p', 'note', waiting
       ? `${waiting} imported ${waiting === 1 ? 'game is' : 'games are'} stored${where} and none of them has been reviewed yet. Review one and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.`
       : `Review a game${where} and this fills in: how often each kind of mistake shows up, and whether it is getting rarer.`));
+    // AN EMPTY PAGE IN AN EMPTY COPY IS NOT A LOST HISTORY, and this is the
+    // page somebody looks at to find out which. Today says how a history is
+    // brought here from another copy; this says there is such a thing.
+    if (copyIsNew()) {
+      box.appendChild(el('p', 'note', `Nothing is stored in this copy of the app. If your games are in another copy of it — ${IN_ANDROID_APP ? 'the web version, another phone' : 'the Android app, another browser'} — they are still there, and Today says how to bring them here.`));
+    }
     return;
   }
 
@@ -18360,6 +18409,21 @@ function manifestFor() {
 
 const Install = { prompt: null };
 
+/**
+ * What the Android app says about itself: which version it is, and when it
+ * was put on the phone. Both are what anybody is asked first when something
+ * looks wrong, and neither was anywhere in the app.
+ */
+function androidCopyWords() {
+  const version = / HardLinesAndroid\/([\w.-]+)/.exec(navigator.userAgent)?.[1];
+  const facts = installFacts();
+  const day = (at) => new Date(at).toDateString();
+  const when = !facts ? '' : (day(facts.first) === day(facts.updated)
+    ? ` It was put on this phone on ${backupDate(facts.first)}.`
+    : ` It was put on this phone on ${backupDate(facts.first)} and last updated on ${backupDate(facts.updated)}.`);
+  return `Running as the Android app${version ? `, version ${version}` : ''}.${when}`;
+}
+
 function setupInstall() {
   // THE ANDROID APP IS THE INSTALLED APP. Everything below it would run and
   // achieve nothing there: there is no browser to attach an installed app to,
@@ -18367,7 +18431,7 @@ function setupInstall() {
   // already a file inside the APK would only put a stale copy in front of it.
   if (IN_ANDROID_APP) {
     $('installRow').hidden = true;
-    $('installNote').textContent = 'Running as the Android app.';
+    $('installNote').textContent = androidCopyWords();
     return;
   }
 
@@ -18417,7 +18481,10 @@ function setupInstall() {
 
   // Already running as an installed app: say so instead of offering it again.
   if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
-    $('installNote').textContent = 'Running as an installed app.';
+    // NAMED FOR WHAT IT IS. "An installed app" is what the Android app is
+    // too, and the two keep their data apart: which of them this is has to
+    // be something a person can read off the screen.
+    $('installNote').textContent = 'Running as the web version, installed as an app.';
   }
 }
 
@@ -24265,6 +24332,12 @@ async function renderBackup() {
   const shut = Store.mode === 'none';
   $('backupSave').disabled = shut;
   $('backupOpen').disabled = shut;
+  // WHAT THIS COPY HOLDS, IN NUMBERS, under the sentence about where it is
+  // kept. "Nothing yet" is the answer a newly installed copy gives, and the
+  // quickest way to tell that from a history that could not be opened — where
+  // nothing is said at all, because what is held is not known.
+  const holds = $('storeHolds');
+  if (holds) holds.textContent = shut ? '' : `This copy holds ${backupCountsWords(backupCounts(Store.snapshot()))}.`;
   if (shut) {
     $('backupRestored').hidden = true;
     $('backupConfirm').hidden = true;
@@ -24319,6 +24392,122 @@ async function renderBackup() {
   }
 }
 renderBackup.asked = 0;
+
+// ── a copy with nothing in it ──────────────────────────────────────────────
+//
+// THE WEB VERSION AND THE ANDROID APP ARE TWO SEPARATE PLACES, and so is every
+// browser. A copy that has just been installed holds nothing — and it used to
+// look exactly like a copy whose history had gone: the same empty Progress
+// page, the same "No games reviewed yet". It happened. Somebody whose games
+// were all in the web version (the only place an import from Chess.com worked,
+// before 1.6) installed the Android app, opened it, and took the empty app for
+// the loss of everything. Nothing on any screen said otherwise.
+//
+// So an empty copy says that it is one, that other copies keep their own data
+// and still have it, and how a history is brought across. The panel goes as
+// soon as anything has been made here.
+
+/** Whether this copy holds nothing anybody has made in it: no game, drill, puzzle, opening practised or session. */
+function copyHoldsNothing() {
+  const held = backupCounts(Store.snapshot());
+  if (held.games || held.drills || held.puzzles || held.played) return false;
+  const any = (v) => (Array.isArray(v) ? v.length > 0 : (v !== null && typeof v === 'object' ? Object.keys(v).length > 0 : Boolean(v)));
+  const of = (name) => Store.cache[name];
+  return !any(of('openings')?.cards) && !any(of('teaching')?.games) && !any(of('endgames')) && !any(of('vision'))
+    && !any(of('storm')) && !any(of('weakspots')?.log) && !any(of('weakspots')?.done) && !any(of('daily')?.days);
+}
+
+/**
+ * When the Android app was first put on this phone and when it was last
+ * updated — { first, updated } in milliseconds — or null where there is no
+ * app around the page, or it will not say.
+ *
+ * It is here because it settles the one question an empty app raises. An app
+ * put on the phone today has never held anything; one that has been there for
+ * months and is empty has lost something.
+ */
+function installFacts() {
+  const bridge = androidFiles();
+  if (!bridge) return null;
+  try {
+    // (An app from before it could be asked has no such answer to give, and
+    // asking it lands in the same place as an answer that makes no sense.)
+    const facts = JSON.parse(bridge.installed());
+    if (!Number.isFinite(facts?.first) || facts.first <= 0) return null;
+    return { first: facts.first, updated: Number.isFinite(facts.updated) && facts.updated >= facts.first ? facts.updated : facts.first };
+  } catch {
+    return null;
+  }
+}
+
+/** Whether this copy is to say that it is empty: it could be read, nothing was cleared, and there is nothing in it. */
+function copyIsNew() {
+  return Store.ready && Store.mode !== 'none' && !Store.lost && !backupMeta('__recovered') && copyHoldsNothing();
+}
+
+/** The panel at the top of Today that says so. */
+function renderNewCopy() {
+  const box = $('newCopy');
+  if (!box) return;
+  const shown = copyIsNew();
+  box.hidden = !shown;
+  if (!shown) return;
+  const across = 'A backup file brings them across.';
+  const then = 'go to Today, find “Your data” and press “Save a backup file”. Then press the button below and choose that file.';
+  if (IN_ANDROID_APP) {
+    const facts = installFacts();
+    $('newCopyTitle').textContent = 'Nothing is stored in this app yet';
+    $('newCopyNote').textContent = `${facts ? `This app was put on this phone on ${backupDate(facts.first)}. ` : ''}`
+      + 'It keeps its own data, apart from the web version and from any other phone. If your games are in the web version, they are still there: nothing has been lost, they are just not in this app. '
+      + `${across} In the web version, ${then}`;
+  } else {
+    $('newCopyTitle').textContent = 'Nothing is stored in this browser yet';
+    $('newCopyNote').textContent = 'This copy keeps its own data, apart from the Android app and from any other browser or device. If your games are in another copy, they are still there: nothing has been lost, they are just not in this one. '
+      + `${across} In the other copy, ${then}`;
+  }
+}
+
+// ── said on every screen ───────────────────────────────────────────────────
+//
+// AN APP THAT COULD NOT OPEN ITS DATA LOOKS EXACTLY LIKE AN APP THAT HAS NONE.
+// The session is stopped on purpose — nothing is read, nothing is written, so
+// that the emptiness cannot be saved over the history — and every screen then
+// draws its ordinary empty state. The one sentence that said what had really
+// happened was in a panel at the bottom of Today. So it is said at the top of
+// whichever screen is open, with the one thing there is to do about it.
+//
+// The same goes for a session whose saves have started failing: everything
+// done from then on is going when the app closes, and that is not something
+// to find out on Today.
+
+/** The warning above every screen, as it should stand now. */
+function renderStoreAlert() {
+  const box = $('storeAlert');
+  if (!box) return;
+  // Where the account's store is taking the saves, nothing is at risk.
+  const failing = Store.localFailed && !Store.db;
+  const shown = Store.ready && (failing || Store.lost);
+  box.hidden = !shown;
+  if (!shown) return;
+  const go = $('storeAlertGo');
+  const again = failing && Store.mode === 'none';
+  $('storeAlertText').textContent = failing
+    ? Store.where()
+    : `${IN_ANDROID_APP ? 'This phone' : 'This browser'} has cleared what the app had saved${IN_ANDROID_APP ? '' : ' here'}. “Your data” on Today says what can be done about it.`;
+  go.textContent = again ? 'Try again' : 'Go to “Your data”';
+  go.dataset.does = again ? 'again' : 'data';
+}
+
+/** The warning's one button: open the stored data again, or go to where a backup is saved and restored. */
+function storeAlertGo() {
+  if ($('storeAlertGo').dataset.does === 'again') {
+    // Nothing was read and nothing was written, so starting again loses nothing.
+    try { location.reload(); } catch { /* the sentence still says to close the app and open it again */ }
+    return;
+  }
+  show('today');
+  $('dataPanel').scrollIntoView({ block: 'start' });
+}
 
 /** Say something that should stay on screen until the next thing is said. */
 function backupSayAndHold(text, kind = 'note') {
@@ -24736,6 +24925,12 @@ function setupBackup() {
   $('backupCancel').addEventListener('click', cancelRestore);
   $('backupUndo').addEventListener('click', undoRestore);
   $('backupKeep').addEventListener('click', keepRestore);
+  // The same restore, offered where an empty copy says that it is one.
+  $('newCopyRestore').addEventListener('click', () => { chooseBackup(); $('dataPanel').scrollIntoView({ block: 'nearest' }); });
+  $('storeAlertGo').addEventListener('click', storeAlertGo);
+  // A save that starts failing, or stops, is said on whichever screen is open.
+  Store.onState = renderStoreAlert;
+  renderStoreAlert();
   // What this load took from the app's own copy is said until it has been read.
   if (Store.recovered) {
     setBackupMeta('__recovered', { at: Date.now(), exported: Store.recovered.exported, lost: Store.recovered.lost, created: Store.recovered.created });

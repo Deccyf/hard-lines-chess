@@ -461,13 +461,22 @@ public final class BridgeTest {
         check("and a chooser for opening", app.open != null, true);
         for (String name : new String[] {"beginBackup", "appendBackup", "saveBackup", "openBackup", "openRestore", "restoreChunk", "clearRestore",
                 "beginKeep", "appendKeep", "commitKeep", "openKept", "keptChunk", "closeKept",
-                "reminder", "setReminder", "sessionDone"}) {
+                "reminder", "setReminder", "sessionDone", "installed"}) {
             boolean marked = false;
             for (Method m : app.bridge.getClass().getDeclaredMethods()) {
                 if (m.getName().equals(name)) marked = m.getAnnotation(android.webkit.JavascriptInterface.class) != null;
             }
             check("the page may call " + name, marked, true);
         }
+
+        // ── when the app arrived ───────────────────────────────────────────
+        android.content.Context.firstInstallTime = 1788000000000L;
+        android.content.Context.lastUpdateTime = 1794000000000L;
+        check("the page is told when the app was put on the phone and when it was last updated",
+                app.call("installed"), "{\"first\":1788000000000,\"updated\":1794000000000}");
+        android.content.Context.packageKnown = false;
+        check("and nothing, rather than a guess, on a phone that will not say", app.call("installed"), "");
+        android.content.Context.packageKnown = true;
 
         // ── what the app will fetch, and what it will not ──────────────────
         String rule = "connect-src 'self' https://api.chess.com";

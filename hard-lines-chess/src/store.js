@@ -198,6 +198,12 @@ const Store = {
   // Names whose last db write failed; retried on the next set() or init().
   // Kept in the small store as well, so a reload does not forget the debt.
   dirty: new Set(),
+  // TOLD WHENEVER WHAT THE PAGE SHOULD BE SAYING ABOUT ITS DATA MAY HAVE
+  // CHANGED: a save failed or caught up, the session was stopped, what was
+  // stored turned out to have been cleared or was put back. The page sets it
+  // (src/backup.js) and says so on whichever screen is open; nothing here
+  // knows what is on a screen.
+  onState: null,
 
   async init() {
     try {
@@ -251,16 +257,24 @@ const Store = {
     try { return localStorage.getItem(this.key(name)) !== null; } catch { return false; }
   },
 
+  /** Tell the page that what it says about its data may need saying again. */
+  told() {
+    // A screen that will not draw must not stop a save.
+    try { this.onState?.(); } catch { /* the sentence on Today is still there to be read */ }
+  },
+
   /** The database that was here is gone. Noted in the small store, which is not cleared with it. */
   lose() {
     this.lost = true;
     try { localStorage.setItem(this.key('__lost'), JSON.stringify({ at: Date.now() })); } catch { /* said for this session at least */ }
+    this.told();
   },
 
   /** What was lost has been put back, or let go of. */
   found() {
     this.lost = false;
     try { localStorage.removeItem(this.key('__lost')); } catch { /* asked again next load */ }
+    this.told();
   },
 
   /**
@@ -272,16 +286,20 @@ const Store = {
     this.mode = 'none';
     this.localFailed = true;
     this.failure = why;
+    this.told();
   },
 
   /** Record how one save to this device went. */
   settle(name, saved, error = null) {
+    const was = this.localFailed;
+    const why = this.failure;
     if (saved) this.unsaved.delete(name);
     else {
       this.unsaved.add(name);
       this.failure = error?.name === 'QuotaExceededError' ? 'full' : (this.mode === 'large' ? 'failed' : 'refused');
     }
     this.localFailed = this.mode === 'none' || this.unsaved.size > 0;
+    if (this.localFailed !== was || (this.localFailed && this.failure !== why)) this.told();
   },
 
   /** Where your progress is actually kept, in a sentence, whatever is true. */

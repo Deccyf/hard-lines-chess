@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.6.1 — 2026-11-14
+
+### An empty app is not a lost history, and now says which it is
+What happened: the games were all in the web version — the only place an import
+from Chess.com worked, before 1.6 — and the Android app was installed
+afterwards. It opened empty, as a new copy does, and nothing on any screen said
+that it was new, that the web version keeps its own data, or that the games
+were still there. It looked exactly like the loss of everything.
+
+- **A copy with nothing in it says so.** At the top of Today, a new copy now
+  says that nothing is stored in it yet, that the web version and the Android
+  app keep their data separately, that games in another copy are still there,
+  and how a backup file brings them across — with the button that restores one.
+  The Progress page says the same in a sentence. Both go as soon as anything
+  has been made in that copy.
+- **The Android app says when it was put on the phone.** That is what settles
+  whether an empty app is a new one: put on the phone today, it has never held
+  anything. "Your copy" also gives the app's version and when it was last
+  updated.
+- **Each copy says which it is.** The web version, installed to a home screen,
+  said "Running as an installed app" — which is what the Android app is too.
+  It now says it is the web version, and the Android app says it is the
+  Android app, at the bottom of Today.
+- **"Your data" says what the copy holds, in numbers** — so many games, drills
+  and puzzles, or "nothing yet".
+- **Data that could not be opened is said on every screen.** When what is
+  stored cannot be opened or read, the app stops rather than save an empty
+  session over it — and then looked empty, with the explanation in one line at
+  the bottom of Today. It is now at the top of whichever screen is open, with a
+  button that tries again. So is a save that has started failing, and a
+  database the phone or browser has cleared.
+
 ## 1.6.0 — 2026-11-14
 
 ### Your data, kept safely

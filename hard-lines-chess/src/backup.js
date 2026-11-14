@@ -197,6 +197,12 @@ async function renderBackup() {
   const shut = Store.mode === 'none';
   $('backupSave').disabled = shut;
   $('backupOpen').disabled = shut;
+  // WHAT THIS COPY HOLDS, IN NUMBERS, under the sentence about where it is
+  // kept. "Nothing yet" is the answer a newly installed copy gives, and the
+  // quickest way to tell that from a history that could not be opened — where
+  // nothing is said at all, because what is held is not known.
+  const holds = $('storeHolds');
+  if (holds) holds.textContent = shut ? '' : `This copy holds ${backupCountsWords(backupCounts(Store.snapshot()))}.`;
   if (shut) {
     $('backupRestored').hidden = true;
     $('backupConfirm').hidden = true;
@@ -251,6 +257,122 @@ async function renderBackup() {
   }
 }
 renderBackup.asked = 0;
+
+// ── a copy with nothing in it ──────────────────────────────────────────────
+//
+// THE WEB VERSION AND THE ANDROID APP ARE TWO SEPARATE PLACES, and so is every
+// browser. A copy that has just been installed holds nothing — and it used to
+// look exactly like a copy whose history had gone: the same empty Progress
+// page, the same "No games reviewed yet". It happened. Somebody whose games
+// were all in the web version (the only place an import from Chess.com worked,
+// before 1.6) installed the Android app, opened it, and took the empty app for
+// the loss of everything. Nothing on any screen said otherwise.
+//
+// So an empty copy says that it is one, that other copies keep their own data
+// and still have it, and how a history is brought across. The panel goes as
+// soon as anything has been made here.
+
+/** Whether this copy holds nothing anybody has made in it: no game, drill, puzzle, opening practised or session. */
+function copyHoldsNothing() {
+  const held = backupCounts(Store.snapshot());
+  if (held.games || held.drills || held.puzzles || held.played) return false;
+  const any = (v) => (Array.isArray(v) ? v.length > 0 : (v !== null && typeof v === 'object' ? Object.keys(v).length > 0 : Boolean(v)));
+  const of = (name) => Store.cache[name];
+  return !any(of('openings')?.cards) && !any(of('teaching')?.games) && !any(of('endgames')) && !any(of('vision'))
+    && !any(of('storm')) && !any(of('weakspots')?.log) && !any(of('weakspots')?.done) && !any(of('daily')?.days);
+}
+
+/**
+ * When the Android app was first put on this phone and when it was last
+ * updated — { first, updated } in milliseconds — or null where there is no
+ * app around the page, or it will not say.
+ *
+ * It is here because it settles the one question an empty app raises. An app
+ * put on the phone today has never held anything; one that has been there for
+ * months and is empty has lost something.
+ */
+function installFacts() {
+  const bridge = androidFiles();
+  if (!bridge) return null;
+  try {
+    // (An app from before it could be asked has no such answer to give, and
+    // asking it lands in the same place as an answer that makes no sense.)
+    const facts = JSON.parse(bridge.installed());
+    if (!Number.isFinite(facts?.first) || facts.first <= 0) return null;
+    return { first: facts.first, updated: Number.isFinite(facts.updated) && facts.updated >= facts.first ? facts.updated : facts.first };
+  } catch {
+    return null;
+  }
+}
+
+/** Whether this copy is to say that it is empty: it could be read, nothing was cleared, and there is nothing in it. */
+function copyIsNew() {
+  return Store.ready && Store.mode !== 'none' && !Store.lost && !backupMeta('__recovered') && copyHoldsNothing();
+}
+
+/** The panel at the top of Today that says so. */
+function renderNewCopy() {
+  const box = $('newCopy');
+  if (!box) return;
+  const shown = copyIsNew();
+  box.hidden = !shown;
+  if (!shown) return;
+  const across = 'A backup file brings them across.';
+  const then = 'go to Today, find “Your data” and press “Save a backup file”. Then press the button below and choose that file.';
+  if (IN_ANDROID_APP) {
+    const facts = installFacts();
+    $('newCopyTitle').textContent = 'Nothing is stored in this app yet';
+    $('newCopyNote').textContent = `${facts ? `This app was put on this phone on ${backupDate(facts.first)}. ` : ''}`
+      + 'It keeps its own data, apart from the web version and from any other phone. If your games are in the web version, they are still there: nothing has been lost, they are just not in this app. '
+      + `${across} In the web version, ${then}`;
+  } else {
+    $('newCopyTitle').textContent = 'Nothing is stored in this browser yet';
+    $('newCopyNote').textContent = 'This copy keeps its own data, apart from the Android app and from any other browser or device. If your games are in another copy, they are still there: nothing has been lost, they are just not in this one. '
+      + `${across} In the other copy, ${then}`;
+  }
+}
+
+// ── said on every screen ───────────────────────────────────────────────────
+//
+// AN APP THAT COULD NOT OPEN ITS DATA LOOKS EXACTLY LIKE AN APP THAT HAS NONE.
+// The session is stopped on purpose — nothing is read, nothing is written, so
+// that the emptiness cannot be saved over the history — and every screen then
+// draws its ordinary empty state. The one sentence that said what had really
+// happened was in a panel at the bottom of Today. So it is said at the top of
+// whichever screen is open, with the one thing there is to do about it.
+//
+// The same goes for a session whose saves have started failing: everything
+// done from then on is going when the app closes, and that is not something
+// to find out on Today.
+
+/** The warning above every screen, as it should stand now. */
+function renderStoreAlert() {
+  const box = $('storeAlert');
+  if (!box) return;
+  // Where the account's store is taking the saves, nothing is at risk.
+  const failing = Store.localFailed && !Store.db;
+  const shown = Store.ready && (failing || Store.lost);
+  box.hidden = !shown;
+  if (!shown) return;
+  const go = $('storeAlertGo');
+  const again = failing && Store.mode === 'none';
+  $('storeAlertText').textContent = failing
+    ? Store.where()
+    : `${IN_ANDROID_APP ? 'This phone' : 'This browser'} has cleared what the app had saved${IN_ANDROID_APP ? '' : ' here'}. “Your data” on Today says what can be done about it.`;
+  go.textContent = again ? 'Try again' : 'Go to “Your data”';
+  go.dataset.does = again ? 'again' : 'data';
+}
+
+/** The warning's one button: open the stored data again, or go to where a backup is saved and restored. */
+function storeAlertGo() {
+  if ($('storeAlertGo').dataset.does === 'again') {
+    // Nothing was read and nothing was written, so starting again loses nothing.
+    try { location.reload(); } catch { /* the sentence still says to close the app and open it again */ }
+    return;
+  }
+  show('today');
+  $('dataPanel').scrollIntoView({ block: 'start' });
+}
 
 /** Say something that should stay on screen until the next thing is said. */
 function backupSayAndHold(text, kind = 'note') {
@@ -668,6 +790,12 @@ function setupBackup() {
   $('backupCancel').addEventListener('click', cancelRestore);
   $('backupUndo').addEventListener('click', undoRestore);
   $('backupKeep').addEventListener('click', keepRestore);
+  // The same restore, offered where an empty copy says that it is one.
+  $('newCopyRestore').addEventListener('click', () => { chooseBackup(); $('dataPanel').scrollIntoView({ block: 'nearest' }); });
+  $('storeAlertGo').addEventListener('click', storeAlertGo);
+  // A save that starts failing, or stops, is said on whichever screen is open.
+  Store.onState = renderStoreAlert;
+  renderStoreAlert();
   // What this load took from the app's own copy is said until it has been read.
   if (Store.recovered) {
     setBackupMeta('__recovered', { at: Date.now(), exported: Store.recovered.exported, lost: Store.recovered.lost, created: Store.recovered.created });
