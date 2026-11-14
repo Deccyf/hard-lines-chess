@@ -40,6 +40,16 @@
   save that works writes everything that was owed.
 
 ### Analysis that does not do the work twice
+- **Several engines at once.** A review's searches do not depend on each
+  other, so they are shared out among as many engines as the device has cores
+  to spare: on four cores, a Stockfish review took 2.0 seconds instead of 5.1,
+  and a deep review by this app's engine 4.2 instead of 11.9 — with the same
+  figures, to the last one, which a test holds it to.
+- **This app's engine no longer holds the page still.** It searched on the
+  page's own thread, so during a deep review the screen would not scroll and
+  Stop did not answer for the length of each search — over half a second at a
+  time here, more on a phone. It runs in workers now: the longest the page is
+  held is 12 milliseconds.
 - **The walk keeps the puzzles it finds.** While it judges your moves it also
   finds the moments your opponents went wrong, and checks each with a second,
   harder search — and then it threw them away, so Puzzles offered to "scan"

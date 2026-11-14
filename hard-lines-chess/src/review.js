@@ -354,7 +354,17 @@ async function askJudge(judge, startFen, moves, at, { nodes, lines = 1 }) {
 }
 
 async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress = null, yieldEvery = 1, withTactics = true, judge = null } = {}) {
-  const engine = judge ? null : new Engine();
+  // WHERE THE SEARCHING IS DONE, AND HOW MANY AT ONCE. Every position is
+  // searched from a cleared table, so no search depends on another, and they
+  // are shared out among as many engines as there are: several Stockfish
+  // workers, or this app's own engine in several — see src/engine-pool.js.
+  // Where this app's engine cannot be started in a worker it searches here,
+  // on the page, one position at a time, as it always did. THE ANSWERS ARE
+  // THE SAME EVERY WAY: which engine looked at a position, and in what
+  // order, is not an input to what it found.
+  const own = judge || typeof ownEngineLanes !== 'function' ? 0 : await ownEngineLanes();
+  const lanes = Math.max(1, judge ? (judge.lanes ? await judge.lanes() : 1) : own);
+  const engine = judge || own ? null : new Engine();
   const board = new Board(parsed.startFen ?? undefined);
   const startFen = board.fen();
   const positions = [];
@@ -381,7 +391,44 @@ async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress =
   // as if nothing happened.
   let ranOutOfTime = 0;
 
-  for (let i = 0; i < positions.length; i++) {
+  /**
+   * One position looked at: by the judge, by this app's engine in a worker,
+   * or by it here. `played` is the game up to the position, for a judge that
+   * is told the game.
+   *
+   * A CLEARED TABLE BEFORE EVERY POSITION, whoever looks, which is half of
+   * what makes a review repeatable: a table carried over from the previous
+   * position would make this search's answer depend on which game it was
+   * reading and where in it, so the same position could be judged two ways.
+   * It is also what lets them be looked at in any order.
+   */
+  const look = (at, played, { nodes: budget, maxDepth, lines = 1 }) => {
+    if (judge) return askJudge(judge, startFen, played, at, { nodes: budget, lines });
+    if (own) return ownEngineSearch(at, { nodes: budget, maxDepth, lines });
+    engine.reset();
+    return engine.search(at, { nodes: budget, maxDepth, lines });
+  };
+  // Searching here holds the page still, so the page is given a turn between
+  // positions. An engine in a worker never held it in the first place.
+  const breathe = () => (engine ? new Promise((r) => setTimeout(r, 0)) : null);
+
+  // THE FIRST THING TO GO WRONG ENDS THE REVIEW, and is what it rejects with:
+  // the lanes still out finish the search they are on and take no more.
+  let failure = null;
+  const together = async (count, one) => {
+    let next = 0;
+    const lane = async () => {
+      while (!failure && next < count) {
+        const n = next++;
+        try { await one(n); } catch (e) { failure ??= e; }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(lanes, Math.max(1, count)) }, lane));
+    if (failure) throw failure;
+  };
+
+  let answered = 0;
+  await together(positions.length, async (i) => {
     const at = new Board(positions[i].fen);
     const outcome = at.outcome();
     // A checkmated position is remembered as such: the ply that produced it
@@ -390,30 +437,22 @@ async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress =
     positions[i].mated = outcome === 'checkmate';
     if (outcome) { evals[i] = scoreFinished(outcome); best[i] = null; }
     else {
-      // RESET BEFORE EVERY POSITION, which is half of what makes a review
-      // repeatable: a table carried over from the previous position would make
-      // this search's answer depend on which game it was reading and where in
-      // it, so the same position could be judged two ways. (A judge in a
-      // worker clears itself before every question for the same reason.)
-      let result;
-      if (judge) result = await askJudge(judge, startFen, ucis.slice(0, i), at, { nodes });
-      else {
-        engine.reset();
-        result = engine.search(at, { nodes, maxDepth: depth });
-      }
+      const result = await look(at, ucis.slice(0, i), { nodes, maxDepth: depth });
       if (result.ranOutOfTime) ranOutOfTime++;
       evals[i] = result.score;
       // The LINE is kept as well as the move: a motif is demonstrated by the
       // punishing sequence, not by its first move, and re-searching for it
-      // later would be a second opinion rather than the same one.
+      // later would be a second opinion rather than the same one. (`pv` is
+      // that line as an engine in a worker wrote it.)
       best[i] = result.move
-        ? { uci: moveToUci(result.move), san: toSan(at, result.move), line: (result.line ?? []).map(moveToUci) }
+        ? { uci: moveToUci(result.move), san: toSan(at, result.move), line: result.pv ?? (result.line ?? []).map(moveToUci) }
         : null;
     }
 
-    if (onProgress) onProgress(i + 1, positions.length);
-    if (yieldEvery && i % yieldEvery === 0) await new Promise((r) => setTimeout(r, 0));
-  }
+    answered++;
+    if (onProgress) onProgress(answered, positions.length);
+    if (yieldEvery && i % yieldEvery === 0) await breathe();
+  });
 
   const mistakes = [];
   const judged = [];
@@ -561,24 +600,25 @@ async function reviewGame(parsed, side, { nodes = 25000, depth = 8, onProgress =
     // this judgement — only not looked at.
     for (const c of candidates.slice(TACTIC.perGame)) unchecked.push(positions[c.i + 1].fen);
 
+    // A HARDER LOOK THAN THE WALK GOT: this decides whether a position
+    // becomes a puzzle at all, and a shallow search calls two moves equal
+    // that are not, or vice versa. Never less than the walk's own budget,
+    // whichever setting is in use. Shared out like the walk itself.
+    const checks = new Array(shortlist.length).fill(null);
+    let checked = 0;
+    await together(shortlist.length, async (n) => {
+      const at = new Board(positions[shortlist[n].i + 1].fen);
+      checks[n] = await look(at, ucis.slice(0, shortlist[n].i + 1), { nodes: Math.max(nodes, TACTIC_NODES), maxDepth: depth + 2, lines: 2 });
+      checked++;
+      if (onProgress) onProgress(checked, shortlist.length, 'tactics');
+      await breathe();
+    });
+
     for (let n = 0; n < shortlist.length; n++) {
       const c = shortlist[n];
       const at = new Board(positions[c.i + 1].fen);
-      // A HARDER LOOK THAN THE WALK GOT: this decides whether a position
-      // becomes a puzzle at all, and a shallow search calls two moves equal
-      // that are not, or vice versa. Never less than the walk's own budget,
-      // whichever setting is in use.
-      let check;
-      if (judge) {
-        check = await askJudge(judge, startFen, ucis.slice(0, c.i + 1), at, { nodes: Math.max(nodes, TACTIC_NODES), lines: 2 });
-      } else {
-        engine.reset();
-        check = engine.search(at, { nodes: Math.max(nodes, TACTIC_NODES), maxDepth: depth + 2, lines: 2 });
-      }
+      const check = checks[n];
       if (check.ranOutOfTime) ranOutOfTime++;
-
-      if (onProgress) onProgress(n + 1, shortlist.length, 'tactics');
-      await new Promise((r) => setTimeout(r, 0));
 
       if (!check.move || check.lines.length < 2) { passed.singleReply++; continue; }
       const [top, second] = check.lines;

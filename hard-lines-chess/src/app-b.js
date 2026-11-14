@@ -463,7 +463,7 @@ const REVIEW_BUDGET = {
 // this app's engine, which is the point of picking it.
 const JUDGES = {
   app: { name: 'app', words: "this app's engine", analyse: null },
-  stockfish: { name: 'stockfish', words: 'Stockfish', analyse: (fen, o) => stockfishAnalyse(fen, o) },
+  stockfish: { name: 'stockfish', words: 'Stockfish', analyse: (fen, o) => stockfishAnalyse(fen, o), lanes: () => stockfishLanes() },
   reckless: { name: 'reckless', words: 'Reckless', analyse: (fen, o) => recklessAnalyse(fen, o) },
 };
 const judgeNamed = (name) => JUDGES[name] ?? JUDGES.app;

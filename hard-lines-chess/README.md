@@ -127,6 +127,7 @@ src/backup.js   the backup file: saving, checking, restoring, undoing
 src/pgn.js      the PGN reader, and the clocks in the movetext that it strips
 src/review.js   the reviewer, the compact per-game format, and what your own
                 rated games say about a game (see "What it says about you")
+src/engine-pool.js  this app's engine in workers, several searches at once
 src/deviation.js where your games leave your repertoire, and what it cost
 src/import.js   the Chess.com archive reader (browser only; the APK has no network)
 src/pawn-tb.js  king and pawn against king, solved exactly (see below)
@@ -412,6 +413,39 @@ to each other — 213,108 moves written both ways, and the whole opening book
 built both ways on sixteen awkward histories. The third is checked exhaustively
 over every one- and two-piece ending.
 
+### Analysing a game
+
+A review asks about every position in a game — a hundred searches or so — and
+no answer depends on another: every search starts from a cleared table, which
+is what makes the same position come back with the same answer. So the
+reviewer shares the positions out among as many engines as the device has
+cores to spare (one core is left for the page; at most four engines, two on a
+device short of memory): several Stockfish workers, or this app's own engine
+in several workers rather than on the page's own thread. Measured here, on
+four cores, three at once:
+
+| | one at a time | shared out |
+|---|---|---|
+| a review by this app's engine, Normal | 3.2 s | 1.3 s |
+| the same at Deep, 41 positions | 11.9 s | 4.2 s |
+| a review by Stockfish, Normal | 5.1 s | 2.0 s |
+| the longest the page is held during a deep review | 565 ms | 12 ms |
+
+Which engine looked at a position, and in what order, is not an input to what
+it found: `tests/lanes-drive.cjs` holds a review done in workers to the same
+review done on the page, and one shared among several Stockfish to one done
+one at a time, to the last figure, at every setting. The build hands the page
+its own engine a second time, as text, to start those workers from — made from
+the same two files in the same build as the engine the page runs, so the two
+cannot drift apart. Where a worker cannot be started the reviewer searches on
+the page as it always did, to the same figures. An engine that stops
+answering ends the review with the reason and is not used again. The extra
+Stockfish engines are let go after a minute with nothing to do.
+
+And the walk no longer does its work twice: the chances it finds while judging
+are filed as puzzles as it goes, instead of every game being gone through
+again by Puzzles.
+
 ## Tests
 
 ```
@@ -422,7 +456,7 @@ npm test               # 23 node suites: perft, motifs, the move explainer, Reck
                        # the Android app's file handling (needs a Java compiler),
                        # evaluation symmetry, the fast paths against the long
                        # way round, repeatability, interface vocabulary
-npm run test:browser   # 50 Playwright drivers against dist/
+npm run test:browser   # 51 Playwright drivers against dist/
 npm run verify:openings
 ```
 

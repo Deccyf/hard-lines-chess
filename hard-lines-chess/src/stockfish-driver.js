@@ -12,9 +12,15 @@
 // or a laptop, today or next month. A time limit would make the explanation of
 // a move depend on how busy the device was when it was written.
 //
-// ONE SEARCH AT A TIME. The worker is one engine with one board; two searches
-// sent together would interleave their output. Requests queue, and a failure
-// in one does not wedge the ones behind it.
+// ONE SEARCH AT A TIME, PER ENGINE. A worker is one engine with one board;
+// two searches sent to it together would interleave their output. So each
+// worker does one search and then the next — and there can be several
+// workers. A review is a hundred searches that do not depend on each other,
+// every one from a cleared table, so they are shared out among as many engines
+// as the device has cores to spare: measured here, four did the same games
+// 3.45 times faster, with the same answers. Which engine answered is not an
+// input. The Watch screen asks one question at a time and never starts more
+// than the first.
 //
 // AND IT CAN BE MISSING. A copy of the page opened straight from a file cannot
 // start a worker, and a build that lost the .wasm cannot compile one. Neither
@@ -22,11 +28,16 @@
 // screen can put in front of the person.
 
 const Stockfish = {
-  worker: null,
-  loading: null,      // the promise every caller shares while it starts
+  worker: null,       // the first one started: whether there is an engine at all
+  workers: [],        // every one that has started and is still answering
+  free: [],           // of those, the ones not searching
+  waiting: [],        // searches waiting for one to come free
+  loading: null,      // the promise every caller shares while the first starts
+  more: null,         // and the one they share while the rest start
   failed: null,       // why it could not start, once it has not
-  queue: Promise.resolve(),
   name: null,         // what it calls itself, from `id name`
+  resting: null,      // the timer that lets the extra ones go
+  restAfter: 60000,   // how long they are kept with nothing to do, in milliseconds
 };
 
 /**
@@ -54,7 +65,42 @@ const STOCKFISH_SEARCH_MS = 120000;
 /** Start the engine once. Every later call gets the same promise. */
 function loadStockfish() {
   if (Stockfish.loading) return Stockfish.loading;
-  Stockfish.loading = new Promise((resolve, reject) => {
+  Stockfish.loading = startStockfishWorker().then((worker) => {
+    Stockfish.worker = worker;
+    Stockfish.workers = [worker];
+    Stockfish.free = [worker];
+    Stockfish.failed = null;
+    return worker;
+  }, (error) => {
+    Stockfish.worker = null;
+    Stockfish.failed = error.message;
+    throw error;
+  });
+  return Stockfish.loading;
+}
+
+/**
+ * Start as many engines as this device should run at once, and say how many
+ * are running. The first has to start, or this rejects with why; any of the
+ * others that will not start is simply one fewer.
+ */
+async function stockfishLanes(want = engineLanes()) {
+  await loadStockfish();
+  Stockfish.more ??= (async () => {
+    const extra = await Promise.all(Array.from({ length: Math.max(0, want - 1) }, () => startStockfishWorker().catch(() => null)));
+    for (const worker of extra) {
+      if (!worker) continue;
+      Stockfish.workers.push(worker);
+      giveBackStockfish(worker);
+    }
+  })();
+  await Stockfish.more;
+  return Math.max(1, Stockfish.workers.length);
+}
+
+/** One engine, started and ready — or a rejection with the reason it is not. */
+function startStockfishWorker() {
+  return new Promise((resolve, reject) => {
     let worker;
     let settled = false;
     const fail = (why) => {
@@ -62,8 +108,6 @@ function loadStockfish() {
       settled = true;
       clearTimeout(timer);
       try { worker?.terminate(); } catch { /* already gone */ }
-      Stockfish.worker = null;
-      Stockfish.failed = why;
       reject(new Error(why));
     };
     const timer = setTimeout(() => fail('Stockfish did not answer within 30 seconds of starting.'), STOCKFISH_START_MS);
@@ -92,13 +136,56 @@ function loadStockfish() {
         clearTimeout(timer);
         worker.onmessage = null;
         worker.onerror = null;
-        Stockfish.worker = worker;
         resolve(worker);
       }
     };
     worker.postMessage('uci');
   });
-  return Stockfish.loading;
+}
+
+/** An engine that is not searching, now or when one comes free. Starts one if there are none left. */
+async function takeStockfish() {
+  for (;;) {
+    if (Stockfish.free.length) return Stockfish.free.shift();
+    if (!Stockfish.workers.length) {
+      // Every one has been retired. The next question starts again from none.
+      Stockfish.loading = null;
+      Stockfish.more = null;
+      await loadStockfish();
+      continue;
+    }
+    await new Promise((resolve) => Stockfish.waiting.push(resolve));
+  }
+}
+
+/** An engine has finished its search — or been retired during it. Whoever is waiting looks again. */
+function giveBackStockfish(worker) {
+  if (Stockfish.workers.includes(worker) && !Stockfish.free.includes(worker)) Stockfish.free.push(worker);
+  const waiter = Stockfish.waiting.shift();
+  if (waiter) waiter();
+  restStockfishSoon();
+}
+
+/**
+ * Let the extra engines go once there has been nothing for them to do for a
+ * while. Each is its own copy of Stockfish, tables and all, and on a phone
+ * that memory is better given back than held for a walk that finished ten
+ * minutes ago. The first is kept: the Watch screen uses it, and starting one
+ * takes a moment. The next review starts the others again.
+ */
+function restStockfishSoon() {
+  clearTimeout(Stockfish.resting);
+  Stockfish.resting = setTimeout(() => {
+    if (Stockfish.workers.length < 2) return;
+    if (Stockfish.waiting.length || Stockfish.free.length !== Stockfish.workers.length) return;
+    for (const worker of Stockfish.workers.slice(1)) {
+      try { worker.terminate(); } catch { /* already gone */ }
+    }
+    Stockfish.workers = Stockfish.workers.slice(0, 1);
+    Stockfish.free = [...Stockfish.workers];
+    Stockfish.worker = Stockfish.workers[0];
+    Stockfish.more = null;
+  }, Stockfish.restAfter);
 }
 
 /**
@@ -198,15 +285,18 @@ function summariseStockfish(best, infos) {
  * @returns {Promise<{best: string, lines: Array<{move, pv, score, depth, bound}>, nodes: number, depth: number}>}
  *   Moves are UCI strings. Scores are from the side to move.
  */
-function stockfishAnalyse(fen, { nodes = STOCKFISH_NODES, multipv = 3, moves = [] } = {}) {
+async function stockfishAnalyse(fen, { nodes = STOCKFISH_NODES, multipv = 3, moves = [] } = {}) {
   const position = moves.length ? `position fen ${fen} moves ${moves.join(' ')}` : `position fen ${fen}`;
-  const job = Stockfish.queue.then(() => runStockfishSearch(position, nodes, multipv));
-  Stockfish.queue = job.catch(() => {});
-  return job;
+  await loadStockfish();
+  const worker = await takeStockfish();
+  try {
+    return await runStockfishSearch(worker, position, nodes, multipv);
+  } finally {
+    giveBackStockfish(worker);
+  }
 }
 
-async function runStockfishSearch(position, nodes, multipv) {
-  const worker = await loadStockfish();
+function runStockfishSearch(worker, position, nodes, multipv) {
   return new Promise((resolve, reject) => {
     const infos = [];
     const timer = setTimeout(() => {
@@ -216,10 +306,9 @@ async function runStockfishSearch(position, nodes, multipv) {
       // starts a fresh one.
       worker.onmessage = null;
       try { worker.terminate(); } catch { /* already gone */ }
-      if (Stockfish.worker === worker) {
-        Stockfish.worker = null;
-        Stockfish.loading = null;
-      }
+      Stockfish.workers = Stockfish.workers.filter((w) => w !== worker);
+      Stockfish.free = Stockfish.free.filter((w) => w !== worker);
+      if (Stockfish.worker === worker) Stockfish.worker = Stockfish.workers[0] ?? null;
       reject(new Error('Stockfish stopped answering in the middle of a search.'));
     }, STOCKFISH_SEARCH_MS);
     worker.onmessage = (e) => {
