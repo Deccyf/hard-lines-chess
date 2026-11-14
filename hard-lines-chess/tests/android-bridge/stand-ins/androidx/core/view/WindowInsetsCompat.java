@@ -1,0 +1,2 @@
+package androidx.core.view;
+public class WindowInsetsCompat { public static final WindowInsetsCompat CONSUMED = new WindowInsetsCompat(); public androidx.core.graphics.Insets getInsets(int mask) { return new androidx.core.graphics.Insets(); } public static final class Type { public static int systemBars() { return 1; } public static int displayCutout() { return 2; } public static int ime() { return 4; } } }

@@ -71,12 +71,12 @@ function buildSubTabs(group, section) {
   }
 }
 
-async function boot() {
-  buildTabs();
-
-  // Progress is loaded BEFORE anything renders, so the first paint is the real
-  // state rather than an empty one that fills in a moment later.
-  await Store.init();
+/**
+ * Everything the app keeps, read into the places the app works from. Called
+ * once at the start, and again when a restore has replaced what is stored —
+ * see restartOnStored() in backup.js for why that second call matters.
+ */
+async function loadStored() {
   App.openings = await Store.get('openings', { cards: {} });
   App.drills = await Store.get('drills', { items: [] });
   App.history = await Store.get('history', { bands: {}, games: [] });
@@ -100,10 +100,20 @@ async function boot() {
   App.puzzles.scanned ??= [];
   Endgames.results ??= {};
   Vision.best ??= {};
+}
+
+async function boot() {
+  buildTabs();
+
+  // Progress is loaded BEFORE anything renders, so the first paint is the real
+  // state rather than an empty one that fills in a moment later.
+  await Store.init();
+  await loadStored();
 
   // Store.where() rather than a sentence built here, because it has to be able
   // to say "nothing is being saved" — see Store.localFailed.
   $('storeNote').textContent = Store.where();
+  setupBackup();
 
   // Boards. All of them share one implementation, so they cannot disagree about
   // what a legal move is.

@@ -216,6 +216,7 @@ function renderToday() {
   // this is the one line that promises anything about your data.
   const note = $('storeNote');
   if (note) note.textContent = Store.where();
+  renderBackup();
 
   const box = $('todayList');
   box.innerHTML = '';

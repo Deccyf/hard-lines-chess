@@ -136,7 +136,7 @@ const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
   say('letters piece', await page.locator('#settingSample .piece').first().innerText());
   await page.selectOption('#settingTheme', 'dark');
   say('root theme', await page.evaluate(() => document.documentElement.dataset.theme));
-  say('prefs stored', await page.evaluate(() => localStorage.getItem('hardlines:prefs')));
+  say('prefs stored', await page.evaluate(async () => JSON.stringify(await Store.localDoc('prefs'))));
   await page.click('#settingReset');
   say('after reset', await page.evaluate(() => document.documentElement.dataset.board + '/' + document.documentElement.dataset.pieces));
 

@@ -1,0 +1,2 @@
+package android.webkit;
+public class WebSettings { public static final int LOAD_NO_CACHE = 2; public void setJavaScriptEnabled(boolean b) {} public void setDomStorageEnabled(boolean b) {} public void setCacheMode(int m) {} public void setAllowFileAccess(boolean b) {} public void setAllowContentAccess(boolean b) {} public void setGeolocationEnabled(boolean b) {} public void setUserAgentString(String s) {} public String getUserAgentString() { return ""; } }

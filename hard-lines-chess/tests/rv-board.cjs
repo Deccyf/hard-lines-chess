@@ -79,8 +79,11 @@ const { launch, app, serve, DIST, gotoSection } = require('./browser.cjs');
     await tap(page, '#drillBoard', 'g1'); await tap(page, '#drillBoard', 'f3'); await page.waitForTimeout(400);
     const card = await page.evaluate(() => App.drills.items[0].card);
     expect(`C[${shape}]: card written with finite numbers`, card && [card.interval, card.ease, card.due, card.seen].every(Number.isFinite));
-    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('hardlines:drills')));
+    // Wherever this device keeps it now — the large database, the old copy
+    // having been moved out of localStorage when the page opened on it.
+    const stored = await page.evaluate(() => Store.localDoc('drills'));
     expect(`C[${shape}]: local copy is versioned`, stored.version === 2 && Number.isFinite(stored.updated));
+    expect(`C[${shape}]: and the old copy has left the small store`, (await page.evaluate(() => localStorage.getItem('hardlines:drills'))) === null);
     await page.click('#drillNext'); await page.waitForTimeout(200);
     say(`C[${shape}]: after next`, await page.locator('#drillCount').innerText());
     expect(`C[${shape}]: comes back tomorrow, not "later"`, /tomorrow|in \d+ days/.test(await page.locator('#drillCount').innerText()));

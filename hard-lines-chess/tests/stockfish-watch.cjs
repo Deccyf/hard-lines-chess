@@ -117,7 +117,9 @@ const PLIES = Number(process.env.PLIES || 30);
   const unexplained = notes.filter((n) => !n.explained);
   check('every move has an explanation', unexplained.length, 0);
   if (unexplained.length) say('  unexplained plies', unexplained.map((n) => n.ply).join(' '));
-  const ownOut = notes.filter((n) => n.side === 'stockfish' && !n.inBook && !n.verdict.startsWith("Stockfish's choice"));
+  // (The move that ends the game is "Checkmate. … wins." and nothing more.)
+  const itsChoice = (verdict) => verdict.startsWith("Stockfish's choice") || verdict.startsWith('Checkmate.');
+  const ownOut = notes.filter((n) => n.side === 'stockfish' && !n.inBook && !itsChoice(n.verdict));
   check("Stockfish's own moves are called its choice", ownOut.length, 0);
   const levelMoves = notes.filter((n) => n.side === 'level' && !n.inBook);
   const judged = levelMoves.filter((n) => /^(Stockfish agrees|Slightly worse|Inaccuracy|Mistake|Blunder)/.test(n.verdict));
@@ -206,7 +208,7 @@ const PLIES = Number(process.env.PLIES || 30);
   check('and no error', self.error, null);
   check('both sides are Stockfish', `${self.white} ${self.black}`, 'stockfish stockfish');
   check('and every move after the book is its choice',
-    self.verdicts.every((v) => v.startsWith("Stockfish's choice")), true);
+    self.verdicts.every(itsChoice), true);
 
   // ── 6. a copy opened from a file ─────────────────────────────────────────
   const local = await ctx.newPage();

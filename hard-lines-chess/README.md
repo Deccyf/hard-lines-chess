@@ -121,6 +121,9 @@ src/engine/     0x88 board, alpha-beta search with TT/LMR/quiescence, the levels
 src/openings.js 25 openings, 79 variations — verified by tests/verify-openings.mjs
 src/famous.js   7 famous games, every ply replayed by tests/famous.test.mjs
 src/notation-lessons.js  14 notation lessons, each checked against the engine
+src/store.js    where progress is kept: the large database, the move out of
+                localStorage, and the spaced-repetition scheduler
+src/backup.js   the backup file: saving, checking, restoring, undoing
 src/pgn.js      the PGN reader, and the clocks in the movetext that it strips
 src/review.js   the reviewer, the compact per-game format, and what your own
                 rated games say about a game (see "What it says about you")
@@ -284,6 +287,90 @@ and then judged again by Stockfish must end up identical to the same games
 judged by Stockfish from the start. That covers every stored figure, every
 chart and panel on Progress, the reopened review and the drills.
 
+## Where your data is kept
+
+Everything the app knows about you — games, drills, puzzles, openings
+progress, settings — lives on the device, in ten areas listed once as
+`STORE_AREAS` in `src/store.js`.
+
+**In the browser's large database, not localStorage.** localStorage holds about
+five million characters for a whole site. Measured: an analysed game takes
+about 6,400, so the next save was refused at around 800 analysed games — the
+import offers 1,000 — and from then on the app carried on and saved nothing.
+IndexedDB is limited by free space instead: 1,500 analysed games (6.9 million
+characters) save in 45 ms and are there after a reload.
+
+**The move is made one area at a time, and nothing is removed until its copy
+has been read back.** An area found in localStorage is written to the database,
+read back, compared character for character, and only then removed. If the
+database refuses the write, or hands back something else, the old copy stays
+where it is and the session runs on it. And once the database has been used on
+a device the app never falls back on localStorage: if the database would not
+open one day, falling back would show an empty app, let it be used, and save
+that state under today's date — which the next good load would prefer to the
+real history, as the newer copy. It says the data could not be opened instead,
+and saves nothing. One area that will not read is treated the same way: the
+session stops there rather than open that part of the app empty.
+
+**A save that fails is said, and heals.** The "Your data" line on Today reads
+the true state every time it is drawn. Every area is written whole, so when a
+later save works the areas that were owed are written there and then, and the
+warning goes when nothing is owed.
+
+**A backup file.** "Save a backup file" writes all ten areas to one JSON file.
+"Restore from a backup" checks the file before touching anything, says what it
+holds and what is in the app now, and replaces one with the other under a
+single transaction — all of it or none — keeping what was there so the restore
+can be undone. It replaces rather than merges on purpose: merging two histories
+means guessing, for every game and drill in both, which copy is the real one,
+and a wrong guess is a game counted twice on every chart. The web version and
+the Android app are separate places that cannot see each other, and the file is
+what carries a history from one to the other.
+
+In the Android app, where a page can neither start a download nor open a file,
+`MainActivity` does both through the system's own file chooser, which needs no
+permission. Text crosses between the page and the app 200,000 characters at a
+time, in both directions, and a piece never ends halfway through a character.
+On the app's side nothing is ever held whole in memory: each text goes to a
+file as its pieces arrive and comes back from one a piece at a time, so a
+backup can be made of a history of any size.
+
+**A phone can clear the database, so the Android app keeps a copy of its own.**
+A browser may clear a site's database when the device is very short of space.
+A website can ask to be spared (the app asks, after an import, a review or a
+backup); a page inside an Android app cannot. What a phone does leave alone is
+an app's own files. So whenever the Android app is left, and every ten minutes
+while it stays open and something has changed, the page hands the app a copy
+of everything, in the backup file's layout, and the app keeps it in its
+private files. A load reads it back only when it may hold something the
+database does not — the database is new, or the last copy was told to hold
+something newer than the database now does, which is what a refused save looks
+like afterwards — and then the newer of the two wins, area by area. Nothing is
+asked, because there is no decision in it; the page says what happened. Dates
+only go forward, so a clock put back cannot make an older copy look newer. A
+copy that would not read is never written over, and where the database is new
+the session stops rather than carry on empty — twice; a copy that will not
+read a third time running is given up, and the page says what was lost. It is
+not a backup: it is on the same phone and goes when the app goes.
+
+Where there is no such copy — any browser — a database that has been cleared
+is at least said to have been: the note that it was once used is kept in
+localStorage, which is not cleared with it, so the page can tell "cleared"
+from "first time here" and says what brings the history back.
+
+`tests/storage-drive.cjs` does all of this in a real browser, deliberate
+failures included — a database that will not open, one area that will not
+read, a save refused, a database cleared, a copy that will not read — and
+fails when any of the rules above is taken out. `tests/android-bridge.test.mjs`
+compiles the real `MainActivity.java` against stand-ins for Android and runs
+its file handling on an ordinary JVM. That shows the app's own logic is right;
+it cannot show that a real phone's file chooser behaves as documented.
+`tests/store.test.mjs` holds every area the code saves or loads to the one
+list, so a new area cannot be left out of the backup — and holds the page, the
+app and the pretend app the browser test drives to the same names for every
+way across between them, since each half is otherwise tested against its own
+idea of the other.
+
 ## Speed
 
 Everything the app knows about a game it reads back out of the game's own PGN,
@@ -325,12 +412,13 @@ over every one- and two-piece ending.
 
 ```
 npm install            # playwright, for the browser drivers
-npm test               # 21 node suites: perft, motifs, the move explainer, Reckless, the judges, traps,
+npm test               # 23 node suites: perft, motifs, the move explainer, Reckless, the judges, traps,
                        # mate cap, multi-line search, the solved table, endgame
-                       # and opening prose, notation, clocks, evaluation
-                       # symmetry, the fast paths against the long way round,
-                       # repeatability, interface vocabulary
-npm run test:browser   # 49 Playwright drivers against dist/
+                       # and opening prose, notation, clocks, the stored areas,
+                       # the Android app's file handling (needs a Java compiler),
+                       # evaluation symmetry, the fast paths against the long
+                       # way round, repeatability, interface vocabulary
+npm run test:browser   # 50 Playwright drivers against dist/
 npm run verify:openings
 ```
 
@@ -365,6 +453,11 @@ The identical file is attached to a release, at
 `/releases/download/android-latest/hard-lines-chess.apk`. That copy is served
 from a different host to the page, which some VPNs and filtered networks stall
 without an error — so the link above is the one to give a phone first.
+
+The two keep their data separately — an installed web app and the APK are
+different places on the phone — and a backup file, saved in one and restored in
+the other, is what moves a history between them (see "Where your data is
+kept").
 
 There is no iOS equivalent of the second route: Apple has no sideloading, so an
 iPhone takes the first one. Either way, a page opened from a Files app cannot

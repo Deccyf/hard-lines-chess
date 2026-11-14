@@ -1,5 +1,51 @@
 # Changelog
 
+## 1.6.0 — 2026-11-14
+
+### Your data, kept safely
+- **The store no longer fills up.** Everything the app keeps used to live in
+  the browser's small store, which refused the next save at about 800 analysed
+  games — while the import offers a thousand — and went on looking fine. It
+  lives in the browser's large database now, limited only by free space. What
+  was already stored moves across the first time the new version opens, one
+  area at a time, and nothing is removed until its copy has been read back and
+  matches.
+- **A backup file.** "Save a backup file" on Today writes everything to one
+  file; "Restore from a backup" checks it, says what it holds and what is here
+  now, and replaces one with the other — all of it or none, and it can be
+  undone. It is also what moves a history between the web version and the
+  Android app, which cannot see each other.
+- **The Android app can save and open files.** It could do neither: a page
+  inside an app has no downloads and no file chooser. The app now does both
+  itself, through the phone's own chooser, and still asks for no permission.
+- **A phone that clears the app's database does not take your games with it.**
+  A phone very short of space can clear the database a page keeps its data in,
+  and a page inside an app cannot ask to be spared. So the Android app keeps a
+  second copy of everything in its own files, which the phone leaves alone —
+  refreshed whenever you leave the app — and puts it back by itself when it
+  finds the database empty or behind, saying that it has. A save the phone
+  refuses is not lost either: it is in that copy, and goes back in next time.
+  In a browser, where there is nowhere to keep such a copy, a database that has
+  been cleared is now said to have been, with what brings it back.
+- **One part that will not read no longer puts the rest at risk.** If one area
+  of the saved data could not be read, the app used to open that part empty,
+  and its next save would have replaced what was there. It now stops and says
+  so, and everything is there the next time it opens.
+- **Restoring a backup replaces everything.** An area the file does not hold is
+  emptied rather than left as it was beside a history it does not belong to.
+  Undoing a restore now asks first, since by then the app may have been used.
+- **A failed save says what failed, and recovers.** The "Your data" line now
+  tells a full device from a private window from a database that would not
+  open; a backup can still be saved from a session that cannot; and the next
+  save that works writes everything that was owed.
+
+### Since 1.5.0, not listed here until now
+- **Stockfish** on the Watch screen and as a judge, in every build; **Reckless**
+  as a download in the web version; engine games explained move by move.
+- **A choice of judge** for reviews and for analysing imported games, each with
+  its own measured strength estimate; judging a game again replaces everything
+  about it on every screen.
+
 ## 1.5.0 — 2026-09-12
 
 ### A professional interface

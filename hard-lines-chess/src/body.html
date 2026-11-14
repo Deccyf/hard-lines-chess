@@ -13,9 +13,29 @@
     <p class="lede">Your training for today. Items appear only when there is something to do.</p>
     <div id="todayList" class="tasks"></div>
     <div id="todayRecord" class="panel"></div>
-    <div class="panel">
+    <div class="panel" id="dataPanel">
       <h3>Your data</h3>
       <p class="note" id="storeNote">Checking…</p>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="backupSave" type="button">Save a backup file</button>
+        <button class="btn" id="backupOpen" type="button">Restore from a backup</button>
+        <input id="backupFile" type="file" accept=".json,application/json" hidden>
+      </div>
+      <p class="note" id="backupNote"></p>
+      <div id="backupConfirm" hidden>
+        <p class="note" id="backupConfirmText"></p>
+        <div class="row">
+          <button class="btn danger" id="backupReplace" type="button">Replace with the backup</button>
+          <button class="btn" id="backupCancel" type="button">Cancel</button>
+        </div>
+      </div>
+      <div id="backupRestored" hidden>
+        <p class="note good-note" id="backupRestoredText"></p>
+        <div class="row">
+          <button class="btn" id="backupUndo" type="button">Undo the restore</button>
+          <button class="btn" id="backupKeep" type="button">Keep the restored data</button>
+        </div>
+      </div>
     </div>
     <div class="panel" id="downloadWrap">
       <h3 id="downloadTitle">Install</h3>

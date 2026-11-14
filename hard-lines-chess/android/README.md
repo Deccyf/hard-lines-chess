@@ -55,10 +55,56 @@ chess trainer that plays its own engine ought to.
 `WebViewAssetLoader` answers requests to `https://appassets.androidplatform.net/`
 out of the APK's assets. Loading `file:///android_asset/index.html` would have
 been one line shorter and wrong: a `file:` page has an opaque origin, its
-`localStorage` is unreliable, and `window.isSecureContext` is false — which the
-page itself checks before it registers anything. Every game, drill, opening and
-setting the trainer keeps lives in that storage, so it needs to be storage that
-behaves like storage.
+storage is unreliable, and `window.isSecureContext` is false — which the page
+itself checks before it registers anything. Every game, drill, opening and
+setting the trainer keeps lives in that storage — the WebView's database, and
+before version 1.6 its `localStorage` — so it needs to be storage that behaves
+like storage. The name must never change: storage belongs to the origin, and a
+new name would be a new, empty app with every game still on the phone and out
+of reach.
+
+### A backup file goes out, and comes back in, through the app
+
+A page in a WebView cannot start a download, and its file inputs do nothing.
+So `MainActivity` exposes a small bridge to the page (`HardLinesAndroid`, see
+`FileBridge`): the page hands over the backup's text a piece at a time, the app
+opens the system's "save to" chooser and writes the file where it is told; and
+the other way round for a restore. Neither needs a permission — the system's
+chooser does the choosing, and the app is handed the one file that was picked.
+The app still holds no internet permission.
+
+Nothing is held whole in memory on the way. A backup being saved is written to
+the app's cache as its pieces arrive and copied from there to wherever the
+chooser says; one being restored is copied into the cache first and handed to
+the page from there. So the size of a history is not a limit, and if Android
+restarts the app underneath its own chooser, what was waiting is still there
+when it comes back.
+
+### The app keeps its own copy of the page's data
+
+The page keeps everything in the WebView's database, and a phone that is very
+short of space can clear that. A website can ask the browser to spare it; a
+page in a WebView cannot (`navigator.storage.persist()` is refused). What the
+phone does not clear is an app's own files. So the page hands over a copy of
+everything, in the backup file's layout, whenever the app is left (`onPause`
+asks it to) and every ten minutes while it stays open with something changed;
+the app writes it to `files/kept-copy.json` — beside the copy already there,
+then moved over it, so the file under that name is always a whole one. When
+the page next finds its database new, or behind, it asks for the copy back and
+takes whatever in it is newer. The file's name must never change, for the same
+reason the origin's must not.
+
+It is not a backup: it is in the same app on the same phone, and uninstalling
+the app or clearing its data removes it with everything else.
+
+`tests/android-bridge.test.mjs` compiles `MainActivity.java` against stand-ins
+for Android and runs all of this on an ordinary JVM: every way a save or a
+restore can end, a place that will not truncate a file, a file too large to be
+a backup, a character that takes two units falling exactly on a piece
+boundary, the app restarted underneath its chooser, and a copy that cannot be
+written leaving the last one whole. What it cannot show is that a particular
+phone's file chooser behaves as documented, nor what a phone does when a file
+will not open — on a JVM every file opens.
 
 ### The signing key is in this repository, and is not a secret
 

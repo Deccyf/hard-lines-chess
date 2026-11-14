@@ -33,6 +33,7 @@ async function storeImported(rows) {
   App.reviews.games.sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
   forgetDeviations();
   await Store.set('reviews', App.reviews);
+  Store.keep();
 }
 
 function importNote(text, kind = 'note') {

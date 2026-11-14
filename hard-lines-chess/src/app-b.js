@@ -750,6 +750,7 @@ async function runReview() {
   // Its drills follow the new judgement, as they do on the walk.
   if (earlier) await rejudgeDrillsAndSave(game, before);
   await Store.set('reviews', App.reviews);
+  Store.keep();
   // The book is built from stored games, and one was just stored.
   refreshBook();
 
