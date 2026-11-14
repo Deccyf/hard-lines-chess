@@ -569,6 +569,16 @@ without a pack says so in it, and the screen then says there are no puzzles
 rather than offering a button that does nothing. A copy of the page opened
 from a file cannot read a second file, and says that instead.
 
+**The pack that ships** is 50,000 puzzles from the database of 1 November
+2026, rated 400 to 2299, 4.6 MB. The database had 6.2 million puzzles; 2.2
+million passed the thresholds, and the pack was drawn from those — 3,000 for
+each of the eleven themes the app can aim at, and the rest anything. None of
+the fifty thousand was refused on the board, and all of them, not the one in
+ten the test replays on every run, have been played through once here on the
+app's own move generator: 228,540 moves, every one legal, and each of the
+21,047 puzzles tagged as a mate ending in mate in the number of moves it
+says.
+
 `tests/weak-spots.test.mjs` holds the choosing and the judging to their rules;
 `tests/puzzle-pack.test.mjs` runs the tool on a file in the database's layout,
 with a row of every kind it has to turn down, and plays through one in ten of

@@ -27,6 +27,12 @@ npm test
 `--snapshot` is the date of the database file, kept in `pack.json`. The same
 file always gives the same pack: the choosing is random from a fixed seed.
 
+The pack here was made from the database file of 1 November 2026: 6,193,530
+puzzles read, 2,221,758 passing the thresholds below, 50,000 kept, none
+refused on the board. `pack.json` has the rest — how many of each theme, how
+many in each band of ratings, and the size and hash `build.py` holds the file
+to.
+
 ## What is kept
 
 - **Rated 400 to 2299**, with ratings from 600 to 2000 given twice the room of

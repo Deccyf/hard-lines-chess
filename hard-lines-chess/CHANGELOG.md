@@ -74,6 +74,27 @@
   telemetry, sends nothing but your Chess.com name, to Chess.com, and does
   everything except that import with no connection.
 
+### Puzzles for your weak spots
+- **A Weak spots screen.** Ten puzzles at a time, out of fifty thousand chosen
+  from the Lichess puzzle database (which is in the public domain). About
+  seven in every ten are of the kinds of mistake your own analysed games show
+  most — a fork you allowed is trained with puzzles where a fork wins — and
+  the rest are a mix. With nothing analysed yet, all ten are a mix, and the
+  screen says that is why.
+- **At your level.** It starts at 1000 on the puzzles' own scale and moves
+  after every new puzzle, quickly at first; the next puzzle is picked a
+  little under it, so that about two in three are solved. It is a level on
+  these puzzles and nothing else.
+- **A miss comes back.** The first wrong move counts the puzzle as missed, but
+  it stays for another look and the answer can be asked for. It comes back
+  the next day, then about a week later, and is finished with once solved
+  twice running. A second way to give mate is as right as the recorded one.
+- **In both versions, with no connection.** The puzzles are one 4.6 MB file,
+  inside the Android app and kept by the installed website.
+- **Every one of them was played through** on this app's own board before it
+  was kept — a position it can set up, every move legal, a mate that is a
+  mate — so the app is never handed a move it would refuse.
+
 ### One session a day
 - **Today starts with a session.** A few of your own mistakes, a few chances
   from your own games, puzzles for your weak spots and one opening line from
