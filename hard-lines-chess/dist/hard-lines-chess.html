@@ -6089,20 +6089,25 @@ const Store = {
     }
 
     // THE COPY IS THERE AND WOULD NOT READ. It is not written over this
-    // session. And where the database is new, the copy is all there is: a
-    // session that carried on empty would date its own saves after it, and
+    // session. And where the database was cleared, the copy is all there is:
+    // a session that carried on empty would date its own saves after it, and
     // those would then be taken for the newer ones. So that session stops.
     //
-    // TWICE. A copy that will not read a third time running is damaged, and
-    // an app that stopped for it for ever would be no use to anyone: from
-    // then on it is given up, the page says what was lost, and the next copy
-    // made takes its place.
+    // ONLY WHERE SOMETHING IS KNOWN TO HAVE BEEN LOST. A database that is
+    // simply new — the first time this version opens, above all — has the
+    // history still to move across from the small store, and nothing about
+    // the app's copy, or about the way to it, may get in the way of that.
+    //
+    // AND ONLY TWICE. A copy that will not read a third time running is
+    // damaged, and an app that stopped for it for ever would be no use to
+    // anyone: from then on it is given up, the page says what was lost, and
+    // the next copy made takes its place.
     const before = this.tally('__blind');
     if (before >= 2) {
       this.forgetKept();
     } else {
       this.keptUnread = true;
-      if (this.created || this.lost) this.shut('unread');
+      if (this.lost) this.shut('unread');
     }
     return null;
   },
@@ -6136,6 +6141,8 @@ const Store = {
   /** A copy has been handed to the app to keep: remember what it was told to hold. */
   noteKept() {
     this.keptStamps = { ...this.stamps };
+    // Whatever would not read before, this one is new.
+    this.tally('__blind', 0);
     try {
       localStorage.setItem(this.key('__kept'), JSON.stringify({ at: Date.now(), stamps: this.keptStamps }));
     } catch { /* the copy is made all the same */ }
@@ -20780,12 +20787,14 @@ function takeRestoreFromAndroid(bridge) {
   }
 }
 
-/** Collect it and ask the question. `waiting` is the look taken when the page starts, where finding none is ordinary. */
+/** Collect it and ask the question. `waiting` is the look taken when the page starts, where finding nothing is ordinary. */
 function collectAndroidRestore(waiting = false) {
   const bridge = androidFiles();
   if (!bridge) return;
   const got = takeRestoreFromAndroid(bridge);
-  if (waiting && got.state === 'none') return;
+  // Nobody has asked for anything yet: whatever is not a file ready to be
+  // offered is nothing to say.
+  if (waiting && got.state !== 'ok') return;
   backupBusy(false);
   if (got.state !== 'ok') {
     backupSayAndHold('That file could not be read in full. Nothing was changed.', 'note bad-note');

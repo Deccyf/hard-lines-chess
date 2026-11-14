@@ -480,12 +480,14 @@ function takeRestoreFromAndroid(bridge) {
   }
 }
 
-/** Collect it and ask the question. `waiting` is the look taken when the page starts, where finding none is ordinary. */
+/** Collect it and ask the question. `waiting` is the look taken when the page starts, where finding nothing is ordinary. */
 function collectAndroidRestore(waiting = false) {
   const bridge = androidFiles();
   if (!bridge) return;
   const got = takeRestoreFromAndroid(bridge);
-  if (waiting && got.state === 'none') return;
+  // Nobody has asked for anything yet: whatever is not a file ready to be
+  // offered is nothing to say.
+  if (waiting && got.state !== 'ok') return;
   backupBusy(false);
   if (got.state !== 'ok') {
     backupSayAndHold('That file could not be read in full. Nothing was changed.', 'note bad-note');

@@ -348,10 +348,14 @@ something newer than the database now does, which is what a refused save looks
 like afterwards — and then the newer of the two wins, area by area. Nothing is
 asked, because there is no decision in it; the page says what happened. Dates
 only go forward, so a clock put back cannot make an older copy look newer. A
-copy that would not read is never written over, and where the database is new
-the session stops rather than carry on empty — twice; a copy that will not
-read a third time running is given up, and the page says what was lost. It is
-not a backup: it is on the same phone and goes when the app goes.
+copy that would not read is never written over, and where the database was
+cleared the session stops rather than carry on empty — twice; a copy that will
+not read a third time running is given up, and the page says what was lost.
+Only where something is known to have been lost, though: the first time a
+version with the database opens, the history still has to move across from
+localStorage, and no trouble with the copy, or with the way to the app, can
+stop that. It is not a backup: it is on the same phone and goes when the app
+goes.
 
 Where there is no such copy — any browser — a database that has been cleared
 is at least said to have been: the note that it was once used is kept in

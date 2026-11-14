@@ -509,7 +509,11 @@ const SABOTAGE = () => {
           window.hardLinesRestoreReady();
         });
       },
-      openRestore: () => { if (app.restore) app.restore.at = 0; return open(app.restore); },
+      openRestore: () => {
+        if (localStorage.getItem('test:keptfault') === 'throw') throw new Error('The way to the app is not there.');
+        if (app.restore) app.restore.at = 0;
+        return open(app.restore);
+      },
       restoreChunk: () => next(app.restore),
       clearRestore: () => { const all = whole(app.restore); app.restore = null; return all; },
       // Its own copy of the page's data. The real app keeps it in a file of
@@ -525,6 +529,7 @@ const SABOTAGE = () => {
         return true;
       },
       openKept: () => {
+        if (localStorage.getItem('test:keptfault') === 'throw') throw new Error('The way to the app is not there.');
         app.kept = given(localStorage.getItem('test:kept'), localStorage.getItem('test:keptfault'));
         return open(app.kept);
       },
@@ -637,6 +642,27 @@ const SABOTAGE = () => {
   check('H: an ordinary load does not read the copy at all', await k.evaluate(() => Store.keptPulled), false);
   await leave(k);
   check('H: nor make another, nothing having changed', await keeps(k), 2);
+
+  // THE FIRST TIME THIS VERSION OPENS is when the history moves across from
+  // the small store, and nothing about the app's copy may get in its way:
+  // not a copy that will not read, and not a way to the app that does not work.
+  for (const fault of ['shut', 'throw']) {
+    const first = await open({ init: [SABOTAGE, SEED, PRETEND_APP, [(f) => {
+      if (localStorage.getItem('test:first')) return;
+      localStorage.setItem('test:first', '1');
+      localStorage.setItem('test:kept', '{"left":"by an earlier install"}');
+      localStorage.setItem('test:keptfault', f);
+    }, fault]], userAgent: ANDROID_UA });
+    const opened = await first.evaluate(() => ({ state: `${Store.mode} ${Store.localFailed} ${Store.lost}`,
+      held: `${App.reviews.games.length} ${App.drills.items.length} ${App.history.games.length} ${App.prefs.theme}`,
+      note: document.getElementById('backupNote').textContent, where: document.getElementById('storeNote').textContent }));
+    check(`H[first, ${fault}]: the first open is not stopped by trouble with the app's copy`, opened.state, 'large false false');
+    check(`H[first, ${fault}]: the whole history moves across`, `${opened.held} | ${await smallKeys(first)}`, '2 1 1 dark | hardlines:__blind hardlines:__large');
+    check(`H[first, ${fault}]: and nothing alarming is said`, /^Saved inside this app/.test(opened.where) && !/could not be read/.test(opened.note), true);
+    await leave(first);
+    check(`H[first, ${fault}]: the copy that would not read is not written over that session`, await keptFile(first), '{"left":"by an earlier install"}');
+    await first.close();
+  }
 
   // The phone clears the database.
   const beforeCleared = await areas(k);
