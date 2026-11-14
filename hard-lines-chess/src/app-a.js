@@ -347,16 +347,22 @@ function renderToday() {
   // The record, per band, and only for bands actually played. A table of
   // twenty-two rows of zeroes is not a record, it is a menu.
   const record = $('todayRecord');
-  const played = Object.entries(App.history.bands).filter(([, r]) => r.w + r.d + r.l > 0);
+  const anyPlayed = (table) => Object.entries(table ?? {}).filter(([, r]) => r.w + r.d + r.l > 0).sort((a, b) => Number(a[0]) - Number(b[0]));
+  // The ladder first, then the levels that play like a person: two kinds of
+  // opponent, and a 1500 of one is not a 1500 of the other.
+  const played = [
+    ...anyPlayed(App.history.bands).map(([elo, r]) => [bandLabelFor(Number(elo)), r]),
+    ...anyPlayed(App.history.maia).map(([level, r]) => [humanName(Number(level)), r]),
+  ];
   // Hidden entirely rather than shown empty. A panel whose only content is
   // "there is nothing here" is the same fault as a button that does nothing.
   record.hidden = played.length === 0;
   if (played.length) {
     record.innerHTML = '<h3>Your record</h3>';
     const list = el('div', 'record');
-    for (const [elo, r] of played.sort((a, b) => Number(a[0]) - Number(b[0]))) {
+    for (const [name, r] of played) {
       const row = el('div', 'record-row');
-      row.innerHTML = `<span class="record-band">${bandLabelFor(Number(elo))}</span>
+      row.innerHTML = `<span class="record-band">${esc(name)}</span>
         <span class="record-score">${r.w}W ${r.d}D ${r.l}L</span>`;
       list.appendChild(row);
     }
@@ -408,17 +414,39 @@ const Play = {
 function renderBandPicker() {
   const select = $('bandSelect');
   select.innerHTML = '';
+  // TWO KINDS OF OPPONENT, WHEN THERE ARE TWO. The ladder is always there.
+  // The levels that play like a person are files beside the page (see
+  // src/app-t.js), and where there are none the list is the ladder alone, as
+  // it always was, with no heading over it.
+  const people = humanLevels();
+  const ladder = people.length ? el('optgroup') : select;
+  if (people.length) {
+    ladder.label = 'The ladder: this app\'s engine';
+    select.appendChild(ladder);
+  }
   BANDS.forEach((band, index) => {
     const option = el('option', null, bandLabel(band, index, BANDS));
-    option.value = String(band.elo);
-    if (band.elo === Play.band.elo) option.selected = true;
-    select.appendChild(option);
+    option.value = opponentValue(band);
+    if (!Play.band.maia && band.elo === Play.band.elo) option.selected = true;
+    ladder.appendChild(option);
   });
+  if (people.length) {
+    const group = el('optgroup');
+    group.label = 'Plays like a person';
+    for (const level of people) {
+      const option = el('option', null, humanName(level));
+      option.value = opponentValue({ maia: level });
+      if (Play.band.maia === level) option.selected = true;
+      group.appendChild(option);
+    }
+    select.appendChild(group);
+  }
+  $('humanAbout').hidden = !people.length;
   describeBand();
 }
 
 function describeBand() {
-  $('bandNote').textContent = bandNote(Play.band);
+  $('bandNote').textContent = Play.band.maia ? humanNote(Play.band.maia) : bandNote(Play.band);
 }
 
 /**
@@ -446,6 +474,11 @@ function newPlayGame(fen = null) {
     teach: Teach.on,
     useBook: Play.useBook,
   };
+  // A human-like opponent is a file that may not have been fetched yet. It is
+  // asked for now, so that it is on its way while the first move is thought
+  // about; if that fails, the move that needs it asks again and says so.
+  if (Play.game.band.maia) humanNet(Play.game.band.maia).catch(() => {});
+  describePlayReadout();
   resetTeaching();
   Play.clock = { mine: Play.control.initial ?? 0, theirs: Play.control.initial ?? 0, startedAt: Date.now(), ticker: null };
   refreshBook();
@@ -488,11 +521,21 @@ function renderPlayStatus() {
   }
   if (Play.fault) {
     head.textContent = 'The opponent could not move';
-    body.textContent = `Its search failed: ${Play.fault}. Start a new game.`;
+    body.textContent = Play.game.band.maia
+      ? `${humanName(Play.game.band.maia)} could not be made ready: ${Play.fault}. Start a new game to try again, or choose a level from the ladder.`
+      : `Its search failed: ${Play.fault}. Start a new game.`;
     return;
   }
-  const label = bandLabelFor(Play.game.band.elo);
+  const label = opponentName(Play.game.band);
   if (Play.thinking) {
+    // A HUMAN-LIKE OPPONENT'S NETWORK MAY STILL BE ON ITS WAY — the first time
+    // its level is used on the website. That is not thinking, and "choosing a
+    // move… 14s" over a file that is downloading would be a small lie.
+    if (Play.game.band.maia && Human.state.get(Play.game.band.maia) === 'fetching') {
+      head.textContent = 'Fetching';
+      body.textContent = `${label} is being fetched; it will move as soon as it is here.`;
+      return;
+    }
     head.textContent = 'Thinking';
     body.textContent = Play.thinkingFor < 2
       ? `${label} is choosing a move.`
@@ -607,7 +650,7 @@ async function finishPlay(key) {
     const set = Teach.problems.filter((p) => p.outcome !== 'withdrawn');
     const took = set.filter((p) => p.outcome === 'found' || p.outcome === 'avoided').length;
     App.teaching.games.push({
-      at: Date.now(), band: game.band.elo, colour: Play.myColour === WHITE ? 'white' : 'black', result,
+      at: Date.now(), ...opponentKept(game.band), colour: Play.myColour === WHITE ? 'white' : 'black', result,
       plies: Play.moves.length, from: game.startFen, takebacks: Play.superseded.length, control: game.control.id, pgn,
       problems: Teach.problems.map((p) => ({ ply: p.ply, intent: p.intent, trappiness: p.trappiness, outcome: p.outcome })),
     });
@@ -619,15 +662,12 @@ async function finishPlay(key) {
   // A game from a set-up position is not a game against the band, so it does
   // not go on the record: winning a won position twenty times is not twenty
   // wins. It is still kept, marked, so the moves are not lost.
-  if (!game.startFen) {
-    const record = App.history.bands[game.band.elo] ?? { w: 0, d: 0, l: 0 };
-    record[result]++;
-    App.history.bands[game.band.elo] = record;
-  }
+  if (!game.startFen) opponentRecord(game.band)[result]++;
   forgetDeviations();
   App.history.games.push({
     at: Date.now(),
-    band: game.band.elo,
+    // The ladder's level, or the human-like one: a game has one or the other.
+    ...opponentKept(game.band),
     colour: Play.myColour === WHITE ? 'white' : 'black',
     result,
     plies: Play.moves.length,
@@ -717,6 +757,10 @@ function engineMove() {
     }
   }
 
+  // AN OPPONENT THAT PLAYS LIKE A PERSON DOES NOT SEARCH. Its move comes from
+  // a network, in src/app-t.js, and finishes in the same place as any other.
+  if (Play.game.band.maia) { humanMove(alive, startedAt); return; }
+
   // Yield twice so "Thinking" actually paints before the search blocks the
   // thread. Without it the label appears only after the move it describes.
   requestAnimationFrame(() => setTimeout(() => {
@@ -773,6 +817,12 @@ function finishEngineMove(result) {
   if (result.book) {
     // Said plainly rather than shown as an evaluation it never computed.
     Play.lastEval = 'from your games';
+    Play.lastEvalCp = null;
+  } else if (result.human) {
+    // NOT AN EVALUATION, because this opponent has none: how many players
+    // like it make the move it just made. The coach's gate reads the other
+    // figure, and is told there is not one.
+    Play.lastEval = humanShare(result.human.chance);
     Play.lastEvalCp = null;
   } else if (!result.blundered) {
     Play.lastEvalCp = -result.score;

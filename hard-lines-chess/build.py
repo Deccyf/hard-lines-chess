@@ -102,9 +102,9 @@ if not os.path.exists('src/puzzle-bank.js'):
 
 parts = [engine_source] + [re.sub(r'^export ', '', open(f).read(), flags=re.M) for f in [
     'src/engine/bundle.js', 'src/engine/bands.js', 'src/openings.js', 'src/notation.js',
-    'src/store.js', 'src/pgn.js', 'src/motifs.js', 'src/weak-spots.js', 'src/daily.js', 'src/patterns.js', 'src/rating-fit.js', 'src/engine-pool.js', 'src/review.js', 'src/explain.js', 'src/stockfish-driver.js', 'src/reckless-driver.js', 'src/deviation.js', 'src/import.js', 'src/board-view.js',
+    'src/store.js', 'src/pgn.js', 'src/motifs.js', 'src/weak-spots.js', 'src/daily.js', 'src/patterns.js', 'src/maia-net.js', 'src/maia.js', 'src/rating-fit.js', 'src/engine-pool.js', 'src/review.js', 'src/explain.js', 'src/stockfish-driver.js', 'src/reckless-driver.js', 'src/deviation.js', 'src/import.js', 'src/board-view.js',
     'src/pawn-tb.js', 'src/endgames.js', 'src/famous.js', 'src/notation-lessons.js', 'src/puzzle-bank.js',
-    'src/icons.js', 'src/traps.js', 'src/app-h.js', 'src/app-g.js', 'src/app-a.js', 'src/app-b.js', 'src/app-d.js', 'src/app-e.js', 'src/app-f.js', 'src/app-k.js', 'src/app-i.js', 'src/app-j.js', 'src/app-l.js', 'src/app-m.js', 'src/app-n.js', 'src/app-o.js', 'src/app-p.js', 'src/app-q.js', 'src/app-r.js', 'src/app-s.js', 'src/backup.js', 'src/app-c.js',
+    'src/icons.js', 'src/traps.js', 'src/app-h.js', 'src/app-g.js', 'src/app-a.js', 'src/app-b.js', 'src/app-d.js', 'src/app-e.js', 'src/app-f.js', 'src/app-k.js', 'src/app-i.js', 'src/app-j.js', 'src/app-l.js', 'src/app-m.js', 'src/app-n.js', 'src/app-o.js', 'src/app-p.js', 'src/app-q.js', 'src/app-r.js', 'src/app-s.js', 'src/app-t.js', 'src/backup.js', 'src/app-c.js',
 ]]
 script = "<script>\n" + "\n\n".join(parts) + "\n</" + "script>\n"
 
@@ -198,6 +198,43 @@ for _f in STOCKFISH:
     shutil.copy('vendor/stockfish/' + _f, 'dist/' + _f)
     shutil.copy('vendor/stockfish/' + _f, 'dist/pwa/' + _f)
 
+# ── the networks that play like a person, beside every build of the page ───
+#
+# The human-like opponent on the Play screen is nine files from the Maia
+# project (vendor/maia/README.md), fetched by the page one at a time, as a
+# level is chosen. They go beside every page that can fetch a file, and
+# maia.json says which there are. It is written whether there are any or not,
+# for the reason the puzzle pack's description is: the page asks every time
+# it opens, and "none" is an answer where a failed request is a fault.
+#
+# UNDER A NAME THAT NOTHING WILL TRY TO BE HELPFUL WITH. Upstream they are
+# called maia-1100.pb.gz, and a name ending .gz is an invitation: a web
+# server may send it marked as packed, so the browser unpacks it on the way
+# and the page is handed something other than the file, and Android's older
+# packaging tools treated the ending specially too. The bytes are the
+# published bytes — checked here against the list of them — and the name they
+# are served under says nothing about what is in them.
+MAIA_ABOUT = 'maia.json'
+_nets = []
+if os.path.exists('vendor/maia/nets.json'):
+    for _n in json.load(open('vendor/maia/nets.json'))['nets']:
+        _path = 'vendor/maia/' + _n['file']
+        _bytes = open(_path, 'rb').read() if os.path.exists(_path) else b''
+        if len(_bytes) != _n['bytes'] or hashlib.sha256(_bytes).hexdigest() != _n['sha256']:
+            sys.exit(f"build.py: {_path} is not the file vendor/maia/nets.json lists; "
+                     'put the published file back, or correct the list if the file was meant to change')
+        _nets.append({'level': _n['level'], 'file': f"maia-{_n['level']}.bin", 'bytes': _n['bytes'], 'from': _path})
+for _dir in ('dist/', 'dist/pwa/'):
+    # Any left from a build that had more of them, first: a file the list no
+    # longer names would otherwise sit beside the page for ever.
+    for _old in os.listdir(_dir):
+        if re.fullmatch(r'maia-\d+\.bin', _old): os.remove(_dir + _old)
+    for _n in _nets: shutil.copy(_n['from'], _dir + _n['file'])
+    open(_dir + MAIA_ABOUT, 'w').write(json.dumps(
+        {'format': 1, 'levels': [{'level': _n['level'], 'file': _n['file'], 'bytes': _n['bytes']} for _n in _nets]}) + '\n')
+print(f"human-like opponent: {len(_nets)} levels, {sum(_n['bytes'] for _n in _nets) / 1e6:.1f} MB" if _nets
+      else 'human-like opponent: vendor/maia has no networks, so this build has none')
+
 # ── Reckless, in the website's kit only ─────────────────────────────────────
 #
 # The script that fetches and runs it goes beside the installable page, and
@@ -233,6 +270,10 @@ _version_input += open('src/reckless-worker.js', 'rb').read()
 # from the old one beside a description of the new.
 for _f in PUZZLE_PACK:
     if os.path.exists('dist/pwa/' + _f): _version_input += open('dist/pwa/' + _f, 'rb').read()
+# And which levels play like a person. Not the networks themselves: they are
+# kept in a cache of their own that outlives a version (see the worker), and
+# a network is the same file for as long as it has the same name.
+_version_input += open('dist/pwa/' + MAIA_ABOUT, 'rb').read()
 sw_version = 'hard-lines-' + hashlib.sha256(_version_input).hexdigest()[:12]
 open('dist/pwa/sw.js', 'w').write(sw_template.replace('__VERSION__', sw_version))
 shutil.copy('pwa/manifest.webmanifest', 'dist/pwa/manifest.webmanifest')

@@ -54,6 +54,10 @@ const STOCKFISH = { 'stockfish.js': 'application/javascript', 'stockfish.wasm': 
 // And the puzzles the Weak spots screen chooses from (puzzlePackAbout and
 // puzzlePack there): the description always, the pack when the build has one.
 const PUZZLES = { 'puzzle-pack.json': 'application/json', 'puzzle-pack.txt': 'text/plain' };
+// And the networks that play like a person (humanLikeAbout and humanLikeNets
+// there): the list of them always, and each network the build has. The asset
+// loader has no idea what a .bin is and says so; the page reads the bytes.
+const HUMAN_LIKE = (rel) => (rel === 'maia.json' ? 'application/json' : (/^maia-\d+\.bin$/.test(rel) ? 'application/octet-stream' : null));
 
 // Kept in step with PAGE_POLICY, ARCHIVE_HOST and ARCHIVE_PATH in MainActivity.
 const POLICY = { 'Content-Security-Policy': "connect-src 'self' https://api.chess.com" };
@@ -127,6 +131,9 @@ function check(what, got, want) {
     if (PUZZLES[rel] && fs.existsSync(path.join(ROOT, 'dist', rel))) {
       return route.fulfill({ status: 200, contentType: PUZZLES[rel], headers: POLICY, body: fs.readFileSync(path.join(ROOT, 'dist', rel)) });
     }
+    if (HUMAN_LIKE(rel) && fs.existsSync(path.join(ROOT, 'dist', rel))) {
+      return route.fulfill({ status: 200, contentType: HUMAN_LIKE(rel), headers: POLICY, body: fs.readFileSync(path.join(ROOT, 'dist', rel)) });
+    }
     const file = path.join(ASSETS, rel);
     if (!file.startsWith(ASSETS) || !fs.existsSync(file)) {
       refused.push(route.request().url());
@@ -187,6 +194,28 @@ function check(what, got, want) {
     await page.waitForFunction(() => Weak.about !== undefined, null, { timeout: 20000 });
     check('a build with no puzzle pack says so in the app', await page.$eval('#weakNote', (e) => e.textContent),
       'This build of the app was made without the puzzle pack, so there is nothing to choose from here.');
+  }
+
+  // The levels that play like a person are networks beside the page, read
+  // under the same rule about connecting — and in the app there is nowhere
+  // else to get one from. Every level the list offers has to be in the APK
+  // and has to read as a network, and a game against one has to get its reply.
+  const human = JSON.parse(fs.readFileSync(path.join(ROOT, 'dist/maia.json'), 'utf8')).levels.map((l) => l.level);
+  await page.evaluate(() => show('play'));
+  await page.waitForFunction(() => Human.about !== undefined, null, { timeout: 20000 });
+  check('the app offers every human-like level the build has', await page.$$eval('#bandSelect option[value^="human-"]', (o) => o.map((x) => x.value).join(' ')), human.map((l) => `human-${l}`).join(' '));
+  if (human.length) {
+    const read = await page.evaluate(async (levels) => {
+      const out = [];
+      for (const level of levels) { try { const net = await humanNet(level); out.push(`${net.residual.length}x${net.filters}`); } catch (e) { out.push(e.message); } }
+      return out.join(' ');
+    }, human);
+    check('and every one of their networks is read from the APK', read, human.map(() => '6x64').join(' '));
+    await page.selectOption('#bandSelect', `human-${human[0]}`);
+    await page.click('#playBoard .sq[aria-label="e2"]');
+    await page.click('#playBoard .sq[aria-label="e4"]');
+    await page.waitForFunction(() => (Play.moves.length === 2 && !Play.thinking) || Play.fault, null, { timeout: 30000 });
+    check('a game against one gets its reply in the app', await page.evaluate(() => Play.fault ?? `${Play.moves.length} moves`), '2 moves');
   }
 
   // THE ONE THING THAT GOES OUT: your games, from Chess.com.

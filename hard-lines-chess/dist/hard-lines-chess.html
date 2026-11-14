@@ -847,6 +847,13 @@
               that from a coin — so the step between, say, 900 and 1000 is a design choice. If a level feels wrong,
               move up or down until games are close and ignore the number.</p>
             <p class="note" id="levelsMeasured"></p>
+            <p class="note" id="humanAbout" hidden><strong>The levels that play like a person are not this app's engine.</strong>
+              Each is a network from the Maia project (McIlroy-Young, Sen, Kleinberg and Anderson, 2020) that was shown
+              games between Lichess players of one rating and learned which move they play. It does not calculate, and
+              it makes their mistakes. Its number is the Lichess rating of those players — not a strength anyone
+              measured for the network, and not a Chess.com number. Maia's own bots always play the likeliest move;
+              here the move is drawn from the likely ones, in proportion to how likely each is, so the same position
+              does not always get the same reply. The networks are free software (GPL-3.0) and are used unchanged.</p>
           </details>
         </div>
 
@@ -860,11 +867,11 @@
         </div>
 
         <div class="panel">
-          <h2>Evaluation</h2>
+          <h2 id="playEvalTitle">Evaluation</h2>
           <div class="readout">
-            <div><span class="k">From your side, in points</span><span class="v" id="playEval">—</span></div>
+            <div><span class="k" id="playEvalKey">From your side, in points</span><span class="v" id="playEval">—</span></div>
           </div>
-          <p class="note">The engine's assessment. Positive means it considers you better.</p>
+          <p class="note" id="playEvalNote">The engine's assessment. Positive means it considers you better.</p>
         </div>
 
         <div class="panel">
@@ -8399,6 +8406,529 @@ function howOftenWords(perGame) {
 }
 
 
+// ── a small neural network, read and run ───────────────────────────────────
+//
+// The human-like opponent is a network: a file of numbers, made by the Maia
+// project by showing a network millions of games between people of one
+// rating and asking it, each time, which move the person played. What comes
+// out is not an engine. It does not search and it does not know who is
+// winning; it says how likely each move is to be the one a person of that
+// rating would play here. See vendor/maia/README.md for whose it is.
+//
+// This file is the whole of what running one needs: reading the file, and the
+// sums. It knows nothing about chess — a position goes in as 112 grids of
+// eight by eight and 73 grids come out — so that it can run on the page, in a
+// worker, or under a test, as the same text. What the grids MEAN is
+// src/maia.js.
+//
+// WHY IT IS WRITTEN OUT HERE rather than handed to a library. The network is
+// small: six blocks of sixty-four filters, about forty million multiplications
+// a position, a tenth of a second on a laptop. A library that runs networks
+// is megabytes, wants WebAssembly or a graphics card, and is one more thing
+// that is different on a phone. This is three hundred lines that are the same
+// everywhere, and a test holds them to the answers the network is known to
+// give (tests/maia.test.mjs).
+//
+// THE FILE IS THE ONE THE MAIA PROJECT PUBLISHED, byte for byte: weights in
+// the format of the Leela Chess Zero engine, which is a protobuf — numbered
+// fields, each a number or a run of bytes — gzipped. Nothing converts it on
+// the way, so there is no second copy of the numbers to go stale, and the
+// build checks each file against the hash it had upstream.
+
+/** What a position is shown as: 112 grids of 8 by 8. */
+const MAIA_INPUT_PLANES = 112;
+/** What comes back: for each of 64 squares a piece could leave, 73 kinds of move. */
+const MAIA_MOVE_KINDS = 73;
+
+/**
+ * The bytes of a network file, unpacked if they are packed.
+ *
+ * Told by the first two bytes, not by the name or by what the server said: a
+ * server that announces the packing has the browser undo it on the way, and
+ * one that does not hands the file over as it is, and both are the same
+ * request from here.
+ */
+async function maiaUnpack(buffer) {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  if (bytes.length < 2 || bytes[0] !== 0x1f || bytes[1] !== 0x8b) return bytes;
+  if (typeof DecompressionStream === 'undefined') throw new Error('this browser cannot unpack the file');
+  const unpacked = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return new Uint8Array(await new Response(unpacked).arrayBuffer());
+}
+
+/**
+ * Read a network from its unpacked bytes.
+ *
+ * Only what the opponent needs is kept: the layers that lead to the moves.
+ * The file also holds a second ending that guesses who will win, and it is
+ * walked past. Anything that is not the kind of network this file can run —
+ * another way of showing the position, another kind of ending — is refused
+ * here, by name, rather than run into nonsense.
+ *
+ * @returns {{ filters: number, residual: object[], input: object, policy1: object, policy: object }}
+ */
+function maiaReadNet(bytes) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const fail = (why) => { throw new Error(`not a network this app can run: ${why}`); };
+
+  // A protobuf message is a run of fields: a number saying which field and
+  // what shape it has, then the value. Four shapes are used here.
+  const fields = (start, end) => {
+    const out = [];
+    let p = start;
+    const varint = () => {
+      let value = 0, scale = 1;
+      for (;;) {
+        if (p >= end) fail('it ends in the middle of a number');
+        const byte = bytes[p++];
+        value += (byte & 0x7f) * scale;
+        if (!(byte & 0x80)) return value;
+        scale *= 128;
+        if (scale > 2 ** 56) fail('a number in it is too long');
+      }
+    };
+    while (p < end) {
+      const key = varint();
+      const no = Math.floor(key / 8), shape = key % 8;
+      if (shape === 0) out.push({ no, value: varint() });
+      else if (shape === 1) { out.push({ no, at: p, len: 8 }); p += 8; }
+      else if (shape === 5) { out.push({ no, at: p, len: 4 }); p += 4; }
+      else if (shape === 2) { const len = varint(); out.push({ no, at: p, len }); p += len; }
+      else fail(`a field has a shape (${shape}) the format does not have`);
+      if (p > end) fail('a field runs past the end');
+    }
+    return out;
+  };
+  const inside = (f) => fields(f.at, f.at + f.len);
+
+  // A layer is its numbers squeezed into sixteen bits each, between a lowest
+  // and a highest value that are written beside them.
+  const layer = (f) => {
+    let min = 0, max = 0, at = 0, len = 0;
+    for (const x of inside(f)) {
+      if (x.no === 1) min = view.getFloat32(x.at, true);
+      else if (x.no === 2) max = view.getFloat32(x.at, true);
+      else if (x.no === 3) { at = x.at; len = x.len; }
+      else if (x.no === 4 && x.value !== 1) fail('its numbers are packed in a way this app does not read');
+    }
+    if (len % 2) fail('a layer has half a number in it');
+    const out = new Float32Array(len / 2);
+    const range = (max - min) / 65535;
+    for (let i = 0; i < out.length; i++) out[i] = view.getUint16(at + 2 * i, true) * range + min;
+    return out;
+  };
+
+  // A convolution, with the normalising that followed it in training folded
+  // in — so that running it is one multiplication and one addition, as the
+  // engine these files were made for does it.
+  const conv = (f, ins, what) => {
+    const L = {};
+    for (const x of inside(f)) {
+      const name = { 1: 'w', 2: 'b', 3: 'means', 4: 'vars', 5: 'gammas', 6: 'betas' }[x.no];
+      if (name) L[name] = layer(x);
+    }
+    const outs = (L.means ?? L.b ?? []).length;
+    if (!L.w || !outs) fail(`${what} is missing`);
+    if (L.w.length !== outs * ins * 9) fail(`${what} is the wrong size`);
+    const w = L.w, b = new Float32Array(outs);
+    if (L.means) {
+      if (!L.vars || L.vars.length !== outs) fail(`${what} is the wrong size`);
+      for (let o = 0; o < outs; o++) {
+        const g = (L.gammas ? L.gammas[o] : 1) / Math.sqrt(L.vars[o] + 1e-5);
+        for (let i = o * ins * 9; i < (o + 1) * ins * 9; i++) w[i] *= g;
+        b[o] = -g * (L.means[o] - (L.b ? L.b[o] : 0)) + (L.betas ? L.betas[o] : 0);
+      }
+    } else {
+      b.set(L.b);
+    }
+    return { w, b, ins, outs };
+  };
+
+  const top = fields(0, bytes.length);
+  // What the file says about itself, where it says anything.
+  const format = top.find((f) => f.no === 4 && f.len !== undefined);
+  if (format) {
+    for (const f of inside(format)) {
+      if (f.no === 1 && f.value !== 1) fail('its numbers are packed in a way this app does not read');
+      if (f.no === 2 && f.len !== undefined) {
+        const said = {};
+        for (const x of inside(f)) said[x.no] = x.value;
+        if (said[1] !== 1) fail(`it is shown the position in a way (${said[1]}) this app does not draw`);
+        if (said[3] !== 4) fail(`it is built in a way (${said[3]}) this app does not run`);
+        if (said[4] !== 2) fail(`it answers with its moves in a way (${said[4]}) this app does not read`);
+      }
+    }
+  }
+  const weights = top.find((f) => f.no === 10 && f.len !== undefined);
+  if (!weights) fail('it has no weights in it');
+
+  const parts = inside(weights);
+  const first = parts.find((f) => f.no === 1);
+  if (!first) fail('its first layer is missing');
+  const input = conv(first, MAIA_INPUT_PLANES, 'its first layer');
+  const filters = input.outs;
+
+  const residual = [];
+  for (const f of parts.filter((x) => x.no === 2)) {
+    const block = {};
+    for (const g of inside(f)) {
+      if (g.no === 1) block.conv1 = conv(g, filters, 'a layer');
+      else if (g.no === 2) block.conv2 = conv(g, filters, 'a layer');
+      else if (g.no === 3) {
+        const se = {};
+        for (const h of inside(g)) { const name = { 1: 'w1', 2: 'b1', 3: 'w2', 4: 'b2' }[h.no]; if (name) se[name] = layer(h); }
+        block.se = se;
+      }
+    }
+    const { conv1, conv2, se } = block;
+    if (!conv1 || !conv2 || !se?.w1 || !se.b1 || !se.w2 || !se.b2) fail('a block is missing a part');
+    if (conv1.outs !== filters || conv2.outs !== filters) fail('a block is the wrong size');
+    se.mid = se.b1.length;
+    if (se.w1.length !== se.mid * filters || se.w2.length !== 2 * filters * se.mid || se.b2.length !== 2 * filters) fail('a block is the wrong size');
+    residual.push(block);
+  }
+  if (!residual.length) fail('it has no blocks');
+
+  const ending1 = parts.find((f) => f.no === 11), ending = parts.find((f) => f.no === 3);
+  if (!ending1 || !ending) fail('the layers that lead to its moves are missing');
+  const policy1 = conv(ending1, filters, 'the layer before its moves');
+  if (policy1.outs !== filters) fail('the layer before its moves is the wrong size');
+  const policy = conv(ending, filters, 'the layer of its moves');
+  if (policy.outs < MAIA_MOVE_KINDS) fail('it answers with too few kinds of move');
+
+  return { filters, input, residual, policy1, policy };
+}
+
+/**
+ * One three-by-three convolution over the board: `x` is `L.ins` grids of 64,
+ * `out` gets `outs` grids of 64 — the weighted sum only, with nothing added
+ * and nothing cut off; the caller does both.
+ *
+ * `pad` is room for the input with a border of noughts round each grid, ten
+ * by ten, so that the sum at the edge of the board needs no special case: the
+ * squares off the board are there and are nought.
+ */
+function maiaConv(x, L, out, pad, outs = L.outs) {
+  const { w, ins } = L;
+  for (let c = 0; c < ins; c++) {
+    const from = c * 64, to = c * 100 + 11;
+    for (let y = 0; y < 8; y++) for (let f = 0; f < 8; f++) pad[to + y * 10 + f] = x[from + y * 8 + f];
+  }
+  for (let o = 0; o < outs; o++) {
+    const base = o * 64;
+    for (let i = 0; i < 64; i++) out[base + i] = 0;
+    for (let c = 0; c < ins; c++) {
+      const k = (o * ins + c) * 9;
+      const k0 = w[k], k1 = w[k + 1], k2 = w[k + 2], k3 = w[k + 3], k4 = w[k + 4], k5 = w[k + 5], k6 = w[k + 6], k7 = w[k + 7], k8 = w[k + 8];
+      const grid = c * 100;
+      for (let y = 0; y < 8; y++) {
+        const a = grid + y * 10, b = a + 10, d = b + 10, row = base + y * 8;
+        for (let f = 0; f < 8; f++) {
+          out[row + f] += k0 * pad[a + f] + k1 * pad[a + f + 1] + k2 * pad[a + f + 2]
+            + k3 * pad[b + f] + k4 * pad[b + f + 1] + k5 * pad[b + f + 2]
+            + k6 * pad[d + f] + k7 * pad[d + f + 1] + k8 * pad[d + f + 2];
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Run the network on a position.
+ *
+ * `planes` is the position as src/maia.js draws it: 112 grids of 64. What
+ * comes back is 73 grids of 64 — for each square a piece could leave, a
+ * number for each kind of move from it, higher for likelier. They are not
+ * yet chances: most of them are moves that cannot be played here, and making
+ * chances of the ones that can is the caller's.
+ */
+function maiaForward(net, planes) {
+  const C = net.filters;
+  // Room to work in, made once a network and used for every position.
+  const room = net.room ?? (net.room = {
+    a: new Float32Array(C * 64), t: new Float32Array(C * 64), u: new Float32Array(C * 64),
+    pad: new Float32Array(Math.max(MAIA_INPUT_PLANES, C) * 100), pool: new Float32Array(C),
+  });
+  const { a, t, u, pad, pool } = room;
+  const settle = (grid, bias) => {
+    for (let o = 0; o < C; o++) {
+      const b = bias[o];
+      for (let i = o * 64; i < o * 64 + 64; i++) { const v = grid[i] + b; grid[i] = v > 0 ? v : 0; }
+    }
+  };
+
+  maiaConv(planes, net.input, a, pad);
+  settle(a, net.input.b);
+
+  for (const block of net.residual) {
+    maiaConv(a, block.conv1, t, pad);
+    settle(t, block.conv1.b);
+    maiaConv(t, block.conv2, u, pad);
+    // The block looks at its own answer as a whole — the average of each grid —
+    // and from that decides how much of each grid to pass on, and what to add.
+    const { w1, b1, w2, b2, mid } = block.se;
+    const bias = block.conv2.b;
+    for (let o = 0; o < C; o++) {
+      let sum = 0;
+      for (let i = o * 64; i < o * 64 + 64; i++) sum += u[i];
+      pool[o] = sum / 64 + bias[o];
+    }
+    const squeezed = new Float32Array(mid);
+    for (let m = 0; m < mid; m++) {
+      let sum = b1[m];
+      for (let o = 0; o < C; o++) sum += w1[m * C + o] * pool[o];
+      squeezed[m] = sum > 0 ? sum : 0;
+    }
+    for (let o = 0; o < C; o++) {
+      let scale = b2[o], add = b2[o + C];
+      for (let m = 0; m < mid; m++) { scale += w2[o * mid + m] * squeezed[m]; add += w2[(o + C) * mid + m] * squeezed[m]; }
+      const gate = 1 / (1 + Math.exp(-scale));
+      const plus = add + gate * bias[o];
+      for (let i = o * 64; i < o * 64 + 64; i++) { const v = gate * u[i] + a[i] + plus; a[i] = v > 0 ? v : 0; }
+    }
+  }
+
+  maiaConv(a, net.policy1, t, pad);
+  settle(t, net.policy1.b);
+  const out = new Float32Array(MAIA_MOVE_KINDS * 64);
+  maiaConv(t, net.policy, out, pad, MAIA_MOVE_KINDS);
+  for (let o = 0; o < MAIA_MOVE_KINDS; o++) {
+    const b = net.policy.b[o];
+    for (let i = o * 64; i < o * 64 + 64; i++) out[i] += b;
+  }
+  return out;
+}
+
+
+// ── the human-like opponent: what the network is shown, and what it says ───
+//
+// src/maia-net.js runs a network on 112 grids and gets 73 back. This is the
+// chess on either side of that: how a game so far becomes the grids, which
+// number in the answer belongs to which move, and how a move is chosen from
+// them.
+//
+// EVERY RULE HERE IS SOMEBODY ELSE'S, and has to be followed exactly. The
+// networks were trained by the Maia project with the Leela Chess Zero engine,
+// which shows a position one particular way and numbers the moves one
+// particular way; a network shown the position any other way still answers,
+// confidently, with nonsense. So the drawing is Leela's — eight boards of
+// history from the side of whoever is to move, and what to do when there is
+// no history — and the numbering is held, move for move, to Leela's own table
+// of all 1,858 of them (tests/maia.test.mjs).
+//
+// THE CHOOSING IS THIS APP'S. Maia's own bots always play the likeliest move,
+// which makes them the same game every time: the same reply to the same
+// position, for ever. A person is not like that, and an opponent you can
+// learn by heart is not practice. So the move is drawn from the likely ones,
+// in proportion to how likely each is — likely meaning that at least one
+// player in twenty would play it. Rarer than that is left out: down there the
+// network is mostly guessing, and an opponent that plays its guesses is not
+// playing like anybody.
+
+/** A move is "likely" when at least this share of players would play it. */
+const MAIA_LEAST = 0.05;
+/** How many boards of the game the network is shown: this one and the seven before. */
+const MAIA_HISTORY = 8;
+/** Each board is thirteen grids: six kinds of piece for each side, and "seen before". */
+const MAIA_BOARD_GRIDS = 13;
+
+const MAIA_PIECE_GRID = { p: 0, n: 1, b: 2, r: 3, q: 4, k: 5 };
+/** The usual starting position, as "the same position" counts it. */
+const MAIA_START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -';
+
+/** A position as it counts for "the same position": the board, whose move, castling and en passant. */
+const maiaSamePosition = (fen) => String(fen ?? '').trim().split(/\s+/).slice(0, 4).join(' ');
+
+/**
+ * The pieces of a position, square by square: 64 letters as a FEN writes
+ * them, or '' for an empty square, a1 first.
+ *
+ * `beforeDoubleStep` puts a pawn that has just moved two squares back where
+ * it came from. It is for the made-up boards of history below, and is how
+ * Leela shows a network that the capture in passing is on.
+ */
+function maiaSquares(fen, beforeDoubleStep = false) {
+  const [placement, , , passing] = String(fen).trim().split(/\s+/);
+  const squares = new Array(64).fill('');
+  const ranks = placement.split('/');
+  for (let r = 0; r < 8; r++) {
+    let file = 0;
+    for (const ch of ranks[7 - r] ?? '') {
+      if (ch >= '1' && ch <= '8') file += Number(ch);
+      else squares[r * 8 + file++] = ch;
+    }
+  }
+  if (beforeDoubleStep && /^[a-h][36]$/.test(passing ?? '')) {
+    const file = passing.charCodeAt(0) - 97;
+    // "e3" is a white pawn now on e4 that came from e2; "e6" a black one on e5 from e7.
+    const [pawn, now, was] = passing[1] === '3' ? ['P', 3, 1] : ['p', 4, 6];
+    if (squares[now * 8 + file] === pawn && !squares[was * 8 + file]) {
+      squares[now * 8 + file] = '';
+      squares[was * 8 + file] = pawn;
+    }
+  }
+  return squares;
+}
+
+/**
+ * A game so far, as the network is shown it: 112 grids of 64.
+ *
+ * `fens` is every position of the game, oldest first; the last is the one a
+ * move is wanted in. Everything is drawn from the side of whoever is to move
+ * there — their pieces first, their back rank at the bottom — so the network
+ * only ever sees "mine" and "theirs", never White and Black.
+ *
+ *   0–103     eight boards, this one first and then back through the game,
+ *             thirteen grids each: my pawns, knights, bishops, rooks, queens
+ *             and king, the same six of theirs, and one that is all ones if
+ *             that position had been on the board before
+ *   104–107   all ones if I may still castle long, I may castle short, they
+ *             may castle long, they may castle short
+ *   108       all ones if I am Black
+ *   109       how many moves since a capture or a pawn move, in every square
+ *   110       noughts
+ *   111       ones
+ *
+ * WHERE THE GAME IS YOUNGER THAN EIGHT POSITIONS there are boards missing,
+ * and what stands in for them is Leela's rule, because it is what the
+ * networks were run with. A game from the usual starting position leaves
+ * them empty: that is what the network saw in training at move three. A game
+ * from any other position — one set up on the board — fills them with that
+ * first position over again. Measured on positions from seven master games:
+ * shown an empty past in the middle of a game, the network's first choice
+ * was the one it makes with the real past about three times in ten; shown the
+ * position repeated, about eight times in ten.
+ */
+function maiaPlanes(fens) {
+  const planes = new Float32Array(MAIA_INPUT_PLANES * 64);
+  const last = fens.length - 1;
+  const now = String(fens[last]).trim().split(/\s+/);
+  const black = now[1] === 'b';
+  const same = fens.map(maiaSamePosition);
+  const fromTheStart = same[0] === MAIA_START;
+  const whole = (grid, value = 1) => planes.fill(value, grid * 64, grid * 64 + 64);
+
+  for (let back = 0; back < MAIA_HISTORY; back++) {
+    const at = last - back;
+    const madeUp = at < 0;
+    if (madeUp && fromTheStart) break;
+    const squares = maiaSquares(fens[madeUp ? 0 : at], madeUp);
+    const first = back * MAIA_BOARD_GRIDS;
+    for (let sq = 0; sq < 64; sq++) {
+      const piece = squares[sq];
+      if (!piece) continue;
+      const mine = (piece < 'a') !== black;
+      const rank = sq >> 3;
+      const where = (black ? 7 - rank : rank) * 8 + (sq & 7);
+      planes[(first + MAIA_PIECE_GRID[piece.toLowerCase()] + (mine ? 0 : 6)) * 64 + where] = 1;
+    }
+    if (!madeUp && same.indexOf(same[at]) < at) whole(first + 12);
+  }
+
+  const rights = now[2] ?? '-';
+  const [myLong, myShort, theirLong, theirShort] = black ? ['q', 'k', 'Q', 'K'] : ['Q', 'K', 'q', 'k'];
+  const about = MAIA_HISTORY * MAIA_BOARD_GRIDS;
+  if (rights.includes(myLong)) whole(about);
+  if (rights.includes(myShort)) whole(about + 1);
+  if (rights.includes(theirLong)) whole(about + 2);
+  if (rights.includes(theirShort)) whole(about + 3);
+  if (black) whole(about + 4);
+  whole(about + 5, Number(now[4]) || 0);
+  whole(about + 7);
+  return planes;
+}
+
+// The 73 kinds of move, in Leela's order. Fifty-six are a straight line: one
+// of eight ways, one to seven squares. Eight are a knight's jump. Nine are a
+// pawn reaching the last rank and becoming a rook, a bishop or a queen, by
+// one of three files. [ranks, files], as the mover sees the board.
+const MAIA_WAYS = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
+const MAIA_JUMPS = [[2, 1], [1, 2], [-1, 2], [-2, 1], [-2, -1], [-1, -2], [1, -2], [2, -1]];
+const MAIA_BECOMES = { [ROOK]: 0, [BISHOP]: 1, [QUEEN]: 2 };
+
+/**
+ * Which number in the network's answer is this move's.
+ *
+ * Two things in Leela's numbering are not what anyone would guess, and both
+ * were got wrong here once. CASTLING IS THE KING GOING TO ITS OWN ROOK'S
+ * SQUARE, e1 to h1, not to where it ends up. And A PAWN BECOMING A KNIGHT
+ * HAS NO NUMBER OF ITS OWN: it is the plain move, and only rook, bishop and
+ * queen are marked.
+ */
+function maiaSlot(move, black) {
+  const from = moveFrom(move), to = moveTo(move);
+  const fromFile = fileOf(from);
+  let fromRank = rankOf(from), toRank = rankOf(to), toFile = fileOf(to);
+  if (moveFlags(move) & FLAG_CASTLE) toFile = toFile > fromFile ? 7 : 0;
+  if (black) { fromRank = 7 - fromRank; toRank = 7 - toRank; }
+  const up = toRank - fromRank, across = toFile - fromFile;
+  const becomes = movePromo(move);
+  let kind;
+  if (becomes && becomes !== KNIGHT) {
+    kind = 64 + (across + 1) * 3 + MAIA_BECOMES[becomes];
+  } else {
+    const jump = MAIA_JUMPS.findIndex(([r, f]) => r === up && f === across);
+    kind = jump >= 0
+      ? 56 + jump
+      : MAIA_WAYS.findIndex(([r, f]) => r === Math.sign(up) && f === Math.sign(across)) * 7 + Math.max(Math.abs(up), Math.abs(across)) - 1;
+  }
+  return kind * 64 + fromRank * 8 + fromFile;
+}
+
+/**
+ * The network's answer as chances: for each move that can be played here,
+ * the share of players it expects to play it. Likeliest first; they add up
+ * to one.
+ *
+ * Most of the answer is about moves that cannot be played — a rook's move
+ * from an empty square — and is not looked at. A network run correctly puts
+ * next to nothing there, and a test holds it to that.
+ *
+ * @returns {{ move: number, uci: string, chance: number }[]}
+ */
+function maiaChances(board, answer) {
+  const black = board.turn === BLACK;
+  const moves = board.legalMoves();
+  if (!moves.length) return [];
+  const said = moves.map((move) => answer[maiaSlot(move, black)]);
+  const most = Math.max(...said);
+  const weights = said.map((x) => Math.exp(x - most));
+  const all = weights.reduce((a, b) => a + b, 0);
+  return moves
+    .map((move, i) => ({ move, uci: moveToUci(move), chance: weights[i] / all }))
+    .sort((a, b) => b.chance - a.chance || (a.uci < b.uci ? -1 : 1));
+}
+
+/**
+ * Choose a move from the chances: one of the likely ones, in proportion to
+ * how likely each is. `random` gives a number from nought up to one.
+ *
+ * The likeliest move is always among them, however unlikely it is on its own
+ * — in a position with forty reasonable moves nothing may reach one in
+ * twenty. A PAWN BECOMING A KNIGHT IS ONLY CHOSEN WHEN IT IS THE LIKELIEST
+ * MOVE THERE IS. It has no number of its own: it shares one with the plain
+ * move from that square, which for a capture is the number every ordinary
+ * pawn capture is given. Mostly the network puts next to nothing on it. But
+ * where a pawn can take something on the last rank it sometimes puts a great
+ * deal there — measured, three in ten for a pawn taking a rook, from the
+ * 1900 network — which is far more often than anybody makes a knight.
+ *
+ * @returns {{ move: number, uci: string, chance: number, among: number } | null}
+ */
+function maiaChoose(chances, random = Math.random) {
+  if (!chances.length) return null;
+  const likely = chances.filter((c, i) => i === 0 || (c.chance >= MAIA_LEAST && movePromo(c.move) !== KNIGHT));
+  const all = likely.reduce((sum, c) => sum + c.chance, 0);
+  let left = random() * all;
+  let chosen = likely[likely.length - 1];
+  for (const c of likely) {
+    left -= c.chance;
+    if (left < 0) { chosen = c; break; }
+  }
+  return { ...chosen, among: likely.length };
+}
+
+
 // Generated by build.py from rating-calibration.json (calibrate-rating.mjs).
 const RATING_FIT = {"measured": "2026-11-14", "games": 8, "fits": {"7": {"m": -0.002218073922778753, "c": 4.67844746266932, "r2": 0.7811000118829045, "points": 80}, "9": {"m": -0.0018098232263825825, "c": 4.6127028064764275, "r2": 0.7498523255398313, "points": 80}, "12": {"m": -0.0017251658191119131, "c": 4.646902550318106, "r2": 0.7370427882853188, "points": 96}}, "bands": [0, 300, 600, 900, 1200, 1500, 1800, 2100], "ceilings": {"7": 1200, "9": 1200, "12": 1500}, "noise": 15, "losses": {"7": {"0": 102.3, "300": 58.1, "600": 34.3, "900": 20, "1200": 7.3, "1500": 7.9, "1800": 8.5, "2100": 16.9}, "9": {"0": 102.1, "300": 60.8, "600": 35.7, "900": 26.8, "1200": 11.4, "1500": 5.7, "1800": 3.5, "2100": 6.7}, "12": {"0": 101.7, "300": 61.9, "600": 41.6, "900": 29.6, "1200": 15.2, "1500": 8.7, "1800": 2.9, "2100": 6}}, "budgets": {"7": 25000, "9": 80000, "12": 250000}, "judges": {"stockfish": {"measured": "2026-11-14", "games": 8, "fits": {"7": {"m": -0.0007150169030348347, "c": 4.607342676896132, "r2": 0.7135492827876834, "points": 112}, "9": {"m": -0.000728118177551768, "c": 4.600952252694837, "r2": 0.702845240296127, "points": 112}, "12": {"m": -0.0007194799847334481, "c": 4.582949719080098, "r2": 0.6890723103988645, "points": 112}}, "ceilings": {"7": 1800, "9": 1800, "12": 1800}, "losses": {"7": {"0": 118.2, "300": 77.6, "600": 54.8, "900": 56.2, "1200": 44.2, "1500": 38.5, "1800": 29.1, "2100": 25.3}, "9": {"0": 119.8, "300": 75.8, "600": 52, "900": 57, "1200": 44.2, "1500": 38.9, "1800": 26.4, "2100": 36.8}, "12": {"0": 119.6, "300": 73.9, "600": 51.6, "900": 56.2, "1200": 42.7, "1500": 39.9, "1800": 26.1, "2100": 33.4}}, "budgets": {"7": 25000, "9": 80000, "12": 250000}}, "reckless": {"measured": "2026-11-14", "games": 8, "fits": {"7": {"m": -0.0006364622559783184, "c": 4.167645916627833, "r2": 0.4648021092414847, "points": 96}, "9": {"m": -0.0006040849434738409, "c": 4.099707410044171, "r2": 0.48781049935585563, "points": 112}, "12": {"m": -0.0006219434944430566, "c": 4.105105695265459, "r2": 0.46378706016134663, "points": 128}}, "ceilings": {"7": 1500, "9": 1800, "12": 2100}, "losses": {"7": {"0": 69.9, "300": 61.8, "600": 39.4, "900": 35.6, "1200": 36.1, "1500": 26.1, "1800": 30.3, "2100": 30.4}, "9": {"0": 69.4, "300": 58.9, "600": 36.3, "900": 33.4, "1200": 35.4, "1500": 23.7, "1800": 23.1, "2100": 23.5}, "12": {"0": 69.1, "300": 59.2, "600": 35.9, "900": 33.5, "1200": 35.7, "1500": 24.8, "1800": 23.2, "2100": 19.6}}, "budgets": {"7": 25000, "9": 80000, "12": 250000}}}};
 
@@ -14083,16 +14613,22 @@ function renderToday() {
   // The record, per band, and only for bands actually played. A table of
   // twenty-two rows of zeroes is not a record, it is a menu.
   const record = $('todayRecord');
-  const played = Object.entries(App.history.bands).filter(([, r]) => r.w + r.d + r.l > 0);
+  const anyPlayed = (table) => Object.entries(table ?? {}).filter(([, r]) => r.w + r.d + r.l > 0).sort((a, b) => Number(a[0]) - Number(b[0]));
+  // The ladder first, then the levels that play like a person: two kinds of
+  // opponent, and a 1500 of one is not a 1500 of the other.
+  const played = [
+    ...anyPlayed(App.history.bands).map(([elo, r]) => [bandLabelFor(Number(elo)), r]),
+    ...anyPlayed(App.history.maia).map(([level, r]) => [humanName(Number(level)), r]),
+  ];
   // Hidden entirely rather than shown empty. A panel whose only content is
   // "there is nothing here" is the same fault as a button that does nothing.
   record.hidden = played.length === 0;
   if (played.length) {
     record.innerHTML = '<h3>Your record</h3>';
     const list = el('div', 'record');
-    for (const [elo, r] of played.sort((a, b) => Number(a[0]) - Number(b[0]))) {
+    for (const [name, r] of played) {
       const row = el('div', 'record-row');
-      row.innerHTML = `<span class="record-band">${bandLabelFor(Number(elo))}</span>
+      row.innerHTML = `<span class="record-band">${esc(name)}</span>
         <span class="record-score">${r.w}W ${r.d}D ${r.l}L</span>`;
       list.appendChild(row);
     }
@@ -14144,17 +14680,39 @@ const Play = {
 function renderBandPicker() {
   const select = $('bandSelect');
   select.innerHTML = '';
+  // TWO KINDS OF OPPONENT, WHEN THERE ARE TWO. The ladder is always there.
+  // The levels that play like a person are files beside the page (see
+  // src/app-t.js), and where there are none the list is the ladder alone, as
+  // it always was, with no heading over it.
+  const people = humanLevels();
+  const ladder = people.length ? el('optgroup') : select;
+  if (people.length) {
+    ladder.label = 'The ladder: this app\'s engine';
+    select.appendChild(ladder);
+  }
   BANDS.forEach((band, index) => {
     const option = el('option', null, bandLabel(band, index, BANDS));
-    option.value = String(band.elo);
-    if (band.elo === Play.band.elo) option.selected = true;
-    select.appendChild(option);
+    option.value = opponentValue(band);
+    if (!Play.band.maia && band.elo === Play.band.elo) option.selected = true;
+    ladder.appendChild(option);
   });
+  if (people.length) {
+    const group = el('optgroup');
+    group.label = 'Plays like a person';
+    for (const level of people) {
+      const option = el('option', null, humanName(level));
+      option.value = opponentValue({ maia: level });
+      if (Play.band.maia === level) option.selected = true;
+      group.appendChild(option);
+    }
+    select.appendChild(group);
+  }
+  $('humanAbout').hidden = !people.length;
   describeBand();
 }
 
 function describeBand() {
-  $('bandNote').textContent = bandNote(Play.band);
+  $('bandNote').textContent = Play.band.maia ? humanNote(Play.band.maia) : bandNote(Play.band);
 }
 
 /**
@@ -14182,6 +14740,11 @@ function newPlayGame(fen = null) {
     teach: Teach.on,
     useBook: Play.useBook,
   };
+  // A human-like opponent is a file that may not have been fetched yet. It is
+  // asked for now, so that it is on its way while the first move is thought
+  // about; if that fails, the move that needs it asks again and says so.
+  if (Play.game.band.maia) humanNet(Play.game.band.maia).catch(() => {});
+  describePlayReadout();
   resetTeaching();
   Play.clock = { mine: Play.control.initial ?? 0, theirs: Play.control.initial ?? 0, startedAt: Date.now(), ticker: null };
   refreshBook();
@@ -14224,11 +14787,21 @@ function renderPlayStatus() {
   }
   if (Play.fault) {
     head.textContent = 'The opponent could not move';
-    body.textContent = `Its search failed: ${Play.fault}. Start a new game.`;
+    body.textContent = Play.game.band.maia
+      ? `${humanName(Play.game.band.maia)} could not be made ready: ${Play.fault}. Start a new game to try again, or choose a level from the ladder.`
+      : `Its search failed: ${Play.fault}. Start a new game.`;
     return;
   }
-  const label = bandLabelFor(Play.game.band.elo);
+  const label = opponentName(Play.game.band);
   if (Play.thinking) {
+    // A HUMAN-LIKE OPPONENT'S NETWORK MAY STILL BE ON ITS WAY — the first time
+    // its level is used on the website. That is not thinking, and "choosing a
+    // move… 14s" over a file that is downloading would be a small lie.
+    if (Play.game.band.maia && Human.state.get(Play.game.band.maia) === 'fetching') {
+      head.textContent = 'Fetching';
+      body.textContent = `${label} is being fetched; it will move as soon as it is here.`;
+      return;
+    }
     head.textContent = 'Thinking';
     body.textContent = Play.thinkingFor < 2
       ? `${label} is choosing a move.`
@@ -14343,7 +14916,7 @@ async function finishPlay(key) {
     const set = Teach.problems.filter((p) => p.outcome !== 'withdrawn');
     const took = set.filter((p) => p.outcome === 'found' || p.outcome === 'avoided').length;
     App.teaching.games.push({
-      at: Date.now(), band: game.band.elo, colour: Play.myColour === WHITE ? 'white' : 'black', result,
+      at: Date.now(), ...opponentKept(game.band), colour: Play.myColour === WHITE ? 'white' : 'black', result,
       plies: Play.moves.length, from: game.startFen, takebacks: Play.superseded.length, control: game.control.id, pgn,
       problems: Teach.problems.map((p) => ({ ply: p.ply, intent: p.intent, trappiness: p.trappiness, outcome: p.outcome })),
     });
@@ -14355,15 +14928,12 @@ async function finishPlay(key) {
   // A game from a set-up position is not a game against the band, so it does
   // not go on the record: winning a won position twenty times is not twenty
   // wins. It is still kept, marked, so the moves are not lost.
-  if (!game.startFen) {
-    const record = App.history.bands[game.band.elo] ?? { w: 0, d: 0, l: 0 };
-    record[result]++;
-    App.history.bands[game.band.elo] = record;
-  }
+  if (!game.startFen) opponentRecord(game.band)[result]++;
   forgetDeviations();
   App.history.games.push({
     at: Date.now(),
-    band: game.band.elo,
+    // The ladder's level, or the human-like one: a game has one or the other.
+    ...opponentKept(game.band),
     colour: Play.myColour === WHITE ? 'white' : 'black',
     result,
     plies: Play.moves.length,
@@ -14453,6 +15023,10 @@ function engineMove() {
     }
   }
 
+  // AN OPPONENT THAT PLAYS LIKE A PERSON DOES NOT SEARCH. Its move comes from
+  // a network, in src/app-t.js, and finishes in the same place as any other.
+  if (Play.game.band.maia) { humanMove(alive, startedAt); return; }
+
   // Yield twice so "Thinking" actually paints before the search blocks the
   // thread. Without it the label appears only after the move it describes.
   requestAnimationFrame(() => setTimeout(() => {
@@ -14509,6 +15083,12 @@ function finishEngineMove(result) {
   if (result.book) {
     // Said plainly rather than shown as an evaluation it never computed.
     Play.lastEval = 'from your games';
+    Play.lastEvalCp = null;
+  } else if (result.human) {
+    // NOT AN EVALUATION, because this opponent has none: how many players
+    // like it make the move it just made. The coach's gate reads the other
+    // figure, and is told there is not one.
+    Play.lastEval = humanShare(result.human.chance);
     Play.lastEvalCp = null;
   } else if (!result.blundered) {
     Play.lastEvalCp = -result.score;
@@ -17113,7 +17693,7 @@ function renderProgress() {
     for (const g of [...App.history.games].reverse().slice(0, 12)) {
       const row = el('div', 'record-row');
       const when = new Date(g.at).toLocaleDateString();
-      row.innerHTML = `<span class="record-band">${esc(when)} · level ${esc(bandLabelFor(g.band))} · as ${esc(g.colour)}${g.from ? ' · from a set-up position' : ''}</span>
+      row.innerHTML = `<span class="record-band">${esc(when)} · ${esc(opponentWords(g))} · as ${esc(g.colour)}${g.from ? ' · from a set-up position' : ''}</span>
         <span class="record-score">${{ w: 'Won', d: 'Drew', l: 'Lost' }[g.result]} · ${Math.ceil(g.plies / 2)} moves</span>`;
       rows.appendChild(row);
     }
@@ -17965,7 +18545,7 @@ function scannableGames() {
     // away without saying so.
     if (!g.pgn || g.plies < 6) continue;
     if (App.puzzles.scanned.includes(puzzleKey('play', g.at))) continue;
-    out.push({ kind: 'play', at: g.at, pgn: g.pgn, side: g.colour, from: g.from ?? null, label: `the ${bandLabelFor(g.band)} opponent`, against: 'app' });
+    out.push({ kind: 'play', at: g.at, pgn: g.pgn, side: g.colour, from: g.from ?? null, label: g.maia ? `the human-like ${g.maia} opponent` : `the ${bandLabelFor(g.band)} opponent`, against: 'app' });
   }
   for (const r of App.reviews.games) {
     if (!r.pgn) continue;
@@ -21358,7 +21938,7 @@ function deviationGames() {
 
   const stored = [
     ...(App.history?.games ?? []).map((g) => ({ at: g.at, side: g.colour, pgn: g.pgn, from: g.from,
-      label: `against level ${bandLabelFor(g.band)}` })),
+      label: `against ${opponentWords(g)}` })),
     ...(App.reviews?.games ?? []).map((g) => ({ at: g.at, side: g.side, pgn: g.pgn, from: null,
       label: `${g.white ?? '?'} vs ${g.black ?? '?'}` })),
   ].sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
@@ -23272,6 +23852,213 @@ function renderRecurring(box, games) {
 }
 
 
+// ── the human-like opponent, on the Play screen ────────────────────────────
+//
+// The ladder's levels are this app's own engine, turned down: it calculates,
+// and now and then it is made to play a random move. That is a way of being
+// weak, and it is not the way people are weak. Nobody rated 1100 plays a
+// random move one time in fourteen; they miss the fork, take the pawn that
+// was bait, and play the natural move in the position where it loses.
+//
+// These levels play like that. Each is a network from the Maia project that
+// was shown the games of players of one rating and learned which move they
+// play (src/maia-net.js runs it, src/maia.js shows it the game and reads its
+// answer, vendor/maia/README.md says whose it is). This file is the Play
+// screen's side: finding out which levels there are, fetching one when it is
+// wanted, and making its move.
+//
+// WHAT THE NUMBER IS, because the ladder's number is a different thing. A
+// ladder level's number is a target this app aimed a setting at. This one is
+// the Lichess rating of the players the network learned from. It is not a
+// rating the network has earned by playing, and a Lichess number is not a
+// Chess.com one. The screen says so where the level is chosen.
+//
+// IT CAN BE MISSING. The networks are files beside the page, and a copy of
+// the page opened from a file has nothing beside it; a build can be made
+// without them. Then there is no such group in the list and nothing else
+// changes.
+
+const Human = {
+  // undefined: not asked yet. null: there are none here. Otherwise what
+  // maia.json says: { levels: [{ level, file, bytes }] }.
+  about: undefined,
+  finding: null,
+  // level -> the promise of its network, read and ready. A level that could
+  // not be had is taken out again, so the next game asks afresh.
+  nets: new Map(),
+  // level -> 'fetching' | 'ready' | 'failed', for the note under the list.
+  state: new Map(),
+};
+
+/** The file beside the page that says which levels there are. build.py always writes it. */
+const HUMAN_ABOUT = 'maia.json';
+
+/** What a human-like level is called, wherever it is named. */
+const humanName = (level) => `Human-like ${level}`;
+
+/** Find out which human-like levels are beside this page, once. Resolves with the list of them, which may be empty. */
+function findHumanLike() {
+  Human.finding ??= (async () => {
+    if (location.protocol === 'file:') { Human.about = null; return []; }
+    let response;
+    try {
+      response = await fetch(new URL(HUMAN_ABOUT, location.href).href);
+    } catch {
+      // No answer at all: asked again the next time, because "no connection
+      // a moment ago" is not "no such levels".
+      Human.about = null; Human.finding = null;
+      return [];
+    }
+    let about = null;
+    if (response.ok) { try { about = await response.json(); } catch { about = null; } }
+    const levels = (Array.isArray(about?.levels) ? about.levels : [])
+      .filter((l) => Number.isInteger(l?.level) && typeof l.file === 'string' && /^[\w.-]+$/.test(l.file))
+      .sort((a, b) => a.level - b.level);
+    if (about?.format !== 1 || !levels.length) { Human.about = null; return []; }
+    Human.about = { levels };
+    return humanLevels();
+  })();
+  return Human.finding;
+}
+
+/** The levels there are networks for, lowest first. */
+function humanLevels() {
+  return (Human.about?.levels ?? []).map((l) => l.level);
+}
+
+/**
+ * The network for a level: fetched once, read once, kept for as long as the
+ * page is open. Rejects, with the reason in words, when it cannot be had —
+ * and forgets that it tried, so that the next game tries again.
+ */
+function humanNet(level) {
+  if (!Human.nets.has(level)) {
+    const entry = Human.about?.levels.find((l) => l.level === level);
+    Human.state.set(level, 'fetching');
+    if (Play.band.maia === level) describeBand();
+    const reading = (async () => {
+      if (!entry) throw new Error('there is no such level in this copy of the app');
+      let response;
+      try {
+        response = await fetch(new URL(entry.file, location.href).href);
+      } catch {
+        throw new Error('its file could not be fetched');
+      }
+      if (!response.ok) throw new Error(`its file could not be fetched (the answer was ${response.status})`);
+      return maiaReadNet(await maiaUnpack(await response.arrayBuffer()));
+    })();
+    Human.nets.set(level, reading);
+    reading.then(
+      () => { Human.state.set(level, 'ready'); },
+      () => { Human.state.set(level, 'failed'); Human.nets.delete(level); },
+    ).then(() => { if (Play.band.maia === level) describeBand(); });
+  }
+  return Human.nets.get(level);
+}
+
+/** What is said under the list when a human-like level is the one chosen. */
+function humanNote(level) {
+  const state = Human.state.get(level);
+  const now = state === 'fetching' ? ' Fetching it…'
+    : (state === 'failed' ? ' It could not be fetched just now; starting a game tries again.' : '');
+  return `Plays the moves that players rated about ${level} on Lichess play — it learned from their games, mistakes included, and does not calculate. `
+    + `The number is theirs, on Lichess's scale, not a strength measured for it.${now}`;
+}
+
+/** Whoever a game is against, as the level list's value: "400", or "human-1500". */
+const opponentValue = (band) => (band.maia ? `human-${band.maia}` : String(band.elo));
+
+/** The opponent a value from the level list stands for, or the ladder's first level when it stands for none. */
+function opponentFor(value) {
+  const human = /^human-(\d+)$/.exec(String(value));
+  if (human && humanLevels().includes(Number(human[1]))) return { maia: Number(human[1]) };
+  return BANDS.find((b) => b.elo === Number(value)) ?? BANDS[0];
+}
+
+/** Whoever a game is against, named: "400–500", or "Human-like 1500". */
+const opponentName = (band) => (band.maia ? humanName(band.maia) : bandLabelFor(band.elo));
+
+/** What a saved game keeps of its opponent: the ladder's level, or the human-like one. */
+const opponentKept = (band) => (band.maia ? { maia: band.maia } : { band: band.elo });
+
+/** Who a saved game was against, in the middle of a sentence: "level 400–500", or "the human-like 1500". */
+const opponentWords = (game) => (game.maia ? `the human-like ${game.maia}` : `level ${bandLabelFor(game.band)}`);
+
+/** The record a game against this opponent is counted in: one table for the ladder, one for the human-like levels. */
+function opponentRecord(band) {
+  const table = band.maia ? (App.history.maia ??= {}) : App.history.bands;
+  const key = band.maia ?? band.elo;
+  return (table[key] ??= { w: 0, d: 0, l: 0 });
+}
+
+/**
+ * Every position of the game being played, oldest first, as the network is
+ * to be shown them. Replayed from the game's own moves: the board on the
+ * screen knows where it is, and this needs where it has been.
+ */
+function playPositions() {
+  const board = new Board(Play.game.startFen ?? undefined);
+  const fens = [board.fen()];
+  for (const played of Play.moves) {
+    const move = board.legalMoves().find((m) => moveToUci(m) === played.uci);
+    if (!move) break;
+    board.make(move);
+    fens.push(board.fen());
+  }
+  return fens;
+}
+
+/**
+ * The human-like opponent's move, for engineMove(): the network is had, the
+ * game is shown to it, and one of its likely moves is played.
+ *
+ * AFTER THE PLAYER'S PIECE HAS ARRIVED, NOT WHILE IT IS MOVING. The sums are
+ * a few hundredths of a second on a laptop and a few tenths on a phone, on
+ * the page's own thread, and done straight away they would be done in the
+ * middle of the slide and stop it dead. So they wait for the pause every
+ * reply waits for anyway, and are done when nothing is moving.
+ */
+function humanMove(alive, startedAt) {
+  const level = Play.game.band.maia;
+  const fens = playPositions();
+  const stop = () => { clearInterval(Play.ticker); Play.thinking = false; Play.view.locked = false; };
+  const fail = (why) => { if (!alive()) return; stop(); Play.fault = why; renderPlayStatus(); };
+
+  humanNet(level).then((net) => {
+    setTimeout(() => {
+      if (!alive()) return;
+      let chosen;
+      try {
+        chosen = maiaChoose(maiaChances(Play.view.board, maiaForward(net, maiaPlanes(fens))));
+      } catch (e) {
+        fail(e?.message ?? String(e));
+        return;
+      }
+      stop();
+      finishEngineMove({ move: chosen?.move ?? null, human: chosen });
+    }, Math.max(0, MIN_REPLY_MS - (Date.now() - startedAt)));
+  }, (e) => fail(e?.message ?? String(e)));
+}
+
+/**
+ * What the panel beside the board is about. Against the ladder it is the
+ * engine's view of the position. This opponent has no view of the position —
+ * it never weighs one up — so the panel says the one thing there is to say
+ * about its move instead: how many players like it would have made it.
+ */
+function describePlayReadout() {
+  const human = Boolean(Play.game?.band.maia);
+  $('playEvalTitle').textContent = human ? 'Its last move' : 'Evaluation';
+  $('playEvalKey').textContent = human ? 'Players like it who play that move' : 'From your side, in points';
+  $('playEvalNote').textContent = human
+    ? 'This opponent does not weigh the position up, so there is no evaluation. The figure is the share of players of its rating the network expects to make the move it just made.'
+    : 'The engine\'s assessment. Positive means it considers you better.';
+}
+
+/** A share, as the panel prints it: "34%", and never "0%" for a move that was played. */
+const humanShare = (chance) => `${Math.max(1, Math.round(chance * 100))}%`;
+
+
 // ── a backup file ──────────────────────────────────────────────────────────
 //
 // Everything the app keeps, in one file that can be put somewhere else.
@@ -23328,7 +24115,8 @@ const BACKUP_SHAPES = {
   prefs: isPlainObject,
   openings: (v) => isPlainObject(v) && (v.cards === undefined || isPlainObject(v.cards)),
   drills: (v) => isPlainObject(v) && listOrAbsent(v.items),
-  history: (v) => isPlainObject(v) && listOrAbsent(v.games) && (v.bands === undefined || isPlainObject(v.bands)),
+  history: (v) => isPlainObject(v) && listOrAbsent(v.games) && (v.bands === undefined || isPlainObject(v.bands))
+    && (v.maia === undefined || isPlainObject(v.maia)),
   reviews: (v) => isPlainObject(v) && listOrAbsent(v.games),
   puzzles: (v) => isPlainObject(v) && listOrAbsent(v.items) && listOrAbsent(v.scanned),
   teaching: (v) => isPlainObject(v) && listOrAbsent(v.games),
@@ -24055,6 +24843,7 @@ async function loadStored() {
   App.openings.cards ??= {};
   App.drills.items ??= [];
   App.history.bands ??= {};
+  App.history.maia ??= {};
   App.history.games ??= [];
   App.reviews.games ??= [];
   App.puzzles.items ??= [];
@@ -24104,9 +24893,9 @@ async function boot() {
   // a new game, like the time control does, and asks first when there is a
   // game to lose.
   $('bandSelect').addEventListener('change', (e) => {
-    const band = BANDS.find((b) => b.elo === Number(e.target.value)) ?? BANDS[0];
+    const band = opponentFor(e.target.value);
     if (!confirmAbandon('Changing the level')) {
-      e.target.value = String(Play.game.band.elo);
+      e.target.value = opponentValue(Play.game.band);
       return;
     }
     Play.band = band;
@@ -24396,6 +25185,9 @@ async function boot() {
   // Whether there are puzzles beside this page is found out once it is up,
   // and Today is drawn again if the answer adds a row to it.
   findPuzzlePack().then(() => { if (App.section === 'today') renderToday(); });
+  // And whether there are levels that play like a person: the list on the
+  // Play screen gains them when the answer comes, and is the ladder until then.
+  findHumanLike().then((levels) => { if (levels.length) renderBandPicker(); });
 
   // The Android app's reminder goes by the last day a session was finished,
   // which it has to be told: after a restore, or a reinstall, it has forgotten.

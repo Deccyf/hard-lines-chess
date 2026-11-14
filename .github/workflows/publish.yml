@@ -115,6 +115,25 @@ jobs:
             if (missing.length) { console.error("dist/pwa/reckless is missing " + missing.join(", ")); process.exit(1); }
             console.log(`Reckless ok — ${m.pieces.length} pieces`);
           '
+          # The human-like opponent is a network fetched the first time its
+          # level is chosen. The page is told which levels there are by
+          # maia.json, so every file that names has to be on the site, and has
+          # to be the published file: a network that is nearly the right one
+          # still plays, a little wrongly, and nothing on the screen says so.
+          test -s dist/pwa/maia.json || { echo "dist/pwa/maia.json is missing or empty — the page asks for it on every launch"; exit 1; }
+          node -e '
+            const fs = require("fs"), crypto = require("crypto");
+            const listed = JSON.parse(fs.readFileSync("vendor/maia/nets.json", "utf8")).nets;
+            const said = JSON.parse(fs.readFileSync("dist/pwa/maia.json", "utf8")).levels;
+            if (said.length !== listed.length) { console.error(`dist/pwa/maia.json names ${said.length} levels and vendor/maia/nets.json lists ${listed.length}`); process.exit(1); }
+            for (const n of listed) {
+              const entry = said.find((l) => l.level === n.level);
+              const file = entry && "dist/pwa/" + entry.file;
+              const hash = file && fs.existsSync(file) ? crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex") : null;
+              if (hash !== n.sha256) { console.error(`the site would not serve the published maia-${n.level}`); process.exit(1); }
+            }
+            console.log(`human-like opponent ok — ${listed.length} networks`);
+          '
           grep -q 'rel="manifest"' dist/pwa/index.html || { echo 'dist/pwa/index.html does not link the manifest'; exit 1; }
           echo "kit ok — index.html is $(wc -c < dist/pwa/index.html) bytes"
 
@@ -195,6 +214,29 @@ jobs:
             unzip -l "$APK" | grep -q 'assets/puzzle-pack.txt' \
               || { echo "the APK is missing assets/puzzle-pack.txt — the Weak spots screen has nothing to choose from"; exit 1; }
           fi
+
+          # AND THE NETWORKS THAT PLAY LIKE A PERSON, with the list of them.
+          # The app cannot fetch one — it may read a list of games and nothing
+          # else — so a level the list offers and the APK does not hold is a
+          # game that never gets its first reply. THE BYTES ARE CHECKED, not
+          # the names: these files are gzip under another name, and packaging
+          # that decided to be helpful with one would leave a file of the
+          # right name and the wrong contents.
+          unzip -l "$APK" | grep -q 'assets/maia.json' \
+            || { echo "the APK is missing assets/maia.json — the page asks for it on every launch"; exit 1; }
+          node -e '
+            const fs = require("fs");
+            for (const n of JSON.parse(fs.readFileSync("../vendor/maia/nets.json", "utf8")).nets) console.log(`${n.level} ${n.sha256}`);
+          ' > nets.txt
+          test -s nets.txt || { echo "vendor/maia/nets.json lists no networks"; exit 1; }
+          while read -r level want; do
+            # "|| true": with pipefail on, a file that is not in the APK would
+            # stop the script here, before it could say which file it was.
+            got=$(unzip -p "$APK" "assets/maia-$level.bin" 2>/dev/null | sha256sum | cut -d' ' -f1 || true)
+            test "$got" = "$want" \
+              || { echo "assets/maia-$level.bin in the APK is not the published network (or is not there)"; exit 1; }
+          done < nets.txt
+          echo "human-like opponent ok — $(wc -l < nets.txt) networks in the APK, byte for byte"
 
           # And it must be signed, or a phone will not install it at all.
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | tee certs.txt

@@ -117,7 +117,7 @@ function scannableGames() {
     // away without saying so.
     if (!g.pgn || g.plies < 6) continue;
     if (App.puzzles.scanned.includes(puzzleKey('play', g.at))) continue;
-    out.push({ kind: 'play', at: g.at, pgn: g.pgn, side: g.colour, from: g.from ?? null, label: `the ${bandLabelFor(g.band)} opponent`, against: 'app' });
+    out.push({ kind: 'play', at: g.at, pgn: g.pgn, side: g.colour, from: g.from ?? null, label: g.maia ? `the human-like ${g.maia} opponent` : `the ${bandLabelFor(g.band)} opponent`, against: 'app' });
   }
   for (const r of App.reviews.games) {
     if (!r.pgn) continue;

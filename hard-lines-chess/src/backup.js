@@ -54,7 +54,8 @@ const BACKUP_SHAPES = {
   prefs: isPlainObject,
   openings: (v) => isPlainObject(v) && (v.cards === undefined || isPlainObject(v.cards)),
   drills: (v) => isPlainObject(v) && listOrAbsent(v.items),
-  history: (v) => isPlainObject(v) && listOrAbsent(v.games) && (v.bands === undefined || isPlainObject(v.bands)),
+  history: (v) => isPlainObject(v) && listOrAbsent(v.games) && (v.bands === undefined || isPlainObject(v.bands))
+    && (v.maia === undefined || isPlainObject(v.maia)),
   reviews: (v) => isPlainObject(v) && listOrAbsent(v.games),
   puzzles: (v) => isPlainObject(v) && listOrAbsent(v.items) && listOrAbsent(v.scanned),
   teaching: (v) => isPlainObject(v) && listOrAbsent(v.games),

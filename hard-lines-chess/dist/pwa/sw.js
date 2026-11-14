@@ -12,7 +12,7 @@
 // shell only ever changes when the worker does; a network-first one is fresh
 // whenever it can be and offline whenever it must be. The version-keyed cache
 // is still what lets an old shell be thrown away atomically on activate.
-const VERSION = 'hard-lines-787df0decfba';
+const VERSION = 'hard-lines-7c204112fde6';
 // The engine is part of the shell: an installed app that plays Stockfish when
 // it has a connection and cannot when it does not is not offline. So is the
 // small script that fetches and runs Reckless — but not Reckless itself.
@@ -20,8 +20,12 @@ const VERSION = 'hard-lines-787df0decfba';
 // AND SO ARE THE PUZZLES the Weak spots screen chooses from: a description of
 // the pack, and the pack. A build without one has only the description, and
 // the missing file is passed over like any other optional one.
+//
+// AND THE LIST OF THE LEVELS THAT PLAY LIKE A PERSON — the list, not the
+// levels. Each of those is a network of more than a megabyte, there are nine,
+// and most people will play one or two; see NETS below.
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png',
-  './stockfish.js', './stockfish.wasm', './reckless-worker.js', './puzzle-pack.json', './puzzle-pack.txt'];
+  './stockfish.js', './stockfish.wasm', './reckless-worker.js', './puzzle-pack.json', './puzzle-pack.txt', './maia.json'];
 
 // RECKLESS IS NOT THIS WORKER'S TO KEEP. It is 44 MB, downloaded only by the
 // people who ask for it, and kept by its own worker in a cache of its own
@@ -31,8 +35,19 @@ const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png',
 // copies whatever it fetches into the cache it is about to throw away, which
 // would keep the engine twice. So that cache survives activation, and the
 // files under reckless/ go past this worker untouched.
-const KEEP = ['reckless-engine'];
+//
+// THE NETWORKS OF THE HUMAN-LIKE OPPONENT ARE KEPT ACROSS VERSIONS TOO, for
+// the first of those reasons. A network is fetched the first time its level is
+// played and is the same file for ever after — the published networks do not
+// change, and a changed one would be given a new name (vendor/maia/README.md)
+// — so there is nothing a new version of the app could make stale. Unlike
+// Reckless they are this worker's to keep: an ordinary request, answered from
+// the cache when it is there, and put in THIS cache rather than the version's
+// when it is not.
+const NETS = 'human-like-networks';
+const KEEP = ['reckless-engine', NETS];
 const RECKLESS = new URL('reckless/', self.registration.scope).href;
+const isNetwork = (url) => /\/maia-\d+\.bin$/.test(new URL(url).pathname);
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
@@ -98,7 +113,7 @@ self.addEventListener('fetch', (event) => {
     try {
       const response = await fetch(request);
       if (response.ok && new URL(request.url).origin === location.origin) {
-        const cache = await caches.open(VERSION);
+        const cache = await caches.open(isNetwork(request.url) ? NETS : VERSION);
         cache.put(request, response.clone());
       }
       return response;

@@ -41,12 +41,18 @@ def stockfishFiles = ['stockfish.js', 'stockfish.wasm'].collect { rootProject.fi
 // is there when the build was given one.
 def puzzlePackAbout = rootProject.file('../dist/puzzle-pack.json')
 def puzzlePack = rootProject.file('../dist/puzzle-pack.txt')
+// AND THE NETWORKS THAT PLAY LIKE A PERSON, with the list of them. The app has
+// no permission to fetch anything but a list of games, so what the website
+// fetches a level at a time is all here: nine files, about twelve megabytes.
+// The list is always there; a build without networks has an empty one.
+def humanLikeAbout = rootProject.file('../dist/maia.json')
+def humanLikeNets = fileTree(rootProject.file('../dist')) { include 'maia-*.bin' }
 def webAppDir = layout.buildDirectory.dir('generated/webAppAssets')
 
 def syncWebApp = tasks.register('syncWebApp', Copy) {
     description = 'Copies the built single-file app, and the engine it plays with, into the APK assets.'
     doFirst {
-        (stockfishFiles + [webApp, puzzlePackAbout]).each { f ->
+        (stockfishFiles + [webApp, puzzlePackAbout, humanLikeAbout]).each { f ->
             if (!f.exists()) {
                 throw new GradleException(
                     "${f} is missing. Build the app first:\n" +
@@ -60,6 +66,8 @@ def syncWebApp = tasks.register('syncWebApp', Copy) {
     from(stockfishFiles)
     from(puzzlePackAbout)
     from(puzzlePack)
+    from(humanLikeAbout)
+    from(humanLikeNets)
     into(webAppDir)
 }
 

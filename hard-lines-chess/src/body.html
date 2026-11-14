@@ -121,6 +121,13 @@
               that from a coin — so the step between, say, 900 and 1000 is a design choice. If a level feels wrong,
               move up or down until games are close and ignore the number.</p>
             <p class="note" id="levelsMeasured"></p>
+            <p class="note" id="humanAbout" hidden><strong>The levels that play like a person are not this app's engine.</strong>
+              Each is a network from the Maia project (McIlroy-Young, Sen, Kleinberg and Anderson, 2020) that was shown
+              games between Lichess players of one rating and learned which move they play. It does not calculate, and
+              it makes their mistakes. Its number is the Lichess rating of those players — not a strength anyone
+              measured for the network, and not a Chess.com number. Maia's own bots always play the likeliest move;
+              here the move is drawn from the likely ones, in proportion to how likely each is, so the same position
+              does not always get the same reply. The networks are free software (GPL-3.0) and are used unchanged.</p>
           </details>
         </div>
 
@@ -134,11 +141,11 @@
         </div>
 
         <div class="panel">
-          <h2>Evaluation</h2>
+          <h2 id="playEvalTitle">Evaluation</h2>
           <div class="readout">
-            <div><span class="k">From your side, in points</span><span class="v" id="playEval">—</span></div>
+            <div><span class="k" id="playEvalKey">From your side, in points</span><span class="v" id="playEval">—</span></div>
           </div>
-          <p class="note">The engine's assessment. Positive means it considers you better.</p>
+          <p class="note" id="playEvalNote">The engine's assessment. Positive means it considers you better.</p>
         </div>
 
         <div class="panel">

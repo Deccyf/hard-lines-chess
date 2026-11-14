@@ -2530,7 +2530,7 @@ function renderProgress() {
     for (const g of [...App.history.games].reverse().slice(0, 12)) {
       const row = el('div', 'record-row');
       const when = new Date(g.at).toLocaleDateString();
-      row.innerHTML = `<span class="record-band">${esc(when)} · level ${esc(bandLabelFor(g.band))} · as ${esc(g.colour)}${g.from ? ' · from a set-up position' : ''}</span>
+      row.innerHTML = `<span class="record-band">${esc(when)} · ${esc(opponentWords(g))} · as ${esc(g.colour)}${g.from ? ' · from a set-up position' : ''}</span>
         <span class="record-score">${{ w: 'Won', d: 'Drew', l: 'Lost' }[g.result]} · ${Math.ceil(g.plies / 2)} moves</span>`;
       rows.appendChild(row);
     }

@@ -200,6 +200,19 @@ here, and fails with the command above if `dist/` has not been built. The APK
 is named for the version, which comes from `package.json` so that only one file
 in the repo says what version this is.
 
+**What travels with the page.** The app may connect to one place and only to
+read a list of games, so anything the page would fetch from beside itself has
+to be inside the APK, and `syncWebApp` copies each from `dist/`: Stockfish's
+two files, the puzzle pack and its description, and the nine networks the
+human-like levels are (`maia-1100.bin` to `maia-1900.bin`, with `maia.json`
+listing them — 11.6 MB, most of the APK). The website fetches a network when
+its level is first chosen; here there is nowhere to fetch one from. CI checks
+that each of them is in the APK it built, and that the networks are the
+published files byte for byte: they are gzip under another name, and
+packaging that unpacked or renamed one would leave the list offering a level
+that never makes its first move. `tests/android-assets-test.cjs` reads all
+nine and plays a move against one under the rule about connecting.
+
 `ANDROID_VERSION_CODE` is the integer Android compares when deciding whether an
 APK may install over the one already on the phone. It must go UP every time or
 the install is refused as a downgrade, with no useful message.

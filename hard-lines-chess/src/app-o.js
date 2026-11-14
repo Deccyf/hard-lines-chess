@@ -57,7 +57,7 @@ function deviationGames() {
 
   const stored = [
     ...(App.history?.games ?? []).map((g) => ({ at: g.at, side: g.colour, pgn: g.pgn, from: g.from,
-      label: `against level ${bandLabelFor(g.band)}` })),
+      label: `against ${opponentWords(g)}` })),
     ...(App.reviews?.games ?? []).map((g) => ({ at: g.at, side: g.side, pgn: g.pgn, from: null,
       label: `${g.white ?? '?'} vs ${g.black ?? '?'}` })),
   ].sort((a, b) => (b.at ?? 0) - (a.at ?? 0));

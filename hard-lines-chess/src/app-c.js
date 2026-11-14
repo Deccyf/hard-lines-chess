@@ -96,6 +96,7 @@ async function loadStored() {
   App.openings.cards ??= {};
   App.drills.items ??= [];
   App.history.bands ??= {};
+  App.history.maia ??= {};
   App.history.games ??= [];
   App.reviews.games ??= [];
   App.puzzles.items ??= [];
@@ -145,9 +146,9 @@ async function boot() {
   // a new game, like the time control does, and asks first when there is a
   // game to lose.
   $('bandSelect').addEventListener('change', (e) => {
-    const band = BANDS.find((b) => b.elo === Number(e.target.value)) ?? BANDS[0];
+    const band = opponentFor(e.target.value);
     if (!confirmAbandon('Changing the level')) {
-      e.target.value = String(Play.game.band.elo);
+      e.target.value = opponentValue(Play.game.band);
       return;
     }
     Play.band = band;
@@ -437,6 +438,9 @@ async function boot() {
   // Whether there are puzzles beside this page is found out once it is up,
   // and Today is drawn again if the answer adds a row to it.
   findPuzzlePack().then(() => { if (App.section === 'today') renderToday(); });
+  // And whether there are levels that play like a person: the list on the
+  // Play screen gains them when the answer comes, and is the ladder until then.
+  findHumanLike().then((levels) => { if (levels.length) renderBandPicker(); });
 
   // The Android app's reminder goes by the last day a session was finished,
   // which it has to be told: after a restore, or a reinstall, it has forgotten.

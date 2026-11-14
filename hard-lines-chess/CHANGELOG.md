@@ -116,6 +116,27 @@
   analyses. It is written from the measurement now, so it cannot fall behind
   again.
 
+### An opponent that plays like a person
+- **Nine new levels, Human-like 1100 to 1900.** The ladder's levels are this
+  app's engine made to blunder at random, which is not how people are weak.
+  These are the Maia project's networks, each trained on Lichess games between
+  players of one rating to play the moves such players play — the missed fork
+  and the natural move that loses, not a random one. Choose one from the same
+  list as the ladder, under "Plays like a person".
+- **The number is the players' rating, not the opponent's.** It is the Lichess
+  rating of the players a network learned from: not a strength measured for
+  it, and not a Chess.com number. The screen says so.
+- **It does not play the same game twice.** Its move is drawn from the moves
+  at least one such player in twenty would make, in proportion to how many
+  would. Beside the board, where the ladder shows an evaluation, it shows what
+  share of such players make the move it just made.
+- **Its own record.** Games against these levels are counted separately from
+  the ladder on Today and named on Progress, and travel in a backup.
+- **In the Android app they are all inside it** — about twelve megabytes more
+  to download — because the app can fetch nothing. The website fetches a
+  level the first time it is chosen and keeps it, so it works offline after
+  that and is not fetched again when the app updates.
+
 ### Analysis that does not do the work twice
 - **Several engines at once.** A review's searches do not depend on each
   other, so they are shared out among as many engines as the device has cores
