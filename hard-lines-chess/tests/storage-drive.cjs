@@ -344,6 +344,11 @@ const SABOTAGE = () => {
   const original = await areas(f);
   const originalCounts = await f.evaluate(() => JSON.stringify(backupCounts(Store.snapshot())));
   say('F: a real history', originalCounts);
+  // What it holds, as the page words it — drills and puzzles the walk made included.
+  const held = JSON.parse(originalCounts);
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const heldWords = `3 imported or reviewed games (3 analysed), ${plural(held.drills, 'drill', 'drills')}, ${plural(held.puzzles, 'puzzle', 'puzzles')} and 1 game played here.`;
+  check('F: with drills and puzzles in it, from the walk', held.drills > 0 && held.puzzles > 0, true);
   await gotoSection(f, 'today');
   check('F: before any backup, it says none has been saved', await note(f), 'No backup file has been saved from here yet.');
   const [download] = await Promise.all([f.waitForEvent('download'), f.click('#backupSave')]);
@@ -353,7 +358,7 @@ const SABOTAGE = () => {
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
   check('F: it says what it is', `${saved.app} ${saved.kind} ${saved.format} ${saved.from}`, 'hard-lines-chess backup 1 the web version');
   check('F: and holds every area the app keeps', Object.keys(saved.areas).sort().join(' '), 'drills endgames history openings prefs puzzles reviews storm teaching vision');
-  check('F: the page says what was saved', /^Asked your browser to save hard-lines-chess-backup-.*\.json: 3 imported or reviewed games \(3 analysed\), \d+ drills?, 0 puzzles and 1 game played here\./.test(await note(f)), true);
+  check('F: the page says what was saved', /^Asked your browser to save hard-lines-chess-backup-[\d-]+\.json: /.test(await note(f)) && (await note(f)).includes(`.json: ${heldWords}`), true);
   await reload(f);
   await gotoSection(f, 'today');
   check('F: afterwards it says when the last backup was', /^Last backup file saved on \d+ \w+ \d{4}\.$/.test(await note(f)), true);
@@ -396,7 +401,7 @@ const SABOTAGE = () => {
   await g.waitForFunction(() => !document.getElementById('backupConfirm').hidden);
   const question = await g.$eval('#backupConfirmText', (el) => el.textContent);
   say('F: the question', question.slice(0, 200));
-  check('F: it says what the file holds', /It holds 3 imported or reviewed games \(3 analysed\), \d+ drills?, 0 puzzles and 1 game played here\./.test(question), true);
+  check('F: it says what the file holds', question.includes(`It holds ${heldWords}`), true);
   check('F: and what is here now', /This app now holds 0 imported or reviewed games, 1 drill, 0 puzzles and 0 games played here\./.test(question), true);
   check('F: and that it replaces rather than combines, and can be undone', /the two are not combined/.test(question) && /can be undone/.test(question), true);
   await g.click('#backupCancel');
